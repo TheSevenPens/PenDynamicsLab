@@ -1,7 +1,8 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:PenDynamicsLab.Controls"
         x:Class="PenDynamicsLab.MainWindow"
-        Title="PenDynamicsLab" Width="1200" Height="700">
+        Title="PenDynamicsLab" Width="1400" Height="800">
     <DockPanel>
         <!-- Ribbon -->
         <Border DockPanel.Dock="Top" Background="#F5F5F5"
@@ -74,10 +75,111 @@
             </StackPanel>
         </Border>
 
-        <!-- Canvas — Skia bitmap-backed -->
-        <Border x:Name="CanvasArea" Background="#F0F0F0" ClipToBounds="True">
-            <Image x:Name="DrawImage" Stretch="None"
-                   HorizontalAlignment="Left" VerticalAlignment="Top" />
-        </Border>
+        <!-- Body: left = curve chart + controls, right = drawing canvas -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="480" />
+                <ColumnDefinition Width="1" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Left panel: curve chart on top, scrollable controls below -->
+            <DockPanel Grid.Column="0" Background="#FAFAFA">
+                <controls:PressureChartControl x:Name="PressureChart"
+                                               DockPanel.Dock="Top"
+                                               Height="320" Margin="8" />
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="12,4,12,12" Spacing="10">
+                        <!-- Curve type -->
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="CURVE TYPE" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+                            <ComboBox x:Name="CurveTypeCombo" Width="180" />
+                        </StackPanel>
+
+                        <!-- Softness -->
+                        <StackPanel Spacing="2">
+                            <DockPanel>
+                                <TextBlock Text="SOFTNESS" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+                                <TextBlock x:Name="SoftnessLabel" FontSize="11" Foreground="#333333"
+                                           HorizontalAlignment="Right" />
+                            </DockPanel>
+                            <Slider x:Name="SoftnessSlider" Minimum="-0.9" Maximum="0.9"
+                                    Value="0" SmallChange="0.01" />
+                        </StackPanel>
+
+                        <!-- Input range -->
+                        <StackPanel Spacing="2">
+                            <DockPanel>
+                                <TextBlock Text="INPUT MIN" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+                                <TextBlock x:Name="InputMinLabel" FontSize="11" HorizontalAlignment="Right" />
+                            </DockPanel>
+                            <Slider x:Name="InputMinSlider" Minimum="0" Maximum="1" Value="0" />
+                        </StackPanel>
+                        <StackPanel Spacing="2">
+                            <DockPanel>
+                                <TextBlock Text="INPUT MAX" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+                                <TextBlock x:Name="InputMaxLabel" FontSize="11" HorizontalAlignment="Right" />
+                            </DockPanel>
+                            <Slider x:Name="InputMaxSlider" Minimum="0" Maximum="1" Value="1" />
+                        </StackPanel>
+
+                        <!-- Output range -->
+                        <StackPanel Spacing="2">
+                            <DockPanel>
+                                <TextBlock Text="OUTPUT MIN" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+                                <TextBlock x:Name="OutputMinLabel" FontSize="11" HorizontalAlignment="Right" />
+                            </DockPanel>
+                            <Slider x:Name="OutputMinSlider" Minimum="0" Maximum="1" Value="0" />
+                        </StackPanel>
+                        <StackPanel Spacing="2">
+                            <DockPanel>
+                                <TextBlock Text="OUTPUT MAX" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+                                <TextBlock x:Name="OutputMaxLabel" FontSize="11" HorizontalAlignment="Right" />
+                            </DockPanel>
+                            <Slider x:Name="OutputMaxSlider" Minimum="0" Maximum="1" Value="1" />
+                        </StackPanel>
+
+                        <!-- Transition width -->
+                        <StackPanel Spacing="2">
+                            <DockPanel>
+                                <TextBlock Text="TRANSITION WIDTH" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+                                <TextBlock x:Name="TransitionWidthLabel" FontSize="11" HorizontalAlignment="Right" />
+                            </DockPanel>
+                            <Slider x:Name="TransitionWidthSlider" Minimum="0" Maximum="0.5" Value="0" />
+                        </StackPanel>
+
+                        <!-- Min approach -->
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="MIN APPROACH" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <RadioButton x:Name="MinApproachClampRadio" GroupName="MinApproach"
+                                             Content="Clamp" IsChecked="True" />
+                                <RadioButton x:Name="MinApproachCutRadio" GroupName="MinApproach"
+                                             Content="Cut" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- Flat level -->
+                        <StackPanel Spacing="2">
+                            <DockPanel>
+                                <TextBlock Text="FLAT LEVEL" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+                                <TextBlock x:Name="FlatLevelLabel" FontSize="11" HorizontalAlignment="Right" />
+                            </DockPanel>
+                            <Slider x:Name="FlatLevelSlider" Minimum="0" Maximum="1" Value="0.5" />
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </DockPanel>
+
+            <!-- Splitter -->
+            <Rectangle Grid.Column="1" Fill="#CCCCCC" />
+
+            <!-- Right panel: drawing canvas (Skia bitmap-backed) -->
+            <Border Grid.Column="2" x:Name="CanvasArea" Background="#F0F0F0" ClipToBounds="True">
+                <Image x:Name="DrawImage" Stretch="None"
+                       HorizontalAlignment="Left" VerticalAlignment="Top" />
+            </Border>
+        </Grid>
     </DockPanel>
 </Window>

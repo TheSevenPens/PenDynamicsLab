@@ -3,11 +3,11 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
-using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using System.Linq;
 using PenSession;
 using PenSession.Avalonia;
+using PenDynamicsLab.Curves;
 using SkiaSharp;
 
 namespace PenDynamicsLab;
@@ -29,6 +29,10 @@ public partial class MainWindow : Window
     private int _bitmapWidth;
     private int _bitmapHeight;
 
+    // Pressure curve state.
+    private PressureCurveParams _curveParams = PressureCurveParams.Default;
+    private bool _suppressCurveControlEvents;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -49,6 +53,8 @@ public partial class MainWindow : Window
             if (e.Property.Name is "Bounds")
                 EnsureBitmap();
         };
+
+        InitializeCurveControls();
 
         Opened += (_, _) =>
         {
@@ -86,6 +92,89 @@ public partial class MainWindow : Window
         };
     }
 
+    // ── Pressure curve controls ──────────────────────────────────
+
+    private void InitializeCurveControls()
+    {
+        foreach (var ct in Enum.GetValues<CurveType>())
+            CurveTypeCombo.Items.Add(ct.ToString());
+
+        _suppressCurveControlEvents = true;
+        CurveTypeCombo.SelectedIndex = (int)_curveParams.CurveType;
+        SoftnessSlider.Value = _curveParams.Softness;
+        InputMinSlider.Value = _curveParams.InputMinimum;
+        InputMaxSlider.Value = _curveParams.InputMaximum;
+        OutputMinSlider.Value = _curveParams.Minimum;
+        OutputMaxSlider.Value = _curveParams.Maximum;
+        TransitionWidthSlider.Value = _curveParams.TransitionWidth;
+        FlatLevelSlider.Value = _curveParams.FlatLevel;
+        MinApproachClampRadio.IsChecked = _curveParams.MinApproach == MinApproach.Clamp;
+        MinApproachCutRadio.IsChecked = _curveParams.MinApproach == MinApproach.Cut;
+        _suppressCurveControlEvents = false;
+
+        CurveTypeCombo.SelectionChanged += (_, _) =>
+        {
+            if (_suppressCurveControlEvents) return;
+            if (CurveTypeCombo.SelectedIndex >= 0)
+                UpdateParams(p => p with { CurveType = (CurveType)CurveTypeCombo.SelectedIndex });
+        };
+
+        WireSlider(SoftnessSlider, SoftnessLabel, v => p => p with { Softness = v });
+        WireSlider(InputMinSlider, InputMinLabel, v => p => p with { InputMinimum = v });
+        WireSlider(InputMaxSlider, InputMaxLabel, v => p => p with { InputMaximum = v });
+        WireSlider(OutputMinSlider, OutputMinLabel, v => p => p with { Minimum = v });
+        WireSlider(OutputMaxSlider, OutputMaxLabel, v => p => p with { Maximum = v });
+        WireSlider(TransitionWidthSlider, TransitionWidthLabel, v => p => p with { TransitionWidth = v });
+        WireSlider(FlatLevelSlider, FlatLevelLabel, v => p => p with { FlatLevel = v });
+
+        MinApproachClampRadio.IsCheckedChanged += (_, _) =>
+        {
+            if (_suppressCurveControlEvents) return;
+            if (MinApproachClampRadio.IsChecked == true)
+                UpdateParams(p => p with { MinApproach = MinApproach.Clamp });
+        };
+        MinApproachCutRadio.IsCheckedChanged += (_, _) =>
+        {
+            if (_suppressCurveControlEvents) return;
+            if (MinApproachCutRadio.IsChecked == true)
+                UpdateParams(p => p with { MinApproach = MinApproach.Cut });
+        };
+
+        // Initial label sync + chart push
+        UpdateAllSliderLabels();
+        PressureChart.Params = _curveParams;
+    }
+
+    private void WireSlider(Slider slider, TextBlock label, Func<double, Func<PressureCurveParams, PressureCurveParams>> patch)
+    {
+        slider.PropertyChanged += (_, e) =>
+        {
+            if (_suppressCurveControlEvents || e.Property.Name != "Value") return;
+            UpdateParams(patch(slider.Value));
+            label.Text = FormatSliderValue(slider.Value);
+        };
+    }
+
+    private void UpdateParams(Func<PressureCurveParams, PressureCurveParams> patch)
+    {
+        _curveParams = patch(_curveParams);
+        PressureChart.Params = _curveParams;
+    }
+
+    private void UpdateAllSliderLabels()
+    {
+        SoftnessLabel.Text = FormatSliderValue(SoftnessSlider.Value);
+        InputMinLabel.Text = FormatSliderValue(InputMinSlider.Value);
+        InputMaxLabel.Text = FormatSliderValue(InputMaxSlider.Value);
+        OutputMinLabel.Text = FormatSliderValue(OutputMinSlider.Value);
+        OutputMaxLabel.Text = FormatSliderValue(OutputMaxSlider.Value);
+        TransitionWidthLabel.Text = FormatSliderValue(TransitionWidthSlider.Value);
+        FlatLevelLabel.Text = FormatSliderValue(FlatLevelSlider.Value);
+    }
+
+    private static string FormatSliderValue(double v)
+        => v.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+
     // ── Skia bitmap management ───────────────────────────────────
 
     private void EnsureBitmap()
@@ -103,10 +192,8 @@ public partial class MainWindow : Window
         _bitmapWidth = w;
         _bitmapHeight = h;
 
-        // Clear to background color.
         _skCanvas.Clear(new SKColor(0xF0, 0xF0, 0xF0));
 
-        // Copy old content if resizing.
         if (oldBitmap != null)
         {
             _skCanvas.DrawBitmap(oldBitmap, 0, 0);
@@ -114,7 +201,6 @@ public partial class MainWindow : Window
             oldBitmap.Dispose();
         }
 
-        // Create Avalonia bitmap for display.
         _avBitmap = new WriteableBitmap(
             new PixelSize(w, h),
             new Vector(96, 96),
@@ -163,7 +249,6 @@ public partial class MainWindow : Window
 
         EnsureBitmap();
 
-        // Get the window handle for Wintab/WM_POINTER sessions.
         IntPtr hwnd = IntPtr.Zero;
         if (TryGetPlatformHandle() is { } handle)
             hwnd = handle.Handle;
@@ -203,8 +288,6 @@ public partial class MainWindow : Window
 
         foreach (var pt in points)
         {
-            // Convert desktop pixels to canvas-local coords.
-            // Avalonia's PointToClient on the TopLevel, then adjust for canvas position.
             Point canvasPt;
             try
             {
@@ -273,7 +356,6 @@ public partial class MainWindow : Window
         RawPosLabel.Text = $"Raw: {last.RawX},{last.RawY}";
         ScreenPosLabel.Text = $"Screen: {last.DesktopX:F0},{last.DesktopY:F0}";
 
-        // App = position relative to the window client area
         try
         {
             var topLevel = TopLevel.GetTopLevel(this);
