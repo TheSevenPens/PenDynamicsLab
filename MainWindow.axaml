@@ -83,8 +83,8 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!-- Left panel: chart + controls -->
-            <DockPanel Grid.Column="0" Background="#FAFAFA">
+            <!-- LeftPanel: chart + controls -->
+            <DockPanel x:Name="LeftPanel" Grid.Column="0" Background="#FAFAFA">
                 <DockPanel DockPanel.Dock="Top">
                     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" HorizontalAlignment="Right"
                                 Margin="0,4,8,0" Spacing="6">
