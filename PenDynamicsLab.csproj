@@ -10,7 +10,13 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RootNamespace>PenDynamicsLab</RootNamespace>
     <AssemblyName>PenDynamicsLab</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="**\*.cs" Exclude="bin\**;obj\**;PenDynamicsLab.Tests\**" />
+    <EmbeddedResource Include="Persistence\SampleResponses\*.json" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.2.7" />

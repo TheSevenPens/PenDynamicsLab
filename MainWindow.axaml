@@ -1,9 +1,26 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:PenDynamicsLab.Controls"
         x:Class="PenDynamicsLab.MainWindow"
-        Title="PenDynamicsLab" Width="1200" Height="700">
+        Title="PenDynamicsLab" Width="1500" Height="900">
     <DockPanel>
-        <!-- Ribbon -->
+        <!-- Driver warning banner (dismissible) -->
+        <Border DockPanel.Dock="Top" x:Name="DriverWarningBanner"
+                Background="#FFF8E1" BorderBrush="#E0C77A" BorderThickness="0,0,0,1"
+                Padding="10,6">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="✕" Width="24" Padding="0"
+                        Background="Transparent" BorderThickness="0"
+                        Click="DismissDriverWarning_Click" />
+                <TextBlock VerticalAlignment="Center" FontSize="12" Foreground="#704C00"
+                           TextWrapping="Wrap">
+                    Tip: set your tablet driver's pressure curve to default (linear) so this app
+                    sees raw pen input — otherwise you're tuning a curve on top of a curve.
+                </TextBlock>
+            </DockPanel>
+        </Border>
+
+        <!-- Top ribbon: pen telemetry + API selector -->
         <Border DockPanel.Dock="Top" Background="#F5F5F5"
                 BorderBrush="#CCCCCC" BorderThickness="0,0,0,1" Padding="8,6">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="16">
@@ -12,22 +29,6 @@
                     <TextBlock Text="APP" FontWeight="Bold" FontSize="10"
                                Foreground="#555555" Margin="0,0,0,4" />
                     <ComboBox x:Name="ApiCombo" Width="120" Height="28" />
-                    <Button Content="Clear" Height="28" Width="60" Margin="0,4,0,0"
-                            Click="Clear_Click" />
-                </StackPanel>
-                <Rectangle Width="1" Fill="#DDDDDD" />
-
-                <!-- BRUSH -->
-                <StackPanel>
-                    <TextBlock Text="BRUSH" FontWeight="Bold" FontSize="10"
-                               Foreground="#555555" Margin="0,0,0,4" />
-                    <StackPanel Orientation="Horizontal" Spacing="4">
-                        <TextBlock Text="Size" VerticalAlignment="Center" />
-                        <TextBlock x:Name="BrushSizeLabel" Text="6 px"
-                                   VerticalAlignment="Center" Width="35" />
-                    </StackPanel>
-                    <Slider x:Name="BrushSizeSlider" Width="100" Minimum="1" Maximum="50"
-                            Value="6" IsSnapToTickEnabled="True" TickFrequency="1" />
                 </StackPanel>
                 <Rectangle Width="1" Fill="#DDDDDD" />
 
@@ -74,10 +75,204 @@
             </StackPanel>
         </Border>
 
-        <!-- Canvas — Skia bitmap-backed -->
-        <Border x:Name="CanvasArea" Background="#F0F0F0" ClipToBounds="True">
-            <Image x:Name="DrawImage" Stretch="None"
-                   HorizontalAlignment="Left" VerticalAlignment="Top" />
-        </Border>
+        <!-- Body: left = curve chart + controls, right = drawing canvases -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="480" />
+                <ColumnDefinition Width="1" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Left panel: chart + controls -->
+            <DockPanel Grid.Column="0" Background="#FAFAFA">
+                <DockPanel DockPanel.Dock="Top">
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" HorizontalAlignment="Right"
+                                Margin="0,4,8,0" Spacing="6">
+                        <Button Content="Save chart..." FontSize="11" Padding="6,2"
+                                Click="SaveCurveChart_Click" />
+                    </StackPanel>
+                    <controls:PressureChartControl x:Name="PressureChart" Height="320" Margin="8,0,8,0" />
+                </DockPanel>
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="12,4,12,12" Spacing="10">
+                        <!-- Curve type -->
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="CURVE TYPE" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+                            <ComboBox x:Name="CurveTypeCombo" Width="180" />
+                        </StackPanel>
+
+                        <!-- Bezier toolbar (visible only for Bezier curve type) -->
+                        <StackPanel x:Name="BezierToolbar" Spacing="4" IsVisible="False">
+                            <TextBlock Text="BEZIER POINTS" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Button x:Name="BezierAddButton" Content="Add point" Click="BezierAdd_Click" />
+                                <Button x:Name="BezierRemoveButton" Content="Remove point" Click="BezierRemove_Click" />
+                                <TextBlock x:Name="BezierCountLabel" VerticalAlignment="Center"
+                                           Foreground="#666666" FontSize="11" />
+                            </StackPanel>
+                            <TextBlock Text="Right-click in plot to add or remove."
+                                       FontSize="10" Foreground="#888888" />
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="Preset:" VerticalAlignment="Center" FontSize="11" />
+                                <ComboBox x:Name="BezierPresetCombo" Width="140"
+                                          PlaceholderText="Choose preset..." />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <controls:LabeledSlider x:Name="SoftnessSlider" Label="SOFTNESS"
+                                                Minimum="-0.9" Maximum="0.9" Value="0" DefaultValue="0" />
+
+                        <controls:LabeledSlider x:Name="InputMinSlider" Label="INPUT MIN"
+                                                Minimum="0" Maximum="1" Value="0" DefaultValue="0" />
+                        <controls:LabeledSlider x:Name="InputMaxSlider" Label="INPUT MAX"
+                                                Minimum="0" Maximum="1" Value="1" DefaultValue="1" />
+                        <controls:LabeledSlider x:Name="OutputMinSlider" Label="OUTPUT MIN"
+                                                Minimum="0" Maximum="1" Value="0" DefaultValue="0" />
+                        <controls:LabeledSlider x:Name="OutputMaxSlider" Label="OUTPUT MAX"
+                                                Minimum="0" Maximum="1" Value="1" DefaultValue="1" />
+                        <controls:LabeledSlider x:Name="TransitionWidthSlider" Label="TRANSITION WIDTH"
+                                                Minimum="0" Maximum="0.5" Value="0" DefaultValue="0" />
+
+                        <!-- Min approach -->
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="MIN APPROACH" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <RadioButton x:Name="MinApproachClampRadio" GroupName="MinApproach"
+                                             Content="Clamp" IsChecked="True" />
+                                <RadioButton x:Name="MinApproachCutRadio" GroupName="MinApproach"
+                                             Content="Cut" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <controls:LabeledSlider x:Name="FlatLevelSlider" Label="FLAT LEVEL"
+                                                Minimum="0" Maximum="1" Value="0.5" DefaultValue="0.5" />
+
+                        <!-- Smoothing section -->
+                        <Rectangle Height="1" Fill="#DDDDDD" Margin="0,6,0,0" />
+                        <TextBlock Text="SMOOTHING" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+
+                        <controls:LabeledSlider x:Name="PressureEmaSlider" Label="PRESSURE EMA"
+                                                Minimum="0" Maximum="0.99" Value="0" DefaultValue="0" />
+                        <controls:LabeledSlider x:Name="PositionEmaSlider" Label="POSITION EMA"
+                                                Minimum="0" Maximum="0.99" Value="0" DefaultValue="0" />
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="SMOOTHING ORDER" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+                            <ComboBox x:Name="SmoothingOrderCombo" Width="180" />
+                        </StackPanel>
+
+                        <!-- Pressure response section -->
+                        <Rectangle Height="1" Fill="#DDDDDD" Margin="0,6,0,0" />
+                        <TextBlock Text="PRESSURE RESPONSE" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <ComboBox x:Name="ResponseDataCombo" Width="240"
+                                      PlaceholderText="Select data..." />
+                            <Button x:Name="ResponseClearButton" Content="Clear"
+                                    IsEnabled="False" Click="ResponseClear_Click" />
+                        </StackPanel>
+                        <CheckBox x:Name="ResponseShowCurveEffectCheck" Content="Show effect of curve"
+                                  IsChecked="True" />
+                        <TextBlock x:Name="ResponseInfoLabel" FontSize="11" Foreground="#888888" />
+                        <controls:PressureResponseChartControl x:Name="ResponseChart" Height="240" />
+
+                        <!-- Presets section -->
+                        <Rectangle Height="1" Fill="#DDDDDD" Margin="0,6,0,0" />
+                        <TextBlock Text="USER PRESETS" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBox x:Name="PresetNameInput" Width="180" Watermark="Preset name..." />
+                            <Button x:Name="PresetSaveButton" Content="Save" Click="PresetSave_Click" />
+                        </StackPanel>
+                        <StackPanel x:Name="PresetList" Spacing="2" />
+                    </StackPanel>
+                </ScrollViewer>
+            </DockPanel>
+
+            <!-- Splitter -->
+            <Rectangle Grid.Column="1" Fill="#CCCCCC" />
+
+            <!-- Right panel: brush ribbon + split drawing canvases -->
+            <DockPanel Grid.Column="2" Background="#F5F5F0">
+                <!-- Brush ribbon -->
+                <Border DockPanel.Dock="Top" Background="#F5F5F5"
+                        BorderBrush="#CCCCCC" BorderThickness="0,0,0,1" Padding="8,6">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="16">
+                        <StackPanel>
+                            <DockPanel>
+                                <TextBlock Text="BRUSH SIZE" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+                                <TextBlock x:Name="BrushSizeLabel" Text="40 px" FontSize="11"
+                                           HorizontalAlignment="Right" Margin="8,0,0,0" />
+                            </DockPanel>
+                            <Slider x:Name="BrushSizeSlider" Width="140" Minimum="1" Maximum="200"
+                                    Value="40" IsSnapToTickEnabled="True" TickFrequency="1" />
+                        </StackPanel>
+                        <Rectangle Width="1" Fill="#DDDDDD" />
+
+                        <StackPanel>
+                            <TextBlock Text="COLOR" FontWeight="Bold" FontSize="10" Foreground="#555555" Margin="0,0,0,4" />
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <RadioButton x:Name="ColorBlackRadio" GroupName="ColorMode" Content="Black" IsChecked="True" />
+                                <RadioButton x:Name="ColorRandomRadio" GroupName="ColorMode" Content="Random" />
+                            </StackPanel>
+                        </StackPanel>
+                        <Rectangle Width="1" Fill="#DDDDDD" />
+
+                        <StackPanel>
+                            <TextBlock Text="PRESSURE → " FontWeight="Bold" FontSize="10" Foreground="#555555" Margin="0,0,0,4" />
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <RadioButton x:Name="PressureSizeRadio" GroupName="PressureControl" Content="Size" IsChecked="True" />
+                                <RadioButton x:Name="PressureOpacityRadio" GroupName="PressureControl" Content="Opacity" />
+                            </StackPanel>
+                        </StackPanel>
+                        <Rectangle Width="1" Fill="#DDDDDD" />
+
+                        <CheckBox x:Name="DrawZeroPressureCheck" Content="Draw at 0 effective pressure"
+                                  VerticalAlignment="Center" />
+                        <Rectangle Width="1" Fill="#DDDDDD" />
+
+                        <Button Content="Clear" Width="60" Height="28" Click="Clear_Click" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Split canvas area -->
+                <Grid x:Name="CanvasArea" ClipToBounds="True">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="1" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Background="#E8E8E2" BorderBrush="#D0D0C8" BorderThickness="0,0,0,1" Padding="8,4">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="Save..." FontSize="11" Padding="6,1"
+                                    Click="SaveProcessedCanvas_Click" />
+                            <TextBlock Text="Pressure processing: ON" FontWeight="SemiBold" FontSize="12" Foreground="#333333"
+                                       VerticalAlignment="Center" />
+                        </DockPanel>
+                    </Border>
+                    <Border Grid.Row="1" x:Name="ProcessedCanvasHost" Background="#F5F5F0" ClipToBounds="True">
+                        <Image x:Name="ProcessedImage" Stretch="None"
+                               HorizontalAlignment="Left" VerticalAlignment="Top" />
+                    </Border>
+
+                    <Rectangle Grid.Row="2" Fill="#CCCCCC" />
+
+                    <Border Grid.Row="3" Background="#E8E8E2" BorderBrush="#D0D0C8" BorderThickness="0,0,0,1" Padding="8,4">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="Save..." FontSize="11" Padding="6,1"
+                                    Click="SaveRawCanvas_Click" />
+                            <TextBlock Text="Pressure processing: OFF" FontWeight="SemiBold" FontSize="12" Foreground="#333333"
+                                       VerticalAlignment="Center" />
+                        </DockPanel>
+                    </Border>
+                    <Border Grid.Row="4" x:Name="RawCanvasHost" Background="#F5F5F0" ClipToBounds="True">
+                        <Image x:Name="RawImage" Stretch="None"
+                               HorizontalAlignment="Left" VerticalAlignment="Top" />
+                    </Border>
+                </Grid>
+            </DockPanel>
+        </Grid>
     </DockPanel>
 </Window>

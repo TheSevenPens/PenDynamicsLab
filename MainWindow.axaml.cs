@@ -2,32 +2,60 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
-using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using System.Linq;
 using PenSession;
 using PenSession.Avalonia;
+using PenDynamicsLab.Controls;
+using PenDynamicsLab.Curves;
+using PenDynamicsLab.Drawing;
+using PenDynamicsLab.Persistence;
 using SkiaSharp;
 
 namespace PenDynamicsLab;
 
 public partial class MainWindow : Window
 {
+    private static readonly SKColor[] StrokePalette =
+    [
+        new(0xE6, 0x19, 0x4B), new(0x3C, 0xB4, 0x4B), new(0x43, 0x63, 0xD8), new(0xF5, 0x82, 0x31),
+        new(0x91, 0x1E, 0xB4), new(0x42, 0xD4, 0xF4), new(0xF0, 0x32, 0xE6), new(0xBF, 0xEF, 0x45),
+        new(0xFA, 0xBE, 0xD4), new(0x46, 0x99, 0x90), new(0xDC, 0xBE, 0xFF), new(0x9A, 0x63, 0x24),
+        new(0x80, 0x00, 0x00), new(0xAA, 0xFF, 0xC3), new(0x80, 0x80, 0x00), new(0x00, 0x00, 0x75),
+    ];
+    private static readonly SKColor BlackStrokeColor = new(0x1A, 0x1A, 0x2E);
+
     private IPenSession? _session;
     private readonly DispatcherTimer _renderTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
 
-    private Point? _lastCanvasPoint;
-    private double _brushSize = 6;
+    private DrawSurface? _processed;
+    private DrawSurface? _raw;
+
     private IReadOnlyList<InputApi> _apis = [];
     private DateTime _lastPointTime;
 
-    // Skia bitmap-backed canvas.
-    private SKBitmap? _skBitmap;
-    private SKCanvas? _skCanvas;
-    private WriteableBitmap? _avBitmap;
-    private int _bitmapWidth;
-    private int _bitmapHeight;
+    // Pressure curve state.
+    private PressureCurveParams _curveParams = PressureCurveParams.Default;
+    private bool _suppressCurveControlEvents;
+
+    // Brush / drawing state.
+    private double _brushSize = 40;
+    private ColorMode _colorMode = ColorMode.Black;
+    private PressureControl _pressureControl = PressureControl.Size;
+    private bool _drawZeroPressure;
+    private SKColor _strokeColor = BlackStrokeColor;
+    private int _lastColorIndex = -1;
+
+    // Stroke-local smoothing state. Reset whenever the pen lifts or the active canvas changes.
+    private enum ActiveCanvas { None, Processed, Raw }
+    private ActiveCanvas _activeCanvas = ActiveCanvas.None;
+    private Point? _lastDrawPos;
+    private Point? _smoothedPos;
+    private double? _smoothedPressure;
+    private readonly Random _rng = new();
+
+    private readonly PresetStore _presetStore = new();
 
     public MainWindow()
     {
@@ -35,20 +63,21 @@ public partial class MainWindow : Window
 
         _renderTimer.Tick += RenderTimer_Tick;
 
-        BrushSizeSlider.PropertyChanged += (_, e) =>
+        // Resize bitmaps to follow each canvas host's bounds.
+        ProcessedCanvasHost.PropertyChanged += (_, e) =>
         {
-            if (e.Property.Name == "Value")
-            {
-                _brushSize = BrushSizeSlider.Value;
-                BrushSizeLabel.Text = $"{(int)_brushSize} px";
-            }
+            if (e.Property.Name == "Bounds") EnsureSurfaces();
+        };
+        RawCanvasHost.PropertyChanged += (_, e) =>
+        {
+            if (e.Property.Name == "Bounds") EnsureSurfaces();
         };
 
-        CanvasArea.PropertyChanged += (_, e) =>
-        {
-            if (e.Property.Name is "Bounds")
-                EnsureBitmap();
-        };
+        InitializeBrushControls();
+        InitializeCurveControls();
+        InitializeBezierPresets();
+        InitializeResponseSection();
+        RebuildUserPresetList();
 
         Opened += (_, _) =>
         {
@@ -69,11 +98,8 @@ public partial class MainWindow : Window
                 };
                 ApiCombo.Items.Add(name);
             }
-
             ApiCombo.SelectionChanged += ApiCombo_SelectionChanged;
-
-            if (ApiCombo.Items.Count > 0)
-                ApiCombo.SelectedIndex = 0;
+            if (ApiCombo.Items.Count > 0) ApiCombo.SelectedIndex = 0;
         };
 
         Closing += (_, _) =>
@@ -81,70 +107,420 @@ public partial class MainWindow : Window
             _renderTimer.Stop();
             _session?.Stop();
             _session?.Dispose();
-            _skCanvas?.Dispose();
-            _skBitmap?.Dispose();
+            _processed?.Dispose();
+            _raw?.Dispose();
         };
     }
 
-    // ── Skia bitmap management ───────────────────────────────────
+    // ── Surface management ──────────────────────────────────────
 
-    private void EnsureBitmap()
+    private void EnsureSurfaces()
     {
-        int w = (int)CanvasArea.Bounds.Width;
-        int h = (int)CanvasArea.Bounds.Height;
-        if (w <= 0 || h <= 0) return;
-        if (_skBitmap != null && _bitmapWidth == w && _bitmapHeight == h) return;
+        _processed ??= new DrawSurface(ProcessedImage);
+        _raw ??= new DrawSurface(RawImage);
+        _processed.EnsureSize((int)ProcessedCanvasHost.Bounds.Width, (int)ProcessedCanvasHost.Bounds.Height);
+        _raw.EnsureSize((int)RawCanvasHost.Bounds.Width, (int)RawCanvasHost.Bounds.Height);
+    }
 
-        var oldBitmap = _skBitmap;
-        var oldCanvas = _skCanvas;
+    // ── Brush controls ──────────────────────────────────────────
 
-        _skBitmap = new SKBitmap(w, h, SKColorType.Bgra8888, SKAlphaType.Premul);
-        _skCanvas = new SKCanvas(_skBitmap);
-        _bitmapWidth = w;
-        _bitmapHeight = h;
-
-        // Clear to background color.
-        _skCanvas.Clear(new SKColor(0xF0, 0xF0, 0xF0));
-
-        // Copy old content if resizing.
-        if (oldBitmap != null)
+    private void InitializeBrushControls()
+    {
+        BrushSizeSlider.PropertyChanged += (_, e) =>
         {
-            _skCanvas.DrawBitmap(oldBitmap, 0, 0);
-            oldCanvas?.Dispose();
-            oldBitmap.Dispose();
-        }
+            if (e.Property.Name != "Value") return;
+            _brushSize = BrushSizeSlider.Value;
+            BrushSizeLabel.Text = $"{(int)_brushSize} px";
+        };
 
-        // Create Avalonia bitmap for display.
-        _avBitmap = new WriteableBitmap(
-            new PixelSize(w, h),
-            new Vector(96, 96),
-            global::Avalonia.Platform.PixelFormat.Bgra8888,
-            global::Avalonia.Platform.AlphaFormat.Premul);
-
-        CopyToAvBitmap();
-        DrawImage.Source = _avBitmap;
-    }
-
-    private void CopyToAvBitmap()
-    {
-        if (_skBitmap == null || _avBitmap == null) return;
-
-        using var fb = _avBitmap.Lock();
-        unsafe
+        ColorBlackRadio.IsCheckedChanged += (_, _) =>
         {
-            var src = _skBitmap.GetPixels();
-            var dst = fb.Address;
-            int bytes = _bitmapWidth * _bitmapHeight * 4;
-            Buffer.MemoryCopy((void*)src, (void*)dst, bytes, bytes);
+            if (ColorBlackRadio.IsChecked == true) _colorMode = ColorMode.Black;
+        };
+        ColorRandomRadio.IsCheckedChanged += (_, _) =>
+        {
+            if (ColorRandomRadio.IsChecked == true) _colorMode = ColorMode.Random;
+        };
+
+        PressureSizeRadio.IsCheckedChanged += (_, _) =>
+        {
+            if (PressureSizeRadio.IsChecked == true) _pressureControl = PressureControl.Size;
+        };
+        PressureOpacityRadio.IsCheckedChanged += (_, _) =>
+        {
+            if (PressureOpacityRadio.IsChecked == true) _pressureControl = PressureControl.Opacity;
+        };
+
+        DrawZeroPressureCheck.IsCheckedChanged += (_, _) =>
+        {
+            _drawZeroPressure = DrawZeroPressureCheck.IsChecked == true;
+        };
+
+        BrushSizeLabel.Text = $"{(int)_brushSize} px";
+    }
+
+    private void PickStrokeColor()
+    {
+        if (_colorMode == ColorMode.Black)
+        {
+            _strokeColor = BlackStrokeColor;
+            return;
+        }
+        int idx;
+        do { idx = _rng.Next(StrokePalette.Length); } while (idx == _lastColorIndex && StrokePalette.Length > 1);
+        _lastColorIndex = idx;
+        _strokeColor = StrokePalette[idx];
+    }
+
+    // ── Curve controls ──────────────────────────────────────────
+
+    private void InitializeCurveControls()
+    {
+        foreach (var ct in Enum.GetValues<CurveType>())
+            CurveTypeCombo.Items.Add(ct.ToString());
+        foreach (var so in Enum.GetValues<SmoothingOrder>())
+            SmoothingOrderCombo.Items.Add(FormatSmoothingOrder(so));
+
+        _suppressCurveControlEvents = true;
+        CurveTypeCombo.SelectedIndex = (int)_curveParams.CurveType;
+        SmoothingOrderCombo.SelectedIndex = (int)_curveParams.SmoothingOrder;
+        SoftnessSlider.Value = _curveParams.Softness;
+        InputMinSlider.Value = _curveParams.InputMinimum;
+        InputMaxSlider.Value = _curveParams.InputMaximum;
+        OutputMinSlider.Value = _curveParams.Minimum;
+        OutputMaxSlider.Value = _curveParams.Maximum;
+        TransitionWidthSlider.Value = _curveParams.TransitionWidth;
+        FlatLevelSlider.Value = _curveParams.FlatLevel;
+        PressureEmaSlider.Value = _curveParams.EmaSmoothing;
+        PositionEmaSlider.Value = _curveParams.PositionEmaSmoothing;
+        MinApproachClampRadio.IsChecked = _curveParams.MinApproach == MinApproach.Clamp;
+        MinApproachCutRadio.IsChecked = _curveParams.MinApproach == MinApproach.Cut;
+        _suppressCurveControlEvents = false;
+
+        CurveTypeCombo.SelectionChanged += (_, _) =>
+        {
+            if (_suppressCurveControlEvents || CurveTypeCombo.SelectedIndex < 0) return;
+            UpdateParams(p => p with { CurveType = (CurveType)CurveTypeCombo.SelectedIndex });
+        };
+        SmoothingOrderCombo.SelectionChanged += (_, _) =>
+        {
+            if (_suppressCurveControlEvents || SmoothingOrderCombo.SelectedIndex < 0) return;
+            UpdateParams(p => p with { SmoothingOrder = (SmoothingOrder)SmoothingOrderCombo.SelectedIndex });
+        };
+
+        WireSlider(SoftnessSlider, v => p => p with { Softness = v });
+        WireSlider(InputMinSlider, v => p => p with { InputMinimum = v });
+        WireSlider(InputMaxSlider, v => p => p with { InputMaximum = v });
+        WireSlider(OutputMinSlider, v => p => p with { Minimum = v });
+        WireSlider(OutputMaxSlider, v => p => p with { Maximum = v });
+        WireSlider(TransitionWidthSlider, v => p => p with { TransitionWidth = v });
+        WireSlider(FlatLevelSlider, v => p => p with { FlatLevel = v });
+        WireSlider(PressureEmaSlider, v => p => p with { EmaSmoothing = v });
+        WireSlider(PositionEmaSlider, v => p => p with { PositionEmaSmoothing = v });
+
+        MinApproachClampRadio.IsCheckedChanged += (_, _) =>
+        {
+            if (_suppressCurveControlEvents) return;
+            if (MinApproachClampRadio.IsChecked == true)
+                UpdateParams(p => p with { MinApproach = MinApproach.Clamp });
+        };
+        MinApproachCutRadio.IsCheckedChanged += (_, _) =>
+        {
+            if (_suppressCurveControlEvents) return;
+            if (MinApproachCutRadio.IsChecked == true)
+                UpdateParams(p => p with { MinApproach = MinApproach.Cut });
+        };
+
+        UpdateBezierToolbar();
+        PressureChart.Params = _curveParams;
+
+        // The chart writes back to Params when the user drags nodes / handles or uses the
+        // right-click context menu. Mirror those changes back into the controls UI.
+        PressureChart.PropertyChanged += (_, e) =>
+        {
+            if (e.Property != PressureChartControl.ParamsProperty) return;
+            if (e.NewValue is not PressureCurveParams newParams) return;
+            if (ReferenceEquals(newParams, _curveParams)) return;
+            _curveParams = newParams;
+            ResponseChart.Params = _curveParams;
+            SyncCurveControlsFromParams();
+        };
+    }
+
+    private void SyncCurveControlsFromParams()
+    {
+        _suppressCurveControlEvents = true;
+        CurveTypeCombo.SelectedIndex = (int)_curveParams.CurveType;
+        SmoothingOrderCombo.SelectedIndex = (int)_curveParams.SmoothingOrder;
+        SoftnessSlider.Value = _curveParams.Softness;
+        InputMinSlider.Value = _curveParams.InputMinimum;
+        InputMaxSlider.Value = _curveParams.InputMaximum;
+        OutputMinSlider.Value = _curveParams.Minimum;
+        OutputMaxSlider.Value = _curveParams.Maximum;
+        TransitionWidthSlider.Value = _curveParams.TransitionWidth;
+        FlatLevelSlider.Value = _curveParams.FlatLevel;
+        PressureEmaSlider.Value = _curveParams.EmaSmoothing;
+        PositionEmaSlider.Value = _curveParams.PositionEmaSmoothing;
+        MinApproachClampRadio.IsChecked = _curveParams.MinApproach == MinApproach.Clamp;
+        MinApproachCutRadio.IsChecked = _curveParams.MinApproach == MinApproach.Cut;
+        _suppressCurveControlEvents = false;
+
+        UpdateBezierToolbar();
+    }
+
+    private void UpdateBezierToolbar()
+    {
+        bool isBezier = _curveParams.CurveType == CurveType.Bezier;
+        BezierToolbar.IsVisible = isBezier;
+        if (isBezier)
+        {
+            int count = CurveMath.NormalizeBezierPoints(_curveParams.BezierPoints).Length;
+            BezierCountLabel.Text = $"{count}/16";
+            BezierAddButton.IsEnabled = count < 16;
+            BezierRemoveButton.IsEnabled = count > 2;
         }
     }
 
-    private void ClearBitmap()
+    private void BezierAdd_Click(object? sender, RoutedEventArgs e) => PressureChart.AddBezierPointAtLargestGap();
+    private void BezierRemove_Click(object? sender, RoutedEventArgs e) => PressureChart.RemoveSelectedBezierPoint();
+
+    // ── Bezier presets ──────────────────────────────────────────
+
+    private void InitializeBezierPresets()
     {
-        _skCanvas?.Clear(new SKColor(0xF0, 0xF0, 0xF0));
-        CopyToAvBitmap();
-        DrawImage.InvalidateVisual();
+        foreach (var preset in BezierPresets.All)
+            BezierPresetCombo.Items.Add(preset.Name);
+
+        BezierPresetCombo.SelectionChanged += (_, _) =>
+        {
+            if (BezierPresetCombo.SelectedIndex < 0) return;
+            var preset = BezierPresets.All[BezierPresetCombo.SelectedIndex];
+            UpdateParams(p => p with { BezierPoints = preset.Points });
+            // Reset selection so the same preset can be re-applied later.
+            BezierPresetCombo.SelectedIndex = -1;
+        };
     }
+
+    // ── User presets ────────────────────────────────────────────
+
+    private void PresetSave_Click(object? sender, RoutedEventArgs e)
+    {
+        var name = PresetNameInput.Text?.Trim() ?? "";
+        if (name.Length == 0) return;
+        _presetStore.Save(name, _curveParams);
+        PresetNameInput.Text = "";
+        RebuildUserPresetList();
+    }
+
+    // ── Pressure response section ───────────────────────────────
+
+    private const string UploadJsonSentinel = "__upload__";
+
+    private void InitializeResponseSection()
+    {
+        ResponseDataCombo.Items.Add("(none)");
+        foreach (var s in PressureResponseLoader.Samples)
+            ResponseDataCombo.Items.Add(s.Label);
+        ResponseDataCombo.Items.Add("Upload JSON...");
+        ResponseDataCombo.SelectedIndex = 0;
+
+        ResponseDataCombo.SelectionChanged += async (_, _) =>
+        {
+            int idx = ResponseDataCombo.SelectedIndex;
+            if (idx <= 0) { SetResponseData(null); return; }
+
+            // Last item is the upload picker.
+            if (idx == ResponseDataCombo.Items.Count - 1)
+            {
+                await PickResponseJsonFileAsync();
+                return;
+            }
+            try
+            {
+                var data = PressureResponseLoader.LoadSample(PressureResponseLoader.Samples[idx - 1].ResourceName);
+                SetResponseData(data);
+            }
+            catch
+            {
+                SetResponseData(null);
+            }
+        };
+
+        ResponseShowCurveEffectCheck.IsCheckedChanged += (_, _) =>
+        {
+            ResponseChart.ShowCurveEffect = ResponseShowCurveEffectCheck.IsChecked == true;
+        };
+        ResponseChart.ShowCurveEffect = true;
+        ResponseChart.Params = _curveParams;
+    }
+
+    private void SetResponseData(PressureResponseData? data)
+    {
+        ResponseChart.Data = data;
+        ResponseClearButton.IsEnabled = data != null;
+        ResponseInfoLabel.Text = data is null
+            ? ""
+            : $"{data.InventoryId} — {data.Brand} {data.Pen} · {data.Tablet} · {data.Date} · {data.Records.Count} pts";
+    }
+
+    private void ResponseClear_Click(object? sender, RoutedEventArgs e)
+    {
+        ResponseDataCombo.SelectedIndex = 0;
+        SetResponseData(null);
+    }
+
+    private async Task PickResponseJsonFileAsync()
+    {
+        var sp = TopLevel.GetTopLevel(this)?.StorageProvider;
+        if (sp is null) return;
+
+        var files = await sp.OpenFilePickerAsync(new global::Avalonia.Platform.Storage.FilePickerOpenOptions
+        {
+            Title = "Select pressure-response JSON",
+            AllowMultiple = false,
+            FileTypeFilter = [new global::Avalonia.Platform.Storage.FilePickerFileType("JSON")
+                { Patterns = new[] { "*.json" } }],
+        });
+        if (files.Count == 0)
+        {
+            ResponseDataCombo.SelectedIndex = 0;
+            SetResponseData(null);
+            return;
+        }
+        try
+        {
+            var local = files[0].TryGetLocalPath();
+            if (local == null) { ResponseDataCombo.SelectedIndex = 0; return; }
+            SetResponseData(PressureResponseLoader.LoadFromFile(local));
+            // Keep the combo on "Upload JSON..." position so user knows we're showing custom data.
+        }
+        catch
+        {
+            SetResponseData(null);
+            ResponseDataCombo.SelectedIndex = 0;
+        }
+    }
+
+    // ── Image export ────────────────────────────────────────────
+
+    private async void SaveCurveChart_Click(object? sender, RoutedEventArgs e)
+        => await SaveControlAsPngAsync(PressureChart, "pressure-curve.png");
+
+    private async void SaveProcessedCanvas_Click(object? sender, RoutedEventArgs e)
+        => await SaveSurfaceAsPngAsync(_processed, "processed.png");
+
+    private async void SaveRawCanvas_Click(object? sender, RoutedEventArgs e)
+        => await SaveSurfaceAsPngAsync(_raw, "unprocessed.png");
+
+    private async Task SaveControlAsPngAsync(Control control, string suggestedName)
+    {
+        if (control.Bounds.Width <= 0 || control.Bounds.Height <= 0) return;
+        var sp = TopLevel.GetTopLevel(this)?.StorageProvider;
+        if (sp is null) return;
+
+        var file = await sp.SaveFilePickerAsync(new global::Avalonia.Platform.Storage.FilePickerSaveOptions
+        {
+            Title = "Save chart as PNG",
+            SuggestedFileName = suggestedName,
+            DefaultExtension = "png",
+            FileTypeChoices = [new global::Avalonia.Platform.Storage.FilePickerFileType("PNG")
+                { Patterns = new[] { "*.png" } }],
+        });
+        if (file is null) return;
+
+        var rtb = new global::Avalonia.Media.Imaging.RenderTargetBitmap(
+            new PixelSize((int)control.Bounds.Width, (int)control.Bounds.Height),
+            new Vector(96, 96));
+        rtb.Render(control);
+        await using var stream = await file.OpenWriteAsync();
+        rtb.Save(stream);
+    }
+
+    private async Task SaveSurfaceAsPngAsync(DrawSurface? surface, string suggestedName)
+    {
+        if (surface is null || surface.Width <= 0 || surface.Height <= 0) return;
+        var sp = TopLevel.GetTopLevel(this)?.StorageProvider;
+        if (sp is null) return;
+
+        var file = await sp.SaveFilePickerAsync(new global::Avalonia.Platform.Storage.FilePickerSaveOptions
+        {
+            Title = "Save canvas as PNG",
+            SuggestedFileName = suggestedName,
+            DefaultExtension = "png",
+            FileTypeChoices = [new global::Avalonia.Platform.Storage.FilePickerFileType("PNG")
+                { Patterns = new[] { "*.png" } }],
+        });
+        if (file is null) return;
+
+        await using var stream = await file.OpenWriteAsync();
+        surface.SavePng(stream);
+    }
+
+    // ── Driver warning ──────────────────────────────────────────
+
+    private void DismissDriverWarning_Click(object? sender, RoutedEventArgs e)
+        => DriverWarningBanner.IsVisible = false;
+
+    private void RebuildUserPresetList()
+    {
+        PresetList.Children.Clear();
+        foreach (var preset in _presetStore.All.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            var name = preset.Name;
+            var row = new DockPanel { LastChildFill = true, Margin = new Thickness(0, 1, 0, 1) };
+
+            var deleteBtn = new Button { Content = "✕", Width = 24, Padding = new Thickness(0), FontSize = 10 };
+            deleteBtn.Click += (_, _) =>
+            {
+                _presetStore.Delete(name);
+                RebuildUserPresetList();
+            };
+            DockPanel.SetDock(deleteBtn, Dock.Right);
+
+            var loadBtn = new Button { Content = "Load", Margin = new Thickness(4, 0), Padding = new Thickness(6, 1) };
+            loadBtn.Click += (_, _) =>
+            {
+                if (_presetStore.Get(name) is { } p)
+                {
+                    _curveParams = p.Params;
+                    PressureChart.Params = _curveParams;
+                    SyncCurveControlsFromParams();
+                }
+            };
+            DockPanel.SetDock(loadBtn, Dock.Right);
+
+            var label = new TextBlock { Text = name, VerticalAlignment = global::Avalonia.Layout.VerticalAlignment.Center };
+
+            row.Children.Add(deleteBtn);
+            row.Children.Add(loadBtn);
+            row.Children.Add(label);
+            PresetList.Children.Add(row);
+        }
+    }
+
+    private void WireSlider(LabeledSlider slider, Func<double, Func<PressureCurveParams, PressureCurveParams>> patch)
+    {
+        slider.ValueChanged += (_, v) =>
+        {
+            if (_suppressCurveControlEvents) return;
+            UpdateParams(patch(v));
+        };
+    }
+
+    private void UpdateParams(Func<PressureCurveParams, PressureCurveParams> patch)
+    {
+        _curveParams = patch(_curveParams);
+        PressureChart.Params = _curveParams;
+        ResponseChart.Params = _curveParams;
+        UpdateBezierToolbar();
+    }
+
+    private static string FormatSmoothingOrder(SmoothingOrder so) => so switch
+    {
+        SmoothingOrder.SmoothThenCurve => "Smooth → Curve",
+        SmoothingOrder.CurveThenSmooth => "Curve → Smooth",
+        _ => so.ToString(),
+    };
 
     // ── Session lifecycle ────────────────────────────────────────
 
@@ -159,11 +535,10 @@ public partial class MainWindow : Window
         _session = api == InputApi.AvaloniaPointer
             ? new AvaloniaPointerSession(CanvasArea)
             : PenSessionFactory.Create(api);
-        _lastCanvasPoint = null;
+        ResetStrokeState();
 
-        EnsureBitmap();
+        EnsureSurfaces();
 
-        // Get the window handle for Wintab/WM_POINTER sessions.
         IntPtr hwnd = IntPtr.Zero;
         if (TryGetPlatformHandle() is { } handle)
             hwnd = handle.Handle;
@@ -181,11 +556,68 @@ public partial class MainWindow : Window
         _renderTimer.Start();
     }
 
+    private void ResetStrokeState()
+    {
+        _activeCanvas = ActiveCanvas.None;
+        _lastDrawPos = null;
+        _smoothedPos = null;
+        _smoothedPressure = null;
+        PressureChart.LiveRawPressure = null;
+        PressureChart.LivePressure = null;
+        ResponseChart.LiveRawPressure = null;
+        ResponseChart.LivePressure = null;
+    }
+
+    // ── Pressure pipeline ───────────────────────────────────────
+
+    private readonly record struct PressurePipelineResult(
+        double Raw, double PreCurve, double Output);
+
+    private PressurePipelineResult ProcessPressure(double raw)
+    {
+        double smoothing = Math.Clamp(_curveParams.EmaSmoothing, 0, EmaConstants.Max);
+        double Smooth(double v)
+        {
+            if (smoothing <= 0) { _smoothedPressure = v; return v; }
+            if (_smoothedPressure is not { } prev) { _smoothedPressure = v; return v; }
+            double alpha = 1 - smoothing;
+            double next = prev + alpha * (v - prev);
+            _smoothedPressure = next;
+            return next;
+        }
+
+        if (_curveParams.SmoothingOrder == SmoothingOrder.CurveThenSmooth)
+        {
+            double curved = CurveMath.ApplyPressureCurve(raw, _curveParams);
+            double smoothed = Smooth(curved);
+            // In this order the chart's "live" indicator shows the raw input — the smoothing
+            // happens after the curve, so there's no distinct pre-curve value to highlight.
+            return new PressurePipelineResult(Raw: raw, PreCurve: raw, Output: smoothed);
+        }
+        else
+        {
+            double smoothed = Smooth(raw);
+            double curved = CurveMath.ApplyPressureCurve(smoothed, _curveParams);
+            return new PressurePipelineResult(Raw: raw, PreCurve: smoothed, Output: curved);
+        }
+    }
+
+    private Point SmoothPosition(Point raw)
+    {
+        double smoothing = Math.Clamp(_curveParams.PositionEmaSmoothing, 0, EmaConstants.Max);
+        if (smoothing <= 0) { _smoothedPos = raw; return raw; }
+        if (_smoothedPos is not { } prev) { _smoothedPos = raw; return raw; }
+        double alpha = 1 - smoothing;
+        var next = new Point(prev.X + alpha * (raw.X - prev.X), prev.Y + alpha * (raw.Y - prev.Y));
+        _smoothedPos = next;
+        return next;
+    }
+
     // ── Render timer ─────────────────────────────────────────────
 
     private void RenderTimer_Tick(object? sender, EventArgs e)
     {
-        if (_session == null || _skCanvas == null) return;
+        if (_session == null) return;
 
         var points = _session.DrainPoints();
         if (points.Length == 0)
@@ -194,120 +626,175 @@ public partial class MainWindow : Window
             {
                 ProximityDot.Fill = Brushes.Gray;
                 ProximityLabel.Text = "Out";
+                if (_activeCanvas != ActiveCanvas.None)
+                {
+                    ResetStrokeState();
+                }
             }
             return;
         }
 
+        if (_processed == null || _raw == null || _processed.Canvas == null || _raw.Canvas == null)
+        {
+            EnsureSurfaces();
+            if (_processed?.Canvas == null || _raw?.Canvas == null) return;
+        }
+
         int maxP = _session.MaxPressure;
-        bool drew = false;
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel == null) return;
+
+        bool processedDirty = false, rawDirty = false;
 
         foreach (var pt in points)
         {
-            // Convert desktop pixels to canvas-local coords.
-            // Avalonia's PointToClient on the TopLevel, then adjust for canvas position.
-            Point canvasPt;
+            // Determine which sub-canvas the pen is over by translating screen coords into each
+            // host's local frame. The host where local Y ∈ [0, height] wins.
+            Point clientPt;
             try
             {
-                var topLevel = TopLevel.GetTopLevel(this);
-                if (topLevel == null) continue;
-
                 var screenPt = new PixelPoint((int)pt.DesktopX, (int)pt.DesktopY);
-                var clientPt = topLevel.PointToClient(screenPt);
-                var canvasOrigin = CanvasArea.TranslatePoint(new Point(0, 0), topLevel);
-                if (canvasOrigin == null) continue;
-
-                canvasPt = new Point(
-                    clientPt.X - canvasOrigin.Value.X,
-                    clientPt.Y - canvasOrigin.Value.Y);
+                clientPt = topLevel.PointToClient(screenPt);
             }
             catch
             {
-                _lastCanvasPoint = null;
+                _lastDrawPos = null;
                 continue;
             }
 
-            if (canvasPt.X < 0 || canvasPt.X > _bitmapWidth ||
-                canvasPt.Y < 0 || canvasPt.Y > _bitmapHeight)
+            var (over, localPt) = ResolveActiveCanvas(topLevel, clientPt);
+            if (over == ActiveCanvas.None)
             {
-                _lastCanvasPoint = null;
+                _lastDrawPos = null;
                 continue;
             }
 
-            if (_lastCanvasPoint is { } from && pt.Pressure > 0 && maxP > 0)
+            // Switching canvases mid-stroke restarts the smoothing state so segments don't bleed across.
+            if (over != _activeCanvas)
             {
-                float width = (float)pt.Pressure / maxP * (float)_brushSize + 0.5f;
+                _activeCanvas = over;
+                _lastDrawPos = null;
+                _smoothedPos = null;
+                _smoothedPressure = null;
+                if (pt.Pressure > 0) PickStrokeColor();
+            }
 
-                using var paint = new SKPaint
+            var smoothedPos = SmoothPosition(localPt);
+
+            double rawPressure = maxP > 0 ? (double)pt.Pressure / maxP : 0;
+            var pipeline = ProcessPressure(rawPressure);
+
+            if (rawPressure > 0)
+            {
+                if (_lastDrawPos is { } from)
                 {
-                    Color = SKColors.Black,
-                    StrokeWidth = width,
-                    StrokeCap = SKStrokeCap.Round,
-                    IsAntialias = true,
-                    Style = SKPaintStyle.Stroke
-                };
-
-                _skCanvas.DrawLine(
-                    (float)from.X, (float)from.Y,
-                    (float)canvasPt.X, (float)canvasPt.Y,
-                    paint);
-                drew = true;
+                    DrawSegment(_processed!.Canvas!, from, smoothedPos,
+                        SizeFor(pipeline.Output), OpacityFor(pipeline.Output),
+                        skipIfZero: !_drawZeroPressure && pipeline.Output <= 0);
+                    DrawSegment(_raw!.Canvas!, from, smoothedPos,
+                        SizeFor(rawPressure), OpacityFor(rawPressure),
+                        skipIfZero: false);
+                    processedDirty = true;
+                    rawDirty = true;
+                }
+                _lastDrawPos = smoothedPos;
+            }
+            else
+            {
+                _lastDrawPos = null;
             }
 
-            _lastCanvasPoint = canvasPt;
+            UpdateTelemetry(pt, clientPt, smoothedPos, maxP);
+            PressureChart.LiveRawPressure = pipeline.Raw;
+            PressureChart.LivePressure = pipeline.PreCurve;
+            ResponseChart.LiveRawPressure = pipeline.Raw;
+            ResponseChart.LivePressure = pipeline.PreCurve;
         }
 
-        if (drew)
-        {
-            CopyToAvBitmap();
-            DrawImage.InvalidateVisual();
-        }
+        if (processedDirty) _processed!.Present();
+        if (rawDirty) _raw!.Present();
 
-        // Update telemetry.
-        var last = points[^1];
         _lastPointTime = DateTime.UtcNow;
+    }
 
+    private (ActiveCanvas, Point) ResolveActiveCanvas(TopLevel topLevel, Point clientPt)
+    {
+        var processedOrigin = ProcessedCanvasHost.TranslatePoint(new Point(0, 0), topLevel);
+        if (processedOrigin is { } po)
+        {
+            var local = new Point(clientPt.X - po.X, clientPt.Y - po.Y);
+            if (local.X >= 0 && local.X < ProcessedCanvasHost.Bounds.Width &&
+                local.Y >= 0 && local.Y < ProcessedCanvasHost.Bounds.Height)
+                return (ActiveCanvas.Processed, local);
+        }
+        var rawOrigin = RawCanvasHost.TranslatePoint(new Point(0, 0), topLevel);
+        if (rawOrigin is { } ro)
+        {
+            var local = new Point(clientPt.X - ro.X, clientPt.Y - ro.Y);
+            if (local.X >= 0 && local.X < RawCanvasHost.Bounds.Width &&
+                local.Y >= 0 && local.Y < RawCanvasHost.Bounds.Height)
+                return (ActiveCanvas.Raw, local);
+        }
+        return (ActiveCanvas.None, default);
+    }
+
+    private float SizeFor(double pressure)
+    {
+        if (_pressureControl == PressureControl.Opacity) return (float)_brushSize;
+        return (float)Math.Max(1, pressure * _brushSize);
+    }
+
+    private float OpacityFor(double pressure)
+    {
+        if (_pressureControl == PressureControl.Opacity)
+            return (float)Math.Max(0.02, pressure);
+        return 1f;
+    }
+
+    private void DrawSegment(SKCanvas canvas, Point from, Point to, float strokeWidth, float opacity, bool skipIfZero)
+    {
+        if (skipIfZero) return;
+        byte alpha = (byte)Math.Clamp(opacity * 255, 0, 255);
+        var color = _strokeColor.WithAlpha(alpha);
+        using var paint = new SKPaint
+        {
+            Color = color,
+            StrokeWidth = strokeWidth,
+            StrokeCap = SKStrokeCap.Round,
+            IsAntialias = true,
+            Style = SKPaintStyle.Stroke,
+        };
+        canvas.DrawLine((float)from.X, (float)from.Y, (float)to.X, (float)to.Y, paint);
+    }
+
+    private void UpdateTelemetry(PenPoint pt, Point clientPt, Point canvasLocal, int maxP)
+    {
         ProximityDot.Fill = Brushes.LimeGreen;
         ProximityLabel.Text = "Proximity";
-        CursorLabel.Text = $"Cursor: {last.Cursor}";
+        CursorLabel.Text = $"Cursor: {pt.Cursor}";
 
-        RawPosLabel.Text = $"Raw: {last.RawX},{last.RawY}";
-        ScreenPosLabel.Text = $"Screen: {last.DesktopX:F0},{last.DesktopY:F0}";
+        RawPosLabel.Text = $"Raw: {pt.RawX},{pt.RawY}";
+        ScreenPosLabel.Text = $"Screen: {pt.DesktopX:F0},{pt.DesktopY:F0}";
+        AppPosLabel.Text = $"App: {clientPt.X:F0},{clientPt.Y:F0}";
+        CanvasPosLabel.Text = $"Canvas: {canvasLocal.X:F1},{canvasLocal.Y:F1}";
 
-        // App = position relative to the window client area
-        try
-        {
-            var topLevel = TopLevel.GetTopLevel(this);
-            if (topLevel != null)
-            {
-                var screenPt = new PixelPoint((int)last.DesktopX, (int)last.DesktopY);
-                var clientPt = topLevel.PointToClient(screenPt);
-                AppPosLabel.Text = $"App: {clientPt.X:F0},{clientPt.Y:F0}";
-            }
-        }
-        catch { AppPosLabel.Text = "App: --,--"; }
-
-        CanvasPosLabel.Text = _lastCanvasPoint is { } cp
-            ? $"Canvas: {cp.X:F1},{cp.Y:F1}" : "Canvas: --,--";
-
-        float pct = maxP > 0 ? (float)last.Pressure / maxP * 100f : 0f;
-        RawPressureLabel.Text = $"Raw: {last.Pressure}";
+        float pct = maxP > 0 ? (float)pt.Pressure / maxP * 100f : 0f;
+        RawPressureLabel.Text = $"Raw: {pt.Pressure}";
         NormPressureLabel.Text = $"Norm: {pct:F1}%";
 
-        AzimuthLabel.Text = $"Azimuth: {last.Azimuth:F1}";
-        AltitudeLabel.Text = $"Altitude: {last.Altitude:F1}";
-        TwistLabel.Text = $"Twist: {last.Twist:F1}";
+        AzimuthLabel.Text = $"Azimuth: {pt.Azimuth:F1}";
+        AltitudeLabel.Text = $"Altitude: {pt.Altitude:F1}";
+        TwistLabel.Text = $"Twist: {pt.Twist:F1}";
     }
 
     // ── Event handlers ───────────────────────────────────────────
 
-    private void ApiCombo_SelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        StartSession();
-    }
+    private void ApiCombo_SelectionChanged(object? sender, SelectionChangedEventArgs e) => StartSession();
 
     private void Clear_Click(object? sender, RoutedEventArgs e)
     {
-        ClearBitmap();
-        _lastCanvasPoint = null;
+        _processed?.Clear();
+        _raw?.Clear();
+        ResetStrokeState();
     }
 }
