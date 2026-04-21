@@ -29,8 +29,8 @@ public sealed class PressureResponseChartControl : Control
     private static readonly IPen GridPen = new Pen(new SolidColorBrush(Color.FromRgb(0xEB, 0xEB, 0xF4)), 1);
     private static readonly IPen ResponsePen = new Pen(Brushes.Black, 1.5);
     private static readonly IBrush ResponseDotBrush = Brushes.Black;
-    private static readonly Typeface MonoTypeface = new("Consolas, monospace");
-    private static readonly Typeface SansTypeface = new("Segoe UI");
+    private static readonly Typeface ChartTypeface = new("Segoe UI");
+    private const double ChartFontSize = 12;
 
     private static readonly IBrush EffectiveDotBrush = new SolidColorBrush(Color.FromRgb(0x14, 0xA0, 0x50));
     private static readonly IPen EffectiveGuidePen = new Pen(new SolidColorBrush(Color.FromArgb(0x40, 0x14, 0xA0, 0x50)), 1)
@@ -204,7 +204,7 @@ public sealed class PressureResponseChartControl : Control
                 ? gfValue.ToString("0", System.Globalization.CultureInfo.InvariantCulture)
                 : gfValue.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
             var ft = new FormattedText(label, System.Globalization.CultureInfo.InvariantCulture,
-                FlowDirection.LeftToRight, MonoTypeface, 10, LabelBrush);
+                FlowDirection.LeftToRight, ChartTypeface, ChartFontSize, LabelBrush);
             context.DrawText(ft, new Point(gx - ft.Width / 2, Math.Round(PadTop + plotH + XLabelSpacing)));
         }
         for (int i = 0; i <= 4; i++)
@@ -212,18 +212,18 @@ public sealed class PressureResponseChartControl : Control
             double gy = Math.Round(PadTop + plotH - i / 4.0 * plotH);
             string label = (i * 25).ToString("0", System.Globalization.CultureInfo.InvariantCulture);
             var ft = new FormattedText(label, System.Globalization.CultureInfo.InvariantCulture,
-                FlowDirection.LeftToRight, MonoTypeface, 10, LabelBrush);
+                FlowDirection.LeftToRight, ChartTypeface, ChartFontSize, LabelBrush);
             context.DrawText(ft, new Point(Math.Round(PadLeft - YLabelSpacing) - ft.Width, gy - ft.Height / 2));
         }
         var xAxis = new FormattedText("PHYSICAL (gf)", System.Globalization.CultureInfo.InvariantCulture,
-            FlowDirection.LeftToRight, SansTypeface, 10, LabelBrush);
+            FlowDirection.LeftToRight, ChartTypeface, ChartFontSize, LabelBrush);
         context.DrawText(xAxis,
             new Point(Math.Round(PadLeft + plotW / 2 - xAxis.Width / 2),
                      Math.Round(height - XAxisLabelSpacing - xAxis.Height)));
 
         var yAxis = new FormattedText(useCurve ? "OUTPUT %" : "LOGICAL %",
             System.Globalization.CultureInfo.InvariantCulture,
-            FlowDirection.LeftToRight, SansTypeface, 10, LabelBrush);
+            FlowDirection.LeftToRight, ChartTypeface, ChartFontSize, LabelBrush);
         var yAxisOrigin = new Point(Math.Round(YAxisLabelSpacing), Math.Round(PadTop + plotH / 2));
         using (context.PushTransform(Matrix.CreateRotation(-Math.PI / 2) *
                                      Matrix.CreateTranslation(yAxisOrigin.X, yAxisOrigin.Y)))

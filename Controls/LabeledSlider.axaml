@@ -1,16 +1,14 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="PenDynamicsLab.Controls.LabeledSlider">
-    <StackPanel Spacing="2">
+    <StackPanel Spacing="0">
         <DockPanel>
-            <TextBlock x:Name="LabelText" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+            <TextBlock x:Name="LabelText" FontWeight="Bold" Foreground="#555555" />
             <Panel HorizontalAlignment="Right">
-                <TextBlock x:Name="ValueText" FontSize="11" Foreground="#333333"
-                           Cursor="Ibeam" />
-                <TextBox x:Name="ValueEdit" IsVisible="False" Width="52" FontSize="11"
-                         Padding="2,0" MinHeight="0" />
+                <TextBlock x:Name="ValueText" Foreground="#333333" Cursor="Ibeam" />
+                <TextBox x:Name="ValueEdit" IsVisible="False" Width="52" Padding="2,0" MinHeight="0" />
             </Panel>
         </DockPanel>
-        <Slider x:Name="MainSlider" SmallChange="0.01" />
+        <Slider x:Name="MainSlider" SmallChange="0.01" Margin="0,-6,0,-8" Padding="0" />
     </StackPanel>
 </UserControl>

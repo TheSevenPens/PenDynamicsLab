@@ -2,7 +2,27 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="using:PenDynamicsLab.Controls"
         x:Class="PenDynamicsLab.MainWindow"
-        Title="PenDynamicsLab" Width="1500" Height="900">
+        Title="PenDynamicsLab" Width="1500" Height="900"
+        FontFamily="Segoe UI" FontSize="12">
+    <Window.Styles>
+        <!-- Force a single font size across every control. FluentTheme defaults don't
+             always inherit from the Window-level FontSize. -->
+        <Style Selector="TextBlock">    <Setter Property="FontSize" Value="12" /></Style>
+        <Style Selector="TextBox">      <Setter Property="FontSize" Value="12" /></Style>
+        <Style Selector="Button">       <Setter Property="FontSize" Value="12" /></Style>
+        <Style Selector="ComboBox">     <Setter Property="FontSize" Value="12" /></Style>
+        <Style Selector="ComboBoxItem"> <Setter Property="FontSize" Value="12" /></Style>
+        <Style Selector="CheckBox">     <Setter Property="FontSize" Value="12" /></Style>
+        <Style Selector="RadioButton">  <Setter Property="FontSize" Value="12" /></Style>
+        <Style Selector="MenuItem">     <Setter Property="FontSize" Value="12" /></Style>
+        <Style Selector="Slider">       <Setter Property="FontSize" Value="12" /></Style>
+
+        <!-- Shrink the slider thumb (the draggable knob). FluentTheme defaults to ~16px. -->
+        <Style Selector="Slider:horizontal /template/ Thumb">
+            <Setter Property="Width" Value="10" />
+            <Setter Property="Height" Value="10" />
+        </Style>
+    </Window.Styles>
     <DockPanel>
         <!-- Driver warning banner (dismissible) -->
         <Border DockPanel.Dock="Top" x:Name="DriverWarningBanner"
@@ -12,7 +32,7 @@
                 <Button DockPanel.Dock="Right" Content="✕" Width="24" Padding="0"
                         Background="Transparent" BorderThickness="0"
                         Click="DismissDriverWarning_Click" />
-                <TextBlock VerticalAlignment="Center" FontSize="12" Foreground="#704C00"
+                <TextBlock VerticalAlignment="Center" Foreground="#704C00"
                            TextWrapping="Wrap">
                     Tip: set your tablet driver's pressure curve to default (linear) so this app
                     sees raw pen input — otherwise you're tuning a curve on top of a curve.
@@ -26,51 +46,46 @@
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="16">
                 <!-- APP -->
                 <StackPanel>
-                    <TextBlock Text="APP" FontWeight="Bold" FontSize="10"
-                               Foreground="#555555" Margin="0,0,0,4" />
+                    <TextBlock Text="APP" FontWeight="Bold"                               Foreground="#555555" Margin="0,0,0,4" />
                     <ComboBox x:Name="ApiCombo" Width="120" Height="28" />
                 </StackPanel>
                 <Rectangle Width="1" Fill="#DDDDDD" />
 
                 <!-- PEN -->
                 <StackPanel Width="80">
-                    <TextBlock Text="PEN" FontWeight="Bold" FontSize="10"
-                               Foreground="#555555" Margin="0,0,0,4" />
+                    <TextBlock Text="PEN" FontWeight="Bold"                               Foreground="#555555" Margin="0,0,0,4" />
                     <StackPanel Orientation="Horizontal" Spacing="4">
                         <Ellipse x:Name="ProximityDot" Width="8" Height="8" Fill="Gray" />
                         <TextBlock x:Name="ProximityLabel" Text="Out" Foreground="#888888" />
                     </StackPanel>
-                    <TextBlock x:Name="CursorLabel" Text="Cursor: --" FontSize="11" />
+                    <TextBlock x:Name="CursorLabel" Text="Cursor: --" />
                 </StackPanel>
                 <Rectangle Width="1" Fill="#DDDDDD" />
 
                 <!-- POSITION -->
                 <StackPanel Width="160">
-                    <TextBlock Text="POSITION" FontWeight="Bold" FontSize="10"
-                               Foreground="#555555" Margin="0,0,0,4" />
-                    <TextBlock x:Name="RawPosLabel" Text="Raw: --,--" FontSize="11" />
-                    <TextBlock x:Name="ScreenPosLabel" Text="Screen: --,--" FontSize="11" />
-                    <TextBlock x:Name="AppPosLabel" Text="App: --,--" FontSize="11" />
-                    <TextBlock x:Name="CanvasPosLabel" Text="Canvas: --,--" FontSize="11" />
+                    <TextBlock Text="POSITION" FontWeight="Bold"                               Foreground="#555555" Margin="0,0,0,4" />
+                    <TextBlock x:Name="RawPosLabel" Text="Raw: --,--" />
+                    <TextBlock x:Name="ScreenPosLabel" Text="Screen: --,--" />
+                    <TextBlock x:Name="AppPosLabel" Text="App: --,--" />
+                    <TextBlock x:Name="CanvasPosLabel" Text="Canvas: --,--" />
                 </StackPanel>
                 <Rectangle Width="1" Fill="#DDDDDD" />
 
                 <!-- PRESSURE -->
                 <StackPanel Width="90">
-                    <TextBlock Text="PRESSURE" FontWeight="Bold" FontSize="10"
-                               Foreground="#555555" Margin="0,0,0,4" />
-                    <TextBlock x:Name="RawPressureLabel" Text="Raw: --" FontSize="11" />
-                    <TextBlock x:Name="NormPressureLabel" Text="Norm: --" FontSize="11" />
+                    <TextBlock Text="PRESSURE" FontWeight="Bold"                               Foreground="#555555" Margin="0,0,0,4" />
+                    <TextBlock x:Name="RawPressureLabel" Text="Raw: --" />
+                    <TextBlock x:Name="NormPressureLabel" Text="Norm: --" />
                 </StackPanel>
                 <Rectangle Width="1" Fill="#DDDDDD" />
 
                 <!-- ORIENTATION -->
                 <StackPanel Width="100">
-                    <TextBlock Text="ORIENTATION" FontWeight="Bold" FontSize="10"
-                               Foreground="#555555" Margin="0,0,0,4" />
-                    <TextBlock x:Name="AzimuthLabel" Text="Azimuth: --" FontSize="11" />
-                    <TextBlock x:Name="AltitudeLabel" Text="Altitude: --" FontSize="11" />
-                    <TextBlock x:Name="TwistLabel" Text="Twist: --" FontSize="11" />
+                    <TextBlock Text="ORIENTATION" FontWeight="Bold"                               Foreground="#555555" Margin="0,0,0,4" />
+                    <TextBlock x:Name="AzimuthLabel" Text="Azimuth: --" />
+                    <TextBlock x:Name="AltitudeLabel" Text="Altitude: --" />
+                    <TextBlock x:Name="TwistLabel" Text="Twist: --" />
                 </StackPanel>
             </StackPanel>
         </Border>
@@ -78,7 +93,7 @@
         <!-- Body: left = curve chart + controls, right = drawing canvases -->
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="480" />
+                <ColumnDefinition Width="360" />
                 <ColumnDefinition Width="1" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
@@ -88,36 +103,36 @@
                 <DockPanel DockPanel.Dock="Top">
                     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" HorizontalAlignment="Right"
                                 Margin="0,4,8,0" Spacing="6">
-                        <Button Content="Save chart..." FontSize="11" Padding="6,2"
+                        <Button Content="Save chart..." Padding="6,2"
                                 Click="SaveCurveChart_Click" />
                     </StackPanel>
-                    <controls:PressureChartControl x:Name="PressureChart" Height="320" Margin="8,0,8,0" />
+                    <controls:PressureChartControl x:Name="PressureChart" Margin="8,0,8,0" />
                 </DockPanel>
                 <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                               VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="12,4,12,12" Spacing="10">
                         <!-- Curve type -->
                         <StackPanel Spacing="2">
-                            <TextBlock Text="CURVE TYPE" FontWeight="Bold" FontSize="10" Foreground="#555555" />
-                            <ComboBox x:Name="CurveTypeCombo" Width="180" />
+                            <TextBlock Text="CURVE TYPE" FontWeight="Bold" Foreground="#555555" />
+                            <ComboBox x:Name="CurveTypeCombo" HorizontalAlignment="Stretch" />
                         </StackPanel>
 
                         <!-- Bezier toolbar (visible only for Bezier curve type) -->
                         <StackPanel x:Name="BezierToolbar" Spacing="4" IsVisible="False">
-                            <TextBlock Text="BEZIER POINTS" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+                            <TextBlock Text="BEZIER POINTS" FontWeight="Bold" Foreground="#555555" />
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <Button x:Name="BezierAddButton" Content="Add point" Click="BezierAdd_Click" />
                                 <Button x:Name="BezierRemoveButton" Content="Remove point" Click="BezierRemove_Click" />
                                 <TextBlock x:Name="BezierCountLabel" VerticalAlignment="Center"
-                                           Foreground="#666666" FontSize="11" />
+                                           Foreground="#666666" />
                             </StackPanel>
                             <TextBlock Text="Right-click in plot to add or remove."
-                                       FontSize="10" Foreground="#888888" />
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <TextBlock Text="Preset:" VerticalAlignment="Center" FontSize="11" />
-                                <ComboBox x:Name="BezierPresetCombo" Width="140"
+                                       Foreground="#888888" />
+                            <DockPanel>
+                                <TextBlock Text="Preset:" VerticalAlignment="Center"                                           Margin="0,0,6,0" />
+                                <ComboBox x:Name="BezierPresetCombo" HorizontalAlignment="Stretch"
                                           PlaceholderText="Choose preset..." />
-                            </StackPanel>
+                            </DockPanel>
                         </StackPanel>
 
                         <controls:LabeledSlider x:Name="SoftnessSlider" Label="SOFTNESS"
@@ -135,8 +150,8 @@
                                                 Minimum="0" Maximum="0.5" Value="0" DefaultValue="0" />
 
                         <!-- Min approach -->
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="MIN APPROACH" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+                        <StackPanel x:Name="MinApproachPanel" Spacing="4">
+                            <TextBlock Text="MIN APPROACH" FontWeight="Bold" Foreground="#555555" />
                             <StackPanel Orientation="Horizontal" Spacing="12">
                                 <RadioButton x:Name="MinApproachClampRadio" GroupName="MinApproach"
                                              Content="Clamp" IsChecked="True" />
@@ -150,39 +165,41 @@
 
                         <!-- Smoothing section -->
                         <Rectangle Height="1" Fill="#DDDDDD" Margin="0,6,0,0" />
-                        <TextBlock Text="SMOOTHING" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+                        <TextBlock Text="SMOOTHING" FontWeight="Bold" Foreground="#555555" />
 
                         <controls:LabeledSlider x:Name="PressureEmaSlider" Label="PRESSURE EMA"
                                                 Minimum="0" Maximum="0.99" Value="0" DefaultValue="0" />
                         <controls:LabeledSlider x:Name="PositionEmaSlider" Label="POSITION EMA"
                                                 Minimum="0" Maximum="0.99" Value="0" DefaultValue="0" />
                         <StackPanel Spacing="2">
-                            <TextBlock Text="SMOOTHING ORDER" FontWeight="Bold" FontSize="10" Foreground="#555555" />
-                            <ComboBox x:Name="SmoothingOrderCombo" Width="180" />
+                            <TextBlock Text="SMOOTHING ORDER" FontWeight="Bold" Foreground="#555555" />
+                            <ComboBox x:Name="SmoothingOrderCombo" HorizontalAlignment="Stretch" />
                         </StackPanel>
 
                         <!-- Pressure response section -->
                         <Rectangle Height="1" Fill="#DDDDDD" Margin="0,6,0,0" />
-                        <TextBlock Text="PRESSURE RESPONSE" FontWeight="Bold" FontSize="10" Foreground="#555555" />
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <ComboBox x:Name="ResponseDataCombo" Width="240"
+                        <TextBlock Text="PRESSURE RESPONSE" FontWeight="Bold" Foreground="#555555" />
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" x:Name="ResponseClearButton" Content="Clear"
+                                    IsEnabled="False" Margin="6,0,0,0" Click="ResponseClear_Click" />
+                            <ComboBox x:Name="ResponseDataCombo" HorizontalAlignment="Stretch"
                                       PlaceholderText="Select data..." />
-                            <Button x:Name="ResponseClearButton" Content="Clear"
-                                    IsEnabled="False" Click="ResponseClear_Click" />
-                        </StackPanel>
+                        </DockPanel>
                         <CheckBox x:Name="ResponseShowCurveEffectCheck" Content="Show effect of curve"
                                   IsChecked="True" />
-                        <TextBlock x:Name="ResponseInfoLabel" FontSize="11" Foreground="#888888" />
+                        <TextBlock x:Name="ResponseInfoLabel" Foreground="#888888" />
                         <controls:PressureResponseChartControl x:Name="ResponseChart" Height="240" />
 
                         <!-- Presets section -->
                         <Rectangle Height="1" Fill="#DDDDDD" Margin="0,6,0,0" />
-                        <TextBlock Text="USER PRESETS" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+                        <TextBlock Text="USER PRESETS" FontWeight="Bold" Foreground="#555555" />
 
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <TextBox x:Name="PresetNameInput" Width="180" Watermark="Preset name..." />
-                            <Button x:Name="PresetSaveButton" Content="Save" Click="PresetSave_Click" />
-                        </StackPanel>
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" x:Name="PresetSaveButton" Content="Save"
+                                    Margin="6,0,0,0" Click="PresetSave_Click" />
+                            <TextBox x:Name="PresetNameInput" HorizontalAlignment="Stretch"
+                                     Watermark="Preset name..." />
+                        </DockPanel>
                         <StackPanel x:Name="PresetList" Spacing="2" />
                     </StackPanel>
                 </ScrollViewer>
@@ -199,9 +216,8 @@
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="16">
                         <StackPanel>
                             <DockPanel>
-                                <TextBlock Text="BRUSH SIZE" FontWeight="Bold" FontSize="10" Foreground="#555555" />
-                                <TextBlock x:Name="BrushSizeLabel" Text="40 px" FontSize="11"
-                                           HorizontalAlignment="Right" Margin="8,0,0,0" />
+                                <TextBlock Text="BRUSH SIZE" FontWeight="Bold" Foreground="#555555" />
+                                <TextBlock x:Name="BrushSizeLabel" Text="40 px"                                           HorizontalAlignment="Right" Margin="8,0,0,0" />
                             </DockPanel>
                             <Slider x:Name="BrushSizeSlider" Width="140" Minimum="1" Maximum="200"
                                     Value="40" IsSnapToTickEnabled="True" TickFrequency="1" />
@@ -209,7 +225,7 @@
                         <Rectangle Width="1" Fill="#DDDDDD" />
 
                         <StackPanel>
-                            <TextBlock Text="COLOR" FontWeight="Bold" FontSize="10" Foreground="#555555" Margin="0,0,0,4" />
+                            <TextBlock Text="COLOR" FontWeight="Bold" Foreground="#555555" Margin="0,0,0,4" />
                             <StackPanel Orientation="Horizontal" Spacing="10">
                                 <RadioButton x:Name="ColorBlackRadio" GroupName="ColorMode" Content="Black" IsChecked="True" />
                                 <RadioButton x:Name="ColorRandomRadio" GroupName="ColorMode" Content="Random" />
@@ -218,7 +234,7 @@
                         <Rectangle Width="1" Fill="#DDDDDD" />
 
                         <StackPanel>
-                            <TextBlock Text="PRESSURE → " FontWeight="Bold" FontSize="10" Foreground="#555555" Margin="0,0,0,4" />
+                            <TextBlock Text="PRESSURE → " FontWeight="Bold" Foreground="#555555" Margin="0,0,0,4" />
                             <StackPanel Orientation="Horizontal" Spacing="10">
                                 <RadioButton x:Name="PressureSizeRadio" GroupName="PressureControl" Content="Size" IsChecked="True" />
                                 <RadioButton x:Name="PressureOpacityRadio" GroupName="PressureControl" Content="Opacity" />
@@ -246,9 +262,9 @@
 
                     <Border Grid.Row="0" Background="#E8E8E2" BorderBrush="#D0D0C8" BorderThickness="0,0,0,1" Padding="8,4">
                         <DockPanel>
-                            <Button DockPanel.Dock="Right" Content="Save..." FontSize="11" Padding="6,1"
+                            <Button DockPanel.Dock="Right" Content="Save..." Padding="6,1"
                                     Click="SaveProcessedCanvas_Click" />
-                            <TextBlock Text="Pressure processing: ON" FontWeight="SemiBold" FontSize="12" Foreground="#333333"
+                            <TextBlock Text="Pressure processing: ON" FontWeight="SemiBold" Foreground="#333333"
                                        VerticalAlignment="Center" />
                         </DockPanel>
                     </Border>
@@ -261,9 +277,9 @@
 
                     <Border Grid.Row="3" Background="#E8E8E2" BorderBrush="#D0D0C8" BorderThickness="0,0,0,1" Padding="8,4">
                         <DockPanel>
-                            <Button DockPanel.Dock="Right" Content="Save..." FontSize="11" Padding="6,1"
+                            <Button DockPanel.Dock="Right" Content="Save..." Padding="6,1"
                                     Click="SaveRawCanvas_Click" />
-                            <TextBlock Text="Pressure processing: OFF" FontWeight="SemiBold" FontSize="12" Foreground="#333333"
+                            <TextBlock Text="Pressure processing: OFF" FontWeight="SemiBold" Foreground="#333333"
                                        VerticalAlignment="Center" />
                         </DockPanel>
                     </Border>

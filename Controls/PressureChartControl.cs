@@ -31,8 +31,8 @@ public sealed class PressureChartControl : Control
     private static readonly IBrush LabelBrush = Brushes.Black;
     private static readonly IPen GridPen = new Pen(new SolidColorBrush(Color.FromRgb(0xEB, 0xEB, 0xF4)), 1);
     private static readonly IPen CurvePen = new Pen(Brushes.Black, 2);
-    private static readonly Typeface MonoTypeface = new("Consolas, monospace");
-    private static readonly Typeface SansTypeface = new("Segoe UI");
+    private static readonly Typeface ChartTypeface = new("Segoe UI");
+    private const double ChartFontSize = 12;
 
     // Live indicator colors — green = effective (post-smoothing pre-curve), purple = raw input.
     private static readonly IBrush EffectiveDotBrush = new SolidColorBrush(Color.FromRgb(0x14, 0xA0, 0x50));
@@ -93,6 +93,20 @@ public sealed class PressureChartControl : Control
     {
         AffectsRender<PressureChartControl>(ParamsProperty, LiveRawPressureProperty, LivePressureProperty);
         FocusableProperty.OverrideDefaultValue<PressureChartControl>(true);
+    }
+
+    /// <summary>Constrain height so the inner plot area is square at the given available width.</summary>
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        double width = availableSize.Width;
+        if (double.IsInfinity(width) || double.IsNaN(width) || width <= 0)
+            return base.MeasureOverride(availableSize);
+
+        // plotW = width - PadLeft - PadRight; for square plot area, plotH = plotW;
+        // total height = plotH + PadTop + PadBottom.
+        double plotSide = Math.Max(0, width - PadLeft - PadRight);
+        double height = plotSide + PadTop + PadBottom;
+        return new Size(width, height);
     }
 
     public PressureChartControl()
@@ -168,7 +182,7 @@ public sealed class PressureChartControl : Control
             double gx = Math.Round(PadLeft + i / 4.0 * plotW);
             string label = FormatTick(i * 0.25);
             var ft = new FormattedText(label, System.Globalization.CultureInfo.InvariantCulture,
-                FlowDirection.LeftToRight, MonoTypeface, 10, LabelBrush);
+                FlowDirection.LeftToRight, ChartTypeface, ChartFontSize, LabelBrush);
             context.DrawText(ft, new Point(gx - ft.Width / 2, Math.Round(PadTop + plotH + XLabelSpacing)));
         }
 
@@ -177,18 +191,18 @@ public sealed class PressureChartControl : Control
             double gy = Math.Round(PadTop + plotH - i / 4.0 * plotH);
             string label = FormatTick(i * 0.25);
             var ft = new FormattedText(label, System.Globalization.CultureInfo.InvariantCulture,
-                FlowDirection.LeftToRight, MonoTypeface, 10, LabelBrush);
+                FlowDirection.LeftToRight, ChartTypeface, ChartFontSize, LabelBrush);
             context.DrawText(ft, new Point(Math.Round(PadLeft - YLabelSpacing) - ft.Width, gy - ft.Height / 2));
         }
 
         var xAxisFt = new FormattedText("INPUT", System.Globalization.CultureInfo.InvariantCulture,
-            FlowDirection.LeftToRight, SansTypeface, 10, LabelBrush);
+            FlowDirection.LeftToRight, ChartTypeface, ChartFontSize, LabelBrush);
         context.DrawText(xAxisFt,
             new Point(Math.Round(PadLeft + plotW / 2 - xAxisFt.Width / 2),
                      Math.Round(height - XAxisLabelSpacing - xAxisFt.Height)));
 
         var yAxisFt = new FormattedText("OUTPUT", System.Globalization.CultureInfo.InvariantCulture,
-            FlowDirection.LeftToRight, SansTypeface, 10, LabelBrush);
+            FlowDirection.LeftToRight, ChartTypeface, ChartFontSize, LabelBrush);
         var yAxisOrigin = new Point(Math.Round(YAxisLabelSpacing), Math.Round(PadTop + plotH / 2));
         using (context.PushTransform(Matrix.CreateRotation(-Math.PI / 2) *
                                      Matrix.CreateTranslation(yAxisOrigin.X, yAxisOrigin.Y)))

@@ -110,6 +110,19 @@ public partial class MainWindow : Window
             _processed?.Dispose();
             _raw?.Dispose();
         };
+
+        // Delete / Backspace clear the canvas — but only when no text input has focus,
+        // otherwise these keys would steal characters from a slider value edit or the
+        // preset name TextBox.
+        KeyDown += (_, e) =>
+        {
+            if (e.Key != global::Avalonia.Input.Key.Delete && e.Key != global::Avalonia.Input.Key.Back) return;
+            if (e.Handled) return;
+            var focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
+            if (focused is TextBox) return;
+            Clear_Click(null, new RoutedEventArgs());
+            e.Handled = true;
+        };
     }
 
     // ── Surface management ──────────────────────────────────────
@@ -270,8 +283,55 @@ public partial class MainWindow : Window
 
     private void UpdateBezierToolbar()
     {
-        bool isBezier = _curveParams.CurveType == CurveType.Bezier;
+        var ct = _curveParams.CurveType;
+
+        // Visibility per curve type. Smoothing / response / presets sections live below
+        // and are independent of the curve type.
+        bool hasSoftness = ct is CurveType.Basic or CurveType.Extended or CurveType.Sigmoid;
+        bool hasRangeControls = ct is CurveType.Extended or CurveType.Sigmoid;
+        bool isBezier = ct == CurveType.Bezier;
+        bool isFlat = ct == CurveType.Flat;
+
+        // Sigmoid only makes sense with positive steepness (k = softness * 14), and the
+        // top of the range gets numerically unstable near ±1 — clamp to [0, 0.95].
+        if (ct == CurveType.Sigmoid)
+        {
+            SoftnessSlider.Minimum = 0;
+            SoftnessSlider.Maximum = 0.95;
+        }
+        else
+        {
+            SoftnessSlider.Minimum = -0.9;
+            SoftnessSlider.Maximum = 0.9;
+        }
+        if (_curveParams.Softness < SoftnessSlider.Minimum || _curveParams.Softness > SoftnessSlider.Maximum)
+        {
+            double clamped = Math.Clamp(_curveParams.Softness, SoftnessSlider.Minimum, SoftnessSlider.Maximum);
+            _curveParams = _curveParams with { Softness = clamped };
+            PressureChart.Params = _curveParams;
+            ResponseChart.Params = _curveParams;
+            _suppressCurveControlEvents = true;
+            SoftnessSlider.Value = clamped;
+            _suppressCurveControlEvents = false;
+        }
+
+        SoftnessSlider.IsVisible = hasSoftness;
+        InputMinSlider.IsVisible = hasRangeControls;
+        InputMaxSlider.IsVisible = hasRangeControls;
+        OutputMinSlider.IsVisible = hasRangeControls;
+        OutputMaxSlider.IsVisible = hasRangeControls;
+        TransitionWidthSlider.IsVisible = hasRangeControls;
+        MinApproachPanel.IsVisible = hasRangeControls;
+        FlatLevelSlider.IsVisible = isFlat;
         BezierToolbar.IsVisible = isBezier;
+
+        // Range values are driven by dragging the pink/cyan nodes on the chart, so the
+        // slider track would be redundant — show only label + value.
+        InputMinSlider.ShowSlider = false;
+        InputMaxSlider.ShowSlider = false;
+        OutputMinSlider.ShowSlider = false;
+        OutputMaxSlider.ShowSlider = false;
+
         if (isBezier)
         {
             int count = CurveMath.NormalizeBezierPoints(_curveParams.BezierPoints).Length;

@@ -35,6 +35,9 @@ public partial class LabeledSlider : UserControl
     public static readonly StyledProperty<int> DecimalsProperty =
         AvaloniaProperty.Register<LabeledSlider, int>(nameof(Decimals), defaultValue: 2);
 
+    public static readonly StyledProperty<bool> ShowSliderProperty =
+        AvaloniaProperty.Register<LabeledSlider, bool>(nameof(ShowSlider), defaultValue: true);
+
     public string Label { get => GetValue(LabelProperty); set => SetValue(LabelProperty, value); }
     public double Minimum { get => GetValue(MinimumProperty); set => SetValue(MinimumProperty, value); }
     public double Maximum { get => GetValue(MaximumProperty); set => SetValue(MaximumProperty, value); }
@@ -42,6 +45,10 @@ public partial class LabeledSlider : UserControl
     public double DefaultValue { get => GetValue(DefaultValueProperty); set => SetValue(DefaultValueProperty, value); }
     public double SmallChange { get => GetValue(SmallChangeProperty); set => SetValue(SmallChangeProperty, value); }
     public int Decimals { get => GetValue(DecimalsProperty); set => SetValue(DecimalsProperty, value); }
+
+    /// <summary>When false, hide the slider track — useful for values driven by another control
+    /// (e.g., a draggable node on a chart) where the slider would just be redundant.</summary>
+    public bool ShowSlider { get => GetValue(ShowSliderProperty); set => SetValue(ShowSliderProperty, value); }
 
     /// <summary>Fires when the value changes from any source (slider drag, edit, context menu).</summary>
     public event EventHandler<double>? ValueChanged;
@@ -63,7 +70,9 @@ public partial class LabeledSlider : UserControl
             else if (e.Property == MinimumProperty || e.Property == MaximumProperty) SyncSliderRange();
             else if (e.Property == SmallChangeProperty) MainSlider.SmallChange = (double)e.NewValue!;
             else if (e.Property == ValueProperty) { SyncSliderValue(); UpdateValueText(); }
+            else if (e.Property == ShowSliderProperty) MainSlider.IsVisible = (bool)e.NewValue!;
         };
+        MainSlider.IsVisible = ShowSlider;
 
         MainSlider.PropertyChanged += (_, e) =>
         {
