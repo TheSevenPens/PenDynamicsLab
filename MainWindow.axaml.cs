@@ -6,6 +6,7 @@ using Avalonia.Threading;
 using System.Linq;
 using PenSession;
 using PenSession.Avalonia;
+using PenDynamicsLab.Controls;
 using PenDynamicsLab.Curves;
 using PenDynamicsLab.Drawing;
 using SkiaSharp;
@@ -200,15 +201,15 @@ public partial class MainWindow : Window
             UpdateParams(p => p with { SmoothingOrder = (SmoothingOrder)SmoothingOrderCombo.SelectedIndex });
         };
 
-        WireSlider(SoftnessSlider, SoftnessLabel, v => p => p with { Softness = v });
-        WireSlider(InputMinSlider, InputMinLabel, v => p => p with { InputMinimum = v });
-        WireSlider(InputMaxSlider, InputMaxLabel, v => p => p with { InputMaximum = v });
-        WireSlider(OutputMinSlider, OutputMinLabel, v => p => p with { Minimum = v });
-        WireSlider(OutputMaxSlider, OutputMaxLabel, v => p => p with { Maximum = v });
-        WireSlider(TransitionWidthSlider, TransitionWidthLabel, v => p => p with { TransitionWidth = v });
-        WireSlider(FlatLevelSlider, FlatLevelLabel, v => p => p with { FlatLevel = v });
-        WireSlider(PressureEmaSlider, PressureEmaLabel, v => p => p with { EmaSmoothing = v });
-        WireSlider(PositionEmaSlider, PositionEmaLabel, v => p => p with { PositionEmaSmoothing = v });
+        WireSlider(SoftnessSlider, v => p => p with { Softness = v });
+        WireSlider(InputMinSlider, v => p => p with { InputMinimum = v });
+        WireSlider(InputMaxSlider, v => p => p with { InputMaximum = v });
+        WireSlider(OutputMinSlider, v => p => p with { Minimum = v });
+        WireSlider(OutputMaxSlider, v => p => p with { Maximum = v });
+        WireSlider(TransitionWidthSlider, v => p => p with { TransitionWidth = v });
+        WireSlider(FlatLevelSlider, v => p => p with { FlatLevel = v });
+        WireSlider(PressureEmaSlider, v => p => p with { EmaSmoothing = v });
+        WireSlider(PositionEmaSlider, v => p => p with { PositionEmaSmoothing = v });
 
         MinApproachClampRadio.IsCheckedChanged += (_, _) =>
         {
@@ -223,17 +224,64 @@ public partial class MainWindow : Window
                 UpdateParams(p => p with { MinApproach = MinApproach.Cut });
         };
 
-        UpdateAllSliderLabels();
+        UpdateBezierToolbar();
         PressureChart.Params = _curveParams;
+
+        // The chart writes back to Params when the user drags nodes / handles or uses the
+        // right-click context menu. Mirror those changes back into the controls UI.
+        PressureChart.PropertyChanged += (_, e) =>
+        {
+            if (e.Property != PressureChartControl.ParamsProperty) return;
+            if (e.NewValue is not PressureCurveParams newParams) return;
+            if (ReferenceEquals(newParams, _curveParams)) return;
+            _curveParams = newParams;
+            SyncCurveControlsFromParams();
+        };
     }
 
-    private void WireSlider(Slider slider, TextBlock label, Func<double, Func<PressureCurveParams, PressureCurveParams>> patch)
+    private void SyncCurveControlsFromParams()
     {
-        slider.PropertyChanged += (_, e) =>
+        _suppressCurveControlEvents = true;
+        CurveTypeCombo.SelectedIndex = (int)_curveParams.CurveType;
+        SmoothingOrderCombo.SelectedIndex = (int)_curveParams.SmoothingOrder;
+        SoftnessSlider.Value = _curveParams.Softness;
+        InputMinSlider.Value = _curveParams.InputMinimum;
+        InputMaxSlider.Value = _curveParams.InputMaximum;
+        OutputMinSlider.Value = _curveParams.Minimum;
+        OutputMaxSlider.Value = _curveParams.Maximum;
+        TransitionWidthSlider.Value = _curveParams.TransitionWidth;
+        FlatLevelSlider.Value = _curveParams.FlatLevel;
+        PressureEmaSlider.Value = _curveParams.EmaSmoothing;
+        PositionEmaSlider.Value = _curveParams.PositionEmaSmoothing;
+        MinApproachClampRadio.IsChecked = _curveParams.MinApproach == MinApproach.Clamp;
+        MinApproachCutRadio.IsChecked = _curveParams.MinApproach == MinApproach.Cut;
+        _suppressCurveControlEvents = false;
+
+        UpdateBezierToolbar();
+    }
+
+    private void UpdateBezierToolbar()
+    {
+        bool isBezier = _curveParams.CurveType == CurveType.Bezier;
+        BezierToolbar.IsVisible = isBezier;
+        if (isBezier)
         {
-            if (_suppressCurveControlEvents || e.Property.Name != "Value") return;
-            UpdateParams(patch(slider.Value));
-            label.Text = FormatSliderValue(slider.Value);
+            int count = CurveMath.NormalizeBezierPoints(_curveParams.BezierPoints).Length;
+            BezierCountLabel.Text = $"{count}/16";
+            BezierAddButton.IsEnabled = count < 16;
+            BezierRemoveButton.IsEnabled = count > 2;
+        }
+    }
+
+    private void BezierAdd_Click(object? sender, RoutedEventArgs e) => PressureChart.AddBezierPointAtLargestGap();
+    private void BezierRemove_Click(object? sender, RoutedEventArgs e) => PressureChart.RemoveSelectedBezierPoint();
+
+    private void WireSlider(LabeledSlider slider, Func<double, Func<PressureCurveParams, PressureCurveParams>> patch)
+    {
+        slider.ValueChanged += (_, v) =>
+        {
+            if (_suppressCurveControlEvents) return;
+            UpdateParams(patch(v));
         };
     }
 
@@ -241,23 +289,8 @@ public partial class MainWindow : Window
     {
         _curveParams = patch(_curveParams);
         PressureChart.Params = _curveParams;
+        UpdateBezierToolbar();
     }
-
-    private void UpdateAllSliderLabels()
-    {
-        SoftnessLabel.Text = FormatSliderValue(SoftnessSlider.Value);
-        InputMinLabel.Text = FormatSliderValue(InputMinSlider.Value);
-        InputMaxLabel.Text = FormatSliderValue(InputMaxSlider.Value);
-        OutputMinLabel.Text = FormatSliderValue(OutputMinSlider.Value);
-        OutputMaxLabel.Text = FormatSliderValue(OutputMaxSlider.Value);
-        TransitionWidthLabel.Text = FormatSliderValue(TransitionWidthSlider.Value);
-        FlatLevelLabel.Text = FormatSliderValue(FlatLevelSlider.Value);
-        PressureEmaLabel.Text = FormatSliderValue(PressureEmaSlider.Value);
-        PositionEmaLabel.Text = FormatSliderValue(PositionEmaSlider.Value);
-    }
-
-    private static string FormatSliderValue(double v)
-        => v.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
 
     private static string FormatSmoothingOrder(SmoothingOrder so) => so switch
     {

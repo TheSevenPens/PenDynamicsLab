@@ -81,57 +81,32 @@
                             <ComboBox x:Name="CurveTypeCombo" Width="180" />
                         </StackPanel>
 
-                        <!-- Softness -->
-                        <StackPanel Spacing="2">
-                            <DockPanel>
-                                <TextBlock Text="SOFTNESS" FontWeight="Bold" FontSize="10" Foreground="#555555" />
-                                <TextBlock x:Name="SoftnessLabel" FontSize="11" Foreground="#333333"
-                                           HorizontalAlignment="Right" />
-                            </DockPanel>
-                            <Slider x:Name="SoftnessSlider" Minimum="-0.9" Maximum="0.9"
-                                    Value="0" SmallChange="0.01" />
+                        <!-- Bezier toolbar (visible only for Bezier curve type) -->
+                        <StackPanel x:Name="BezierToolbar" Spacing="4" IsVisible="False">
+                            <TextBlock Text="BEZIER POINTS" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Button x:Name="BezierAddButton" Content="Add point" Click="BezierAdd_Click" />
+                                <Button x:Name="BezierRemoveButton" Content="Remove point" Click="BezierRemove_Click" />
+                                <TextBlock x:Name="BezierCountLabel" VerticalAlignment="Center"
+                                           Foreground="#666666" FontSize="11" />
+                            </StackPanel>
+                            <TextBlock Text="Right-click in plot to add or remove."
+                                       FontSize="10" Foreground="#888888" />
                         </StackPanel>
 
-                        <!-- Input range -->
-                        <StackPanel Spacing="2">
-                            <DockPanel>
-                                <TextBlock Text="INPUT MIN" FontWeight="Bold" FontSize="10" Foreground="#555555" />
-                                <TextBlock x:Name="InputMinLabel" FontSize="11" HorizontalAlignment="Right" />
-                            </DockPanel>
-                            <Slider x:Name="InputMinSlider" Minimum="0" Maximum="1" Value="0" />
-                        </StackPanel>
-                        <StackPanel Spacing="2">
-                            <DockPanel>
-                                <TextBlock Text="INPUT MAX" FontWeight="Bold" FontSize="10" Foreground="#555555" />
-                                <TextBlock x:Name="InputMaxLabel" FontSize="11" HorizontalAlignment="Right" />
-                            </DockPanel>
-                            <Slider x:Name="InputMaxSlider" Minimum="0" Maximum="1" Value="1" />
-                        </StackPanel>
+                        <controls:LabeledSlider x:Name="SoftnessSlider" Label="SOFTNESS"
+                                                Minimum="-0.9" Maximum="0.9" Value="0" DefaultValue="0" />
 
-                        <!-- Output range -->
-                        <StackPanel Spacing="2">
-                            <DockPanel>
-                                <TextBlock Text="OUTPUT MIN" FontWeight="Bold" FontSize="10" Foreground="#555555" />
-                                <TextBlock x:Name="OutputMinLabel" FontSize="11" HorizontalAlignment="Right" />
-                            </DockPanel>
-                            <Slider x:Name="OutputMinSlider" Minimum="0" Maximum="1" Value="0" />
-                        </StackPanel>
-                        <StackPanel Spacing="2">
-                            <DockPanel>
-                                <TextBlock Text="OUTPUT MAX" FontWeight="Bold" FontSize="10" Foreground="#555555" />
-                                <TextBlock x:Name="OutputMaxLabel" FontSize="11" HorizontalAlignment="Right" />
-                            </DockPanel>
-                            <Slider x:Name="OutputMaxSlider" Minimum="0" Maximum="1" Value="1" />
-                        </StackPanel>
-
-                        <!-- Transition width -->
-                        <StackPanel Spacing="2">
-                            <DockPanel>
-                                <TextBlock Text="TRANSITION WIDTH" FontWeight="Bold" FontSize="10" Foreground="#555555" />
-                                <TextBlock x:Name="TransitionWidthLabel" FontSize="11" HorizontalAlignment="Right" />
-                            </DockPanel>
-                            <Slider x:Name="TransitionWidthSlider" Minimum="0" Maximum="0.5" Value="0" />
-                        </StackPanel>
+                        <controls:LabeledSlider x:Name="InputMinSlider" Label="INPUT MIN"
+                                                Minimum="0" Maximum="1" Value="0" DefaultValue="0" />
+                        <controls:LabeledSlider x:Name="InputMaxSlider" Label="INPUT MAX"
+                                                Minimum="0" Maximum="1" Value="1" DefaultValue="1" />
+                        <controls:LabeledSlider x:Name="OutputMinSlider" Label="OUTPUT MIN"
+                                                Minimum="0" Maximum="1" Value="0" DefaultValue="0" />
+                        <controls:LabeledSlider x:Name="OutputMaxSlider" Label="OUTPUT MAX"
+                                                Minimum="0" Maximum="1" Value="1" DefaultValue="1" />
+                        <controls:LabeledSlider x:Name="TransitionWidthSlider" Label="TRANSITION WIDTH"
+                                                Minimum="0" Maximum="0.5" Value="0" DefaultValue="0" />
 
                         <!-- Min approach -->
                         <StackPanel Spacing="4">
@@ -144,33 +119,17 @@
                             </StackPanel>
                         </StackPanel>
 
-                        <!-- Flat level -->
-                        <StackPanel Spacing="2">
-                            <DockPanel>
-                                <TextBlock Text="FLAT LEVEL" FontWeight="Bold" FontSize="10" Foreground="#555555" />
-                                <TextBlock x:Name="FlatLevelLabel" FontSize="11" HorizontalAlignment="Right" />
-                            </DockPanel>
-                            <Slider x:Name="FlatLevelSlider" Minimum="0" Maximum="1" Value="0.5" />
-                        </StackPanel>
+                        <controls:LabeledSlider x:Name="FlatLevelSlider" Label="FLAT LEVEL"
+                                                Minimum="0" Maximum="1" Value="0.5" DefaultValue="0.5" />
 
                         <!-- Smoothing section -->
                         <Rectangle Height="1" Fill="#DDDDDD" Margin="0,6,0,0" />
                         <TextBlock Text="SMOOTHING" FontWeight="Bold" FontSize="10" Foreground="#555555" />
 
-                        <StackPanel Spacing="2">
-                            <DockPanel>
-                                <TextBlock Text="PRESSURE EMA" FontWeight="Bold" FontSize="10" Foreground="#555555" />
-                                <TextBlock x:Name="PressureEmaLabel" FontSize="11" HorizontalAlignment="Right" />
-                            </DockPanel>
-                            <Slider x:Name="PressureEmaSlider" Minimum="0" Maximum="0.99" Value="0" />
-                        </StackPanel>
-                        <StackPanel Spacing="2">
-                            <DockPanel>
-                                <TextBlock Text="POSITION EMA" FontWeight="Bold" FontSize="10" Foreground="#555555" />
-                                <TextBlock x:Name="PositionEmaLabel" FontSize="11" HorizontalAlignment="Right" />
-                            </DockPanel>
-                            <Slider x:Name="PositionEmaSlider" Minimum="0" Maximum="0.99" Value="0" />
-                        </StackPanel>
+                        <controls:LabeledSlider x:Name="PressureEmaSlider" Label="PRESSURE EMA"
+                                                Minimum="0" Maximum="0.99" Value="0" DefaultValue="0" />
+                        <controls:LabeledSlider x:Name="PositionEmaSlider" Label="POSITION EMA"
+                                                Minimum="0" Maximum="0.99" Value="0" DefaultValue="0" />
                         <StackPanel Spacing="2">
                             <TextBlock Text="SMOOTHING ORDER" FontWeight="Bold" FontSize="10" Foreground="#555555" />
                             <ComboBox x:Name="SmoothingOrderCombo" Width="180" />
