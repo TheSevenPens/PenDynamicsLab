@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using System.Linq;
 using PenSession;
@@ -75,6 +76,7 @@ public partial class MainWindow : Window
         InitializeBrushControls();
         InitializeCurveControls();
         InitializeBezierPresets();
+        InitializeResponseSection();
         RebuildUserPresetList();
 
         Opened += (_, _) =>
@@ -240,6 +242,7 @@ public partial class MainWindow : Window
             if (e.NewValue is not PressureCurveParams newParams) return;
             if (ReferenceEquals(newParams, _curveParams)) return;
             _curveParams = newParams;
+            ResponseChart.Params = _curveParams;
             SyncCurveControlsFromParams();
         };
     }
@@ -309,6 +312,155 @@ public partial class MainWindow : Window
         RebuildUserPresetList();
     }
 
+    // ── Pressure response section ───────────────────────────────
+
+    private const string UploadJsonSentinel = "__upload__";
+
+    private void InitializeResponseSection()
+    {
+        ResponseDataCombo.Items.Add("(none)");
+        foreach (var s in PressureResponseLoader.Samples)
+            ResponseDataCombo.Items.Add(s.Label);
+        ResponseDataCombo.Items.Add("Upload JSON...");
+        ResponseDataCombo.SelectedIndex = 0;
+
+        ResponseDataCombo.SelectionChanged += async (_, _) =>
+        {
+            int idx = ResponseDataCombo.SelectedIndex;
+            if (idx <= 0) { SetResponseData(null); return; }
+
+            // Last item is the upload picker.
+            if (idx == ResponseDataCombo.Items.Count - 1)
+            {
+                await PickResponseJsonFileAsync();
+                return;
+            }
+            try
+            {
+                var data = PressureResponseLoader.LoadSample(PressureResponseLoader.Samples[idx - 1].ResourceName);
+                SetResponseData(data);
+            }
+            catch
+            {
+                SetResponseData(null);
+            }
+        };
+
+        ResponseShowCurveEffectCheck.IsCheckedChanged += (_, _) =>
+        {
+            ResponseChart.ShowCurveEffect = ResponseShowCurveEffectCheck.IsChecked == true;
+        };
+        ResponseChart.ShowCurveEffect = true;
+        ResponseChart.Params = _curveParams;
+    }
+
+    private void SetResponseData(PressureResponseData? data)
+    {
+        ResponseChart.Data = data;
+        ResponseClearButton.IsEnabled = data != null;
+        ResponseInfoLabel.Text = data is null
+            ? ""
+            : $"{data.InventoryId} — {data.Brand} {data.Pen} · {data.Tablet} · {data.Date} · {data.Records.Count} pts";
+    }
+
+    private void ResponseClear_Click(object? sender, RoutedEventArgs e)
+    {
+        ResponseDataCombo.SelectedIndex = 0;
+        SetResponseData(null);
+    }
+
+    private async Task PickResponseJsonFileAsync()
+    {
+        var sp = TopLevel.GetTopLevel(this)?.StorageProvider;
+        if (sp is null) return;
+
+        var files = await sp.OpenFilePickerAsync(new global::Avalonia.Platform.Storage.FilePickerOpenOptions
+        {
+            Title = "Select pressure-response JSON",
+            AllowMultiple = false,
+            FileTypeFilter = [new global::Avalonia.Platform.Storage.FilePickerFileType("JSON")
+                { Patterns = new[] { "*.json" } }],
+        });
+        if (files.Count == 0)
+        {
+            ResponseDataCombo.SelectedIndex = 0;
+            SetResponseData(null);
+            return;
+        }
+        try
+        {
+            var local = files[0].TryGetLocalPath();
+            if (local == null) { ResponseDataCombo.SelectedIndex = 0; return; }
+            SetResponseData(PressureResponseLoader.LoadFromFile(local));
+            // Keep the combo on "Upload JSON..." position so user knows we're showing custom data.
+        }
+        catch
+        {
+            SetResponseData(null);
+            ResponseDataCombo.SelectedIndex = 0;
+        }
+    }
+
+    // ── Image export ────────────────────────────────────────────
+
+    private async void SaveCurveChart_Click(object? sender, RoutedEventArgs e)
+        => await SaveControlAsPngAsync(PressureChart, "pressure-curve.png");
+
+    private async void SaveProcessedCanvas_Click(object? sender, RoutedEventArgs e)
+        => await SaveSurfaceAsPngAsync(_processed, "processed.png");
+
+    private async void SaveRawCanvas_Click(object? sender, RoutedEventArgs e)
+        => await SaveSurfaceAsPngAsync(_raw, "unprocessed.png");
+
+    private async Task SaveControlAsPngAsync(Control control, string suggestedName)
+    {
+        if (control.Bounds.Width <= 0 || control.Bounds.Height <= 0) return;
+        var sp = TopLevel.GetTopLevel(this)?.StorageProvider;
+        if (sp is null) return;
+
+        var file = await sp.SaveFilePickerAsync(new global::Avalonia.Platform.Storage.FilePickerSaveOptions
+        {
+            Title = "Save chart as PNG",
+            SuggestedFileName = suggestedName,
+            DefaultExtension = "png",
+            FileTypeChoices = [new global::Avalonia.Platform.Storage.FilePickerFileType("PNG")
+                { Patterns = new[] { "*.png" } }],
+        });
+        if (file is null) return;
+
+        var rtb = new global::Avalonia.Media.Imaging.RenderTargetBitmap(
+            new PixelSize((int)control.Bounds.Width, (int)control.Bounds.Height),
+            new Vector(96, 96));
+        rtb.Render(control);
+        await using var stream = await file.OpenWriteAsync();
+        rtb.Save(stream);
+    }
+
+    private async Task SaveSurfaceAsPngAsync(DrawSurface? surface, string suggestedName)
+    {
+        if (surface is null || surface.Width <= 0 || surface.Height <= 0) return;
+        var sp = TopLevel.GetTopLevel(this)?.StorageProvider;
+        if (sp is null) return;
+
+        var file = await sp.SaveFilePickerAsync(new global::Avalonia.Platform.Storage.FilePickerSaveOptions
+        {
+            Title = "Save canvas as PNG",
+            SuggestedFileName = suggestedName,
+            DefaultExtension = "png",
+            FileTypeChoices = [new global::Avalonia.Platform.Storage.FilePickerFileType("PNG")
+                { Patterns = new[] { "*.png" } }],
+        });
+        if (file is null) return;
+
+        await using var stream = await file.OpenWriteAsync();
+        surface.SavePng(stream);
+    }
+
+    // ── Driver warning ──────────────────────────────────────────
+
+    private void DismissDriverWarning_Click(object? sender, RoutedEventArgs e)
+        => DriverWarningBanner.IsVisible = false;
+
     private void RebuildUserPresetList()
     {
         PresetList.Children.Clear();
@@ -359,6 +511,7 @@ public partial class MainWindow : Window
     {
         _curveParams = patch(_curveParams);
         PressureChart.Params = _curveParams;
+        ResponseChart.Params = _curveParams;
         UpdateBezierToolbar();
     }
 
@@ -411,6 +564,8 @@ public partial class MainWindow : Window
         _smoothedPressure = null;
         PressureChart.LiveRawPressure = null;
         PressureChart.LivePressure = null;
+        ResponseChart.LiveRawPressure = null;
+        ResponseChart.LivePressure = null;
     }
 
     // ── Pressure pipeline ───────────────────────────────────────
@@ -552,6 +707,8 @@ public partial class MainWindow : Window
             UpdateTelemetry(pt, clientPt, smoothedPos, maxP);
             PressureChart.LiveRawPressure = pipeline.Raw;
             PressureChart.LivePressure = pipeline.PreCurve;
+            ResponseChart.LiveRawPressure = pipeline.Raw;
+            ResponseChart.LivePressure = pipeline.PreCurve;
         }
 
         if (processedDirty) _processed!.Present();

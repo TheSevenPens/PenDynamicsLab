@@ -4,6 +4,22 @@
         x:Class="PenDynamicsLab.MainWindow"
         Title="PenDynamicsLab" Width="1500" Height="900">
     <DockPanel>
+        <!-- Driver warning banner (dismissible) -->
+        <Border DockPanel.Dock="Top" x:Name="DriverWarningBanner"
+                Background="#FFF8E1" BorderBrush="#E0C77A" BorderThickness="0,0,0,1"
+                Padding="10,6">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="✕" Width="24" Padding="0"
+                        Background="Transparent" BorderThickness="0"
+                        Click="DismissDriverWarning_Click" />
+                <TextBlock VerticalAlignment="Center" FontSize="12" Foreground="#704C00"
+                           TextWrapping="Wrap">
+                    Tip: set your tablet driver's pressure curve to default (linear) so this app
+                    sees raw pen input — otherwise you're tuning a curve on top of a curve.
+                </TextBlock>
+            </DockPanel>
+        </Border>
+
         <!-- Top ribbon: pen telemetry + API selector -->
         <Border DockPanel.Dock="Top" Background="#F5F5F5"
                 BorderBrush="#CCCCCC" BorderThickness="0,0,0,1" Padding="8,6">
@@ -69,9 +85,14 @@
 
             <!-- Left panel: chart + controls -->
             <DockPanel Grid.Column="0" Background="#FAFAFA">
-                <controls:PressureChartControl x:Name="PressureChart"
-                                               DockPanel.Dock="Top"
-                                               Height="320" Margin="8" />
+                <DockPanel DockPanel.Dock="Top">
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" HorizontalAlignment="Right"
+                                Margin="0,4,8,0" Spacing="6">
+                        <Button Content="Save chart..." FontSize="11" Padding="6,2"
+                                Click="SaveCurveChart_Click" />
+                    </StackPanel>
+                    <controls:PressureChartControl x:Name="PressureChart" Height="320" Margin="8,0,8,0" />
+                </DockPanel>
                 <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                               VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="12,4,12,12" Spacing="10">
@@ -139,6 +160,20 @@
                             <TextBlock Text="SMOOTHING ORDER" FontWeight="Bold" FontSize="10" Foreground="#555555" />
                             <ComboBox x:Name="SmoothingOrderCombo" Width="180" />
                         </StackPanel>
+
+                        <!-- Pressure response section -->
+                        <Rectangle Height="1" Fill="#DDDDDD" Margin="0,6,0,0" />
+                        <TextBlock Text="PRESSURE RESPONSE" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <ComboBox x:Name="ResponseDataCombo" Width="240"
+                                      PlaceholderText="Select data..." />
+                            <Button x:Name="ResponseClearButton" Content="Clear"
+                                    IsEnabled="False" Click="ResponseClear_Click" />
+                        </StackPanel>
+                        <CheckBox x:Name="ResponseShowCurveEffectCheck" Content="Show effect of curve"
+                                  IsChecked="True" />
+                        <TextBlock x:Name="ResponseInfoLabel" FontSize="11" Foreground="#888888" />
+                        <controls:PressureResponseChartControl x:Name="ResponseChart" Height="240" />
 
                         <!-- Presets section -->
                         <Rectangle Height="1" Fill="#DDDDDD" Margin="0,6,0,0" />
@@ -210,7 +245,12 @@
                     </Grid.RowDefinitions>
 
                     <Border Grid.Row="0" Background="#E8E8E2" BorderBrush="#D0D0C8" BorderThickness="0,0,0,1" Padding="8,4">
-                        <TextBlock Text="Pressure processing: ON" FontWeight="SemiBold" FontSize="12" Foreground="#333333" />
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="Save..." FontSize="11" Padding="6,1"
+                                    Click="SaveProcessedCanvas_Click" />
+                            <TextBlock Text="Pressure processing: ON" FontWeight="SemiBold" FontSize="12" Foreground="#333333"
+                                       VerticalAlignment="Center" />
+                        </DockPanel>
                     </Border>
                     <Border Grid.Row="1" x:Name="ProcessedCanvasHost" Background="#F5F5F0" ClipToBounds="True">
                         <Image x:Name="ProcessedImage" Stretch="None"
@@ -220,7 +260,12 @@
                     <Rectangle Grid.Row="2" Fill="#CCCCCC" />
 
                     <Border Grid.Row="3" Background="#E8E8E2" BorderBrush="#D0D0C8" BorderThickness="0,0,0,1" Padding="8,4">
-                        <TextBlock Text="Pressure processing: OFF" FontWeight="SemiBold" FontSize="12" Foreground="#333333" />
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="Save..." FontSize="11" Padding="6,1"
+                                    Click="SaveRawCanvas_Click" />
+                            <TextBlock Text="Pressure processing: OFF" FontWeight="SemiBold" FontSize="12" Foreground="#333333"
+                                       VerticalAlignment="Center" />
+                        </DockPanel>
                     </Border>
                     <Border Grid.Row="4" x:Name="RawCanvasHost" Background="#F5F5F0" ClipToBounds="True">
                         <Image x:Name="RawImage" Stretch="None"

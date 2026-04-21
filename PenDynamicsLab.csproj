@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <Compile Include="**\*.cs" Exclude="bin\**;obj\**;PenDynamicsLab.Tests\**" />
+    <EmbeddedResource Include="Persistence\SampleResponses\*.json" />
   </ItemGroup>
 
   <ItemGroup>

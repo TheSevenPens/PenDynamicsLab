@@ -86,6 +86,15 @@ public sealed class DrawSurface : IDisposable
         }
     }
 
+    /// <summary>Encode the current bitmap to PNG and write to <paramref name="stream"/>.</summary>
+    public void SavePng(Stream stream)
+    {
+        if (_skBitmap == null) return;
+        using var image = SKImage.FromBitmap(_skBitmap);
+        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+        data.SaveTo(stream);
+    }
+
     public void Dispose()
     {
         _skCanvas?.Dispose();
