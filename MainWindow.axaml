@@ -2,9 +2,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="using:PenDynamicsLab.Controls"
         x:Class="PenDynamicsLab.MainWindow"
-        Title="PenDynamicsLab" Width="1400" Height="800">
+        Title="PenDynamicsLab" Width="1500" Height="900">
     <DockPanel>
-        <!-- Ribbon -->
+        <!-- Top ribbon: pen telemetry + API selector -->
         <Border DockPanel.Dock="Top" Background="#F5F5F5"
                 BorderBrush="#CCCCCC" BorderThickness="0,0,0,1" Padding="8,6">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="16">
@@ -13,22 +13,6 @@
                     <TextBlock Text="APP" FontWeight="Bold" FontSize="10"
                                Foreground="#555555" Margin="0,0,0,4" />
                     <ComboBox x:Name="ApiCombo" Width="120" Height="28" />
-                    <Button Content="Clear" Height="28" Width="60" Margin="0,4,0,0"
-                            Click="Clear_Click" />
-                </StackPanel>
-                <Rectangle Width="1" Fill="#DDDDDD" />
-
-                <!-- BRUSH -->
-                <StackPanel>
-                    <TextBlock Text="BRUSH" FontWeight="Bold" FontSize="10"
-                               Foreground="#555555" Margin="0,0,0,4" />
-                    <StackPanel Orientation="Horizontal" Spacing="4">
-                        <TextBlock Text="Size" VerticalAlignment="Center" />
-                        <TextBlock x:Name="BrushSizeLabel" Text="6 px"
-                                   VerticalAlignment="Center" Width="35" />
-                    </StackPanel>
-                    <Slider x:Name="BrushSizeSlider" Width="100" Minimum="1" Maximum="50"
-                            Value="6" IsSnapToTickEnabled="True" TickFrequency="1" />
                 </StackPanel>
                 <Rectangle Width="1" Fill="#DDDDDD" />
 
@@ -75,7 +59,7 @@
             </StackPanel>
         </Border>
 
-        <!-- Body: left = curve chart + controls, right = drawing canvas -->
+        <!-- Body: left = curve chart + controls, right = drawing canvases -->
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="480" />
@@ -83,7 +67,7 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!-- Left panel: curve chart on top, scrollable controls below -->
+            <!-- Left panel: chart + controls -->
             <DockPanel Grid.Column="0" Background="#FAFAFA">
                 <controls:PressureChartControl x:Name="PressureChart"
                                                DockPanel.Dock="Top"
@@ -168,6 +152,29 @@
                             </DockPanel>
                             <Slider x:Name="FlatLevelSlider" Minimum="0" Maximum="1" Value="0.5" />
                         </StackPanel>
+
+                        <!-- Smoothing section -->
+                        <Rectangle Height="1" Fill="#DDDDDD" Margin="0,6,0,0" />
+                        <TextBlock Text="SMOOTHING" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+
+                        <StackPanel Spacing="2">
+                            <DockPanel>
+                                <TextBlock Text="PRESSURE EMA" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+                                <TextBlock x:Name="PressureEmaLabel" FontSize="11" HorizontalAlignment="Right" />
+                            </DockPanel>
+                            <Slider x:Name="PressureEmaSlider" Minimum="0" Maximum="0.99" Value="0" />
+                        </StackPanel>
+                        <StackPanel Spacing="2">
+                            <DockPanel>
+                                <TextBlock Text="POSITION EMA" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+                                <TextBlock x:Name="PositionEmaLabel" FontSize="11" HorizontalAlignment="Right" />
+                            </DockPanel>
+                            <Slider x:Name="PositionEmaSlider" Minimum="0" Maximum="0.99" Value="0" />
+                        </StackPanel>
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="SMOOTHING ORDER" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+                            <ComboBox x:Name="SmoothingOrderCombo" Width="180" />
+                        </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
             </DockPanel>
@@ -175,11 +182,78 @@
             <!-- Splitter -->
             <Rectangle Grid.Column="1" Fill="#CCCCCC" />
 
-            <!-- Right panel: drawing canvas (Skia bitmap-backed) -->
-            <Border Grid.Column="2" x:Name="CanvasArea" Background="#F0F0F0" ClipToBounds="True">
-                <Image x:Name="DrawImage" Stretch="None"
-                       HorizontalAlignment="Left" VerticalAlignment="Top" />
-            </Border>
+            <!-- Right panel: brush ribbon + split drawing canvases -->
+            <DockPanel Grid.Column="2" Background="#F5F5F0">
+                <!-- Brush ribbon -->
+                <Border DockPanel.Dock="Top" Background="#F5F5F5"
+                        BorderBrush="#CCCCCC" BorderThickness="0,0,0,1" Padding="8,6">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="16">
+                        <StackPanel>
+                            <DockPanel>
+                                <TextBlock Text="BRUSH SIZE" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+                                <TextBlock x:Name="BrushSizeLabel" Text="40 px" FontSize="11"
+                                           HorizontalAlignment="Right" Margin="8,0,0,0" />
+                            </DockPanel>
+                            <Slider x:Name="BrushSizeSlider" Width="140" Minimum="1" Maximum="200"
+                                    Value="40" IsSnapToTickEnabled="True" TickFrequency="1" />
+                        </StackPanel>
+                        <Rectangle Width="1" Fill="#DDDDDD" />
+
+                        <StackPanel>
+                            <TextBlock Text="COLOR" FontWeight="Bold" FontSize="10" Foreground="#555555" Margin="0,0,0,4" />
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <RadioButton x:Name="ColorBlackRadio" GroupName="ColorMode" Content="Black" IsChecked="True" />
+                                <RadioButton x:Name="ColorRandomRadio" GroupName="ColorMode" Content="Random" />
+                            </StackPanel>
+                        </StackPanel>
+                        <Rectangle Width="1" Fill="#DDDDDD" />
+
+                        <StackPanel>
+                            <TextBlock Text="PRESSURE → " FontWeight="Bold" FontSize="10" Foreground="#555555" Margin="0,0,0,4" />
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <RadioButton x:Name="PressureSizeRadio" GroupName="PressureControl" Content="Size" IsChecked="True" />
+                                <RadioButton x:Name="PressureOpacityRadio" GroupName="PressureControl" Content="Opacity" />
+                            </StackPanel>
+                        </StackPanel>
+                        <Rectangle Width="1" Fill="#DDDDDD" />
+
+                        <CheckBox x:Name="DrawZeroPressureCheck" Content="Draw at 0 effective pressure"
+                                  VerticalAlignment="Center" />
+                        <Rectangle Width="1" Fill="#DDDDDD" />
+
+                        <Button Content="Clear" Width="60" Height="28" Click="Clear_Click" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Split canvas area -->
+                <Grid x:Name="CanvasArea" ClipToBounds="True">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="1" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Background="#E8E8E2" BorderBrush="#D0D0C8" BorderThickness="0,0,0,1" Padding="8,4">
+                        <TextBlock Text="Pressure processing: ON" FontWeight="SemiBold" FontSize="12" Foreground="#333333" />
+                    </Border>
+                    <Border Grid.Row="1" x:Name="ProcessedCanvasHost" Background="#F5F5F0" ClipToBounds="True">
+                        <Image x:Name="ProcessedImage" Stretch="None"
+                               HorizontalAlignment="Left" VerticalAlignment="Top" />
+                    </Border>
+
+                    <Rectangle Grid.Row="2" Fill="#CCCCCC" />
+
+                    <Border Grid.Row="3" Background="#E8E8E2" BorderBrush="#D0D0C8" BorderThickness="0,0,0,1" Padding="8,4">
+                        <TextBlock Text="Pressure processing: OFF" FontWeight="SemiBold" FontSize="12" Foreground="#333333" />
+                    </Border>
+                    <Border Grid.Row="4" x:Name="RawCanvasHost" Background="#F5F5F0" ClipToBounds="True">
+                        <Image x:Name="RawImage" Stretch="None"
+                               HorizontalAlignment="Left" VerticalAlignment="Top" />
+                    </Border>
+                </Grid>
+            </DockPanel>
         </Grid>
     </DockPanel>
 </Window>

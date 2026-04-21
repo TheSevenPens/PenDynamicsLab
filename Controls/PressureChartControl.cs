@@ -29,6 +29,15 @@ public sealed class PressureChartControl : Control
     private static readonly Typeface MonoTypeface = new("Consolas, monospace");
     private static readonly Typeface SansTypeface = new("Segoe UI");
 
+    // Live indicator colors — match WebPressureExplorer: green = effective (post-smoothing pre-curve),
+    // purple = raw input. Solid color for the dot, faded for the dashed crosshair guides.
+    private static readonly IBrush EffectiveDotBrush = new SolidColorBrush(Color.FromRgb(0x14, 0xA0, 0x50));
+    private static readonly IPen EffectiveGuidePen = new Pen(new SolidColorBrush(Color.FromArgb(0x33, 0x14, 0xA0, 0x50)), 1)
+    { DashStyle = new DashStyle(new double[] { 3, 4 }, 0) };
+    private static readonly IBrush RawDotBrush = new SolidColorBrush(Color.FromRgb(0x88, 0x33, 0xCC));
+    private static readonly IPen RawGuidePen = new Pen(new SolidColorBrush(Color.FromArgb(0x33, 0x88, 0x33, 0xCC)), 1)
+    { DashStyle = new DashStyle(new double[] { 3, 4 }, 0) };
+
     public static readonly StyledProperty<PressureCurveParams> ParamsProperty =
         AvaloniaProperty.Register<PressureChartControl, PressureCurveParams>(
             nameof(Params),
@@ -40,9 +49,29 @@ public sealed class PressureChartControl : Control
         set => SetValue(ParamsProperty, value);
     }
 
+    public static readonly StyledProperty<double?> LiveRawPressureProperty =
+        AvaloniaProperty.Register<PressureChartControl, double?>(nameof(LiveRawPressure));
+
+    /// <summary>Raw input pressure (0..1), or null when no pen contact. Drawn as a purple dot.</summary>
+    public double? LiveRawPressure
+    {
+        get => GetValue(LiveRawPressureProperty);
+        set => SetValue(LiveRawPressureProperty, value);
+    }
+
+    public static readonly StyledProperty<double?> LivePressureProperty =
+        AvaloniaProperty.Register<PressureChartControl, double?>(nameof(LivePressure));
+
+    /// <summary>Effective pressure entering the curve (0..1) after smoothing, or null. Drawn as a green dot.</summary>
+    public double? LivePressure
+    {
+        get => GetValue(LivePressureProperty);
+        set => SetValue(LivePressureProperty, value);
+    }
+
     static PressureChartControl()
     {
-        AffectsRender<PressureChartControl>(ParamsProperty);
+        AffectsRender<PressureChartControl>(ParamsProperty, LiveRawPressureProperty, LivePressureProperty);
     }
 
     public override void Render(DrawingContext context)
@@ -68,6 +97,32 @@ public sealed class PressureChartControl : Control
 
         DrawLabels(context, width, height, plotW, plotH);
         DrawCurve(context, plotW, plotH);
+        DrawIndicators(context, plotW, plotH);
+    }
+
+    private void DrawIndicators(DrawingContext context, double plotW, double plotH)
+    {
+        // Order: raw first (under) then effective (on top) so the green dot wins on overlap.
+        if (LiveRawPressure is { } raw)
+        {
+            double mapped = CurveMath.ApplyPressureCurve(raw, Params);
+            DrawIndicator(context, plotW, plotH, raw, mapped, RawDotBrush, RawGuidePen);
+        }
+        if (LivePressure is { } eff)
+        {
+            double mapped = CurveMath.ApplyPressureCurve(eff, Params);
+            DrawIndicator(context, plotW, plotH, eff, mapped, EffectiveDotBrush, EffectiveGuidePen);
+        }
+    }
+
+    private static void DrawIndicator(DrawingContext context, double plotW, double plotH,
+        double inputValue, double outputValue, IBrush dotBrush, IPen guidePen)
+    {
+        double dotX = PadLeft + inputValue * plotW;
+        double dotY = PadTop + plotH - outputValue * plotH;
+        context.DrawLine(guidePen, new Point(dotX, PadTop + plotH), new Point(dotX, dotY));
+        context.DrawLine(guidePen, new Point(PadLeft, dotY), new Point(dotX, dotY));
+        context.DrawEllipse(dotBrush, null, new Point(dotX, dotY), 4, 4);
     }
 
     private void DrawLabels(DrawingContext context, double width, double height, double plotW, double plotH)
