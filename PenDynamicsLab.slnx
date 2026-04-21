@@ -4,6 +4,7 @@
     <Platform Name="x64" />
   </Configurations>
   <Project Path="PenDynamicsLab.csproj" />
+  <Project Path="PenDynamicsLab.Tests/PenDynamicsLab.Tests.csproj" />
   <Project Path="../WinPenSession/PenSession/PenSession.csproj" />
   <Project Path="../WinPenSession/PenSession.Avalonia/PenSession.Avalonia.csproj" />
 </Solution>
