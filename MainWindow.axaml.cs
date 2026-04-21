@@ -9,6 +9,7 @@ using PenSession.Avalonia;
 using PenDynamicsLab.Controls;
 using PenDynamicsLab.Curves;
 using PenDynamicsLab.Drawing;
+using PenDynamicsLab.Persistence;
 using SkiaSharp;
 
 namespace PenDynamicsLab;
@@ -53,6 +54,8 @@ public partial class MainWindow : Window
     private double? _smoothedPressure;
     private readonly Random _rng = new();
 
+    private readonly PresetStore _presetStore = new();
+
     public MainWindow()
     {
         InitializeComponent();
@@ -71,6 +74,8 @@ public partial class MainWindow : Window
 
         InitializeBrushControls();
         InitializeCurveControls();
+        InitializeBezierPresets();
+        RebuildUserPresetList();
 
         Opened += (_, _) =>
         {
@@ -275,6 +280,71 @@ public partial class MainWindow : Window
 
     private void BezierAdd_Click(object? sender, RoutedEventArgs e) => PressureChart.AddBezierPointAtLargestGap();
     private void BezierRemove_Click(object? sender, RoutedEventArgs e) => PressureChart.RemoveSelectedBezierPoint();
+
+    // ── Bezier presets ──────────────────────────────────────────
+
+    private void InitializeBezierPresets()
+    {
+        foreach (var preset in BezierPresets.All)
+            BezierPresetCombo.Items.Add(preset.Name);
+
+        BezierPresetCombo.SelectionChanged += (_, _) =>
+        {
+            if (BezierPresetCombo.SelectedIndex < 0) return;
+            var preset = BezierPresets.All[BezierPresetCombo.SelectedIndex];
+            UpdateParams(p => p with { BezierPoints = preset.Points });
+            // Reset selection so the same preset can be re-applied later.
+            BezierPresetCombo.SelectedIndex = -1;
+        };
+    }
+
+    // ── User presets ────────────────────────────────────────────
+
+    private void PresetSave_Click(object? sender, RoutedEventArgs e)
+    {
+        var name = PresetNameInput.Text?.Trim() ?? "";
+        if (name.Length == 0) return;
+        _presetStore.Save(name, _curveParams);
+        PresetNameInput.Text = "";
+        RebuildUserPresetList();
+    }
+
+    private void RebuildUserPresetList()
+    {
+        PresetList.Children.Clear();
+        foreach (var preset in _presetStore.All.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            var name = preset.Name;
+            var row = new DockPanel { LastChildFill = true, Margin = new Thickness(0, 1, 0, 1) };
+
+            var deleteBtn = new Button { Content = "✕", Width = 24, Padding = new Thickness(0), FontSize = 10 };
+            deleteBtn.Click += (_, _) =>
+            {
+                _presetStore.Delete(name);
+                RebuildUserPresetList();
+            };
+            DockPanel.SetDock(deleteBtn, Dock.Right);
+
+            var loadBtn = new Button { Content = "Load", Margin = new Thickness(4, 0), Padding = new Thickness(6, 1) };
+            loadBtn.Click += (_, _) =>
+            {
+                if (_presetStore.Get(name) is { } p)
+                {
+                    _curveParams = p.Params;
+                    PressureChart.Params = _curveParams;
+                    SyncCurveControlsFromParams();
+                }
+            };
+            DockPanel.SetDock(loadBtn, Dock.Right);
+
+            var label = new TextBlock { Text = name, VerticalAlignment = global::Avalonia.Layout.VerticalAlignment.Center };
+
+            row.Children.Add(deleteBtn);
+            row.Children.Add(loadBtn);
+            row.Children.Add(label);
+            PresetList.Children.Add(row);
+        }
+    }
 
     private void WireSlider(LabeledSlider slider, Func<double, Func<PressureCurveParams, PressureCurveParams>> patch)
     {

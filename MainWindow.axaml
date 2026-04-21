@@ -92,6 +92,11 @@
                             </StackPanel>
                             <TextBlock Text="Right-click in plot to add or remove."
                                        FontSize="10" Foreground="#888888" />
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="Preset:" VerticalAlignment="Center" FontSize="11" />
+                                <ComboBox x:Name="BezierPresetCombo" Width="140"
+                                          PlaceholderText="Choose preset..." />
+                            </StackPanel>
                         </StackPanel>
 
                         <controls:LabeledSlider x:Name="SoftnessSlider" Label="SOFTNESS"
@@ -134,6 +139,16 @@
                             <TextBlock Text="SMOOTHING ORDER" FontWeight="Bold" FontSize="10" Foreground="#555555" />
                             <ComboBox x:Name="SmoothingOrderCombo" Width="180" />
                         </StackPanel>
+
+                        <!-- Presets section -->
+                        <Rectangle Height="1" Fill="#DDDDDD" Margin="0,6,0,0" />
+                        <TextBlock Text="USER PRESETS" FontWeight="Bold" FontSize="10" Foreground="#555555" />
+
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBox x:Name="PresetNameInput" Width="180" Watermark="Preset name..." />
+                            <Button x:Name="PresetSaveButton" Content="Save" Click="PresetSave_Click" />
+                        </StackPanel>
+                        <StackPanel x:Name="PresetList" Spacing="2" />
                     </StackPanel>
                 </ScrollViewer>
             </DockPanel>
