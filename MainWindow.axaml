@@ -197,11 +197,11 @@
                 <controls:BrushRibbon DockPanel.Dock="Top" x:Name="BrushRibbon" />
 
                 <TabControl x:Name="RightTabs" Padding="0">
-                    <TabItem Header="Stroke">
+                    <TabItem x:Name="StrokeTab" Header="Stroke">
                         <controls:StrokeCanvasView x:Name="StrokeView" Header="Pressure processing: ON" />
                     </TabItem>
 
-                    <TabItem Header="Stroke compare">
+                    <TabItem x:Name="StrokeCompareTab" Header="Stroke compare">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="*" />

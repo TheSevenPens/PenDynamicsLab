@@ -81,7 +81,13 @@ public partial class MainWindow : Window
         {
             if (e.Property.Name == "Bounds") EnsureSurfaces();
         };
-        RightTabs.SelectionChanged += (_, _) => { EnsureSurfaces(); ResetStrokeState(); };
+        RightTabs.SelectionChanged += (_, _) =>
+        {
+            EnsureSurfaces();
+            ResetStrokeState();
+            UpdateBrushRibbonVisibility();
+        };
+        UpdateBrushRibbonVisibility();
 
         // Save buttons on each canvas view.
         StrokeView.SaveRequested += async (_, _) => await SaveSurfaceAsPngAsync(_processed, "stroke.png");
@@ -832,6 +838,12 @@ public partial class MainWindow : Window
     // ── Event handlers ───────────────────────────────────────────
 
     private void ApiCombo_SelectionChanged(object? sender, SelectionChangedEventArgs e) => StartSession();
+
+    private void UpdateBrushRibbonVisibility()
+    {
+        var sel = RightTabs.SelectedItem;
+        BrushRibbon.IsVisible = sel == StrokeTab || sel == StrokeCompareTab;
+    }
 
     private void ClearCanvases()
     {
