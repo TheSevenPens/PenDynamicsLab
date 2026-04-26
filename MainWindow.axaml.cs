@@ -41,6 +41,10 @@ public partial class MainWindow : Window
 
     // Brush / drawing state.
     private SKColor _strokeColor = BlackStrokeColor;
+
+    // Single BrushRibbon instance reparented into whichever stroke tab is active —
+    // keeps brush settings synced across tabs without duplicating UI state.
+    private readonly Controls.BrushRibbon BrushRibbon = new();
     private int _lastColorIndex = -1;
 
     // Stroke-local smoothing state. Reset whenever the pen lifts or the active canvas changes.
@@ -85,9 +89,9 @@ public partial class MainWindow : Window
         {
             EnsureSurfaces();
             ResetStrokeState();
-            UpdateBrushRibbonVisibility();
+            UpdateBrushRibbonHost();
         };
-        UpdateBrushRibbonVisibility();
+        UpdateBrushRibbonHost();
 
         // Save buttons on each canvas view.
         StrokeView.SaveRequested += async (_, _) => await SaveSurfaceAsPngAsync(_processed, "stroke.png");
@@ -372,7 +376,6 @@ public partial class MainWindow : Window
         foreach (var s in PressureResponseLoader.Samples)
             ResponseDataCombo.Items.Add(s.Label);
         ResponseDataCombo.Items.Add("Upload JSON...");
-        ResponseDataCombo.SelectedIndex = 0;
 
         ResponseDataCombo.SelectionChanged += async (_, _) =>
         {
@@ -401,6 +404,11 @@ public partial class MainWindow : Window
             ResponseChart.ShowCurveEffect = ResponseShowCurveEffectCheck.IsChecked == true;
         };
         ResponseChart.ShowCurveEffect = true;
+
+        // Default to the first bundled sample so the chart shows something interesting
+        // immediately. Index 0 is "(none)", index 1 is the first sample.
+        if (PressureResponseLoader.Samples.Count > 0) ResponseDataCombo.SelectedIndex = 1;
+        else ResponseDataCombo.SelectedIndex = 0;
         ResponseChart.Params = _curveParams;
     }
 
@@ -706,6 +714,20 @@ public partial class MainWindow : Window
             }
 
             var (over, localPt) = ResolveActiveCanvas(topLevel, clientPt);
+
+            // Pressure pipeline + telemetry + chart indicators run for every pen point,
+            // regardless of whether the pen is over a stroke canvas. This keeps the
+            // Pressure response tab's chart live even though it has no canvas.
+            double rawPressure = maxP > 0 ? (double)pt.Pressure / maxP : 0;
+            var pipeline = ProcessPressure(rawPressure);
+
+            UpdateTelemetry(pt, clientPt, over == ActiveCanvas.None ? null : (Point?)localPt, maxP);
+            PressureChart.LiveRawPressure = pipeline.Raw;
+            PressureChart.LivePressure = pipeline.PreCurve;
+            ResponseChart.LiveRawPressure = pipeline.Raw;
+            ResponseChart.LivePressure = pipeline.PreCurve;
+
+            // Drawing requires the pen to be over a stroke canvas.
             if (over == ActiveCanvas.None)
             {
                 _lastDrawPos = null;
@@ -718,14 +740,10 @@ public partial class MainWindow : Window
                 _activeCanvas = over;
                 _lastDrawPos = null;
                 _smoothedPos = null;
-                _smoothedPressure = null;
                 if (pt.Pressure > 0) PickStrokeColor();
             }
 
             var smoothedPos = SmoothPosition(localPt);
-
-            double rawPressure = maxP > 0 ? (double)pt.Pressure / maxP : 0;
-            var pipeline = ProcessPressure(rawPressure);
 
             if (rawPressure > 0)
             {
@@ -752,12 +770,6 @@ public partial class MainWindow : Window
             {
                 _lastDrawPos = null;
             }
-
-            UpdateTelemetry(pt, clientPt, smoothedPos, maxP);
-            PressureChart.LiveRawPressure = pipeline.Raw;
-            PressureChart.LivePressure = pipeline.PreCurve;
-            ResponseChart.LiveRawPressure = pipeline.Raw;
-            ResponseChart.LivePressure = pipeline.PreCurve;
         }
 
         if (processedDirty) _processed!.Present();
@@ -820,7 +832,7 @@ public partial class MainWindow : Window
         canvas.DrawLine((float)from.X, (float)from.Y, (float)to.X, (float)to.Y, paint);
     }
 
-    private void UpdateTelemetry(PenPoint pt, Point clientPt, Point canvasLocal, int maxP)
+    private void UpdateTelemetry(PenPoint pt, Point clientPt, Point? canvasLocal, int maxP)
     {
         ProximityDot.Fill = Brushes.LimeGreen;
         ProximityLabel.Text = "Proximity";
@@ -829,7 +841,8 @@ public partial class MainWindow : Window
         RawPosLabel.Text = $"Raw: {pt.RawX},{pt.RawY}";
         ScreenPosLabel.Text = $"Screen: {pt.DesktopX:F0},{pt.DesktopY:F0}";
         AppPosLabel.Text = $"App: {clientPt.X:F0},{clientPt.Y:F0}";
-        CanvasPosLabel.Text = $"Canvas: {canvasLocal.X:F1},{canvasLocal.Y:F1}";
+        CanvasPosLabel.Text = canvasLocal is { } cl
+            ? $"Canvas: {cl.X:F1},{cl.Y:F1}" : "Canvas: --,--";
 
         float pct = maxP > 0 ? (float)pt.Pressure / maxP * 100f : 0f;
         RawPressureLabel.Text = $"Raw: {pt.Pressure}";
@@ -844,10 +857,18 @@ public partial class MainWindow : Window
 
     private void ApiCombo_SelectionChanged(object? sender, SelectionChangedEventArgs e) => StartSession();
 
-    private void UpdateBrushRibbonVisibility()
+    private void UpdateBrushRibbonHost()
     {
+        // A control can have only one logical parent in Avalonia, so explicitly detach
+        // from both slots before assigning to the active one — otherwise reassignment
+        // throws.
+        StrokeBrushSlot.Content = null;
+        CompareBrushSlot.Content = null;
+
         var sel = RightTabs.SelectedItem;
-        BrushRibbon.IsVisible = sel == StrokeTab || sel == StrokeCompareTab;
+        if (sel == StrokeTab) StrokeBrushSlot.Content = BrushRibbon;
+        else if (sel == StrokeCompareTab) CompareBrushSlot.Content = BrushRibbon;
+        // Other tabs (Pressure response): ribbon stays detached.
     }
 
     private void ClearCanvases()

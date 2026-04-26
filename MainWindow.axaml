@@ -194,26 +194,30 @@
 
             <!-- Right panel: tabbed views. Each tab is its own workflow. -->
             <DockPanel x:Name="CanvasArea" Grid.Column="2" Background="#F5F5F0">
-                <controls:BrushRibbon DockPanel.Dock="Top" x:Name="BrushRibbon" />
-
                 <TabControl x:Name="RightTabs" Padding="0">
                     <TabItem x:Name="StrokeTab" Header="Stroke">
-                        <controls:StrokeCanvasView x:Name="StrokeView" Header="Pressure processing: ON" />
+                        <DockPanel>
+                            <ContentControl x:Name="StrokeBrushSlot" DockPanel.Dock="Top" />
+                            <controls:StrokeCanvasView x:Name="StrokeView" Header="Pressure processing: ON" />
+                        </DockPanel>
                     </TabItem>
 
                     <TabItem x:Name="StrokeCompareTab" Header="Stroke compare">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="*" />
-                                <RowDefinition Height="1" />
-                                <RowDefinition Height="*" />
-                            </Grid.RowDefinitions>
-                            <controls:StrokeCanvasView Grid.Row="0" x:Name="CompareProcessedView"
-                                                       Header="Pressure processing: ON" />
-                            <Rectangle Grid.Row="1" Fill="#CCCCCC" />
-                            <controls:StrokeCanvasView Grid.Row="2" x:Name="CompareRawView"
-                                                       Header="Pressure processing: OFF" />
-                        </Grid>
+                        <DockPanel>
+                            <ContentControl x:Name="CompareBrushSlot" DockPanel.Dock="Top" />
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="1" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+                                <controls:StrokeCanvasView Grid.Row="0" x:Name="CompareProcessedView"
+                                                           Header="Pressure processing: ON" />
+                                <Rectangle Grid.Row="1" Fill="#CCCCCC" />
+                                <controls:StrokeCanvasView Grid.Row="2" x:Name="CompareRawView"
+                                                           Header="Pressure processing: OFF" />
+                            </Grid>
+                        </DockPanel>
                     </TabItem>
 
                 <TabItem Header="Pressure response">
