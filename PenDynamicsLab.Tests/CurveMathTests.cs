@@ -7,20 +7,6 @@ public class CurveMathTests
 {
     private const double Eps = 1e-9;
 
-    // ── Cubic Hermite ────────────────────────────────────────────
-
-    [Fact]
-    public void CubicHermite_AtT0_ReturnsY0()
-        => Assert.Equal(0.3, CurveMath.CubicHermite(0, 0.3, 5, 0.7, -2), Eps);
-
-    [Fact]
-    public void CubicHermite_AtT1_ReturnsY1()
-        => Assert.Equal(0.7, CurveMath.CubicHermite(1, 0.3, 5, 0.7, -2), Eps);
-
-    [Fact]
-    public void CubicHermite_FlatEndpoints_AtMidpoint_IsAverage()
-        => Assert.Equal(0.5, CurveMath.CubicHermite(0.5, 0, 0, 1, 0), Eps);
-
     // ── RawCurveOutput: basic / extended (power-law) ─────────────
 
     [Theory]
@@ -128,22 +114,6 @@ public class CurveMathTests
             MinApproach = MinApproach.Cut,
         };
         Assert.Equal(0.0, CurveMath.ApplyPressureCurve(0.1, p), Eps);
-    }
-
-    [Fact]
-    public void Apply_TransitionWidth_AtBoundary_IsContinuousWithBaseOutput()
-    {
-        var p = PressureCurveParams.Default with
-        {
-            CurveType = CurveType.Basic,
-            Softness = 0.5,
-            TransitionWidth = 0.1,
-        };
-        // At xNorm just below tw, hermite goes (Min→baseOutput(tw)). At xNorm just above tw,
-        // it returns baseOutput. The two should agree at the seam.
-        double justBelow = CurveMath.ApplyPressureCurve(0.0999999, p);
-        double justAbove = CurveMath.ApplyPressureCurve(0.1000001, p);
-        Assert.Equal(justBelow, justAbove, 1e-5);
     }
 
     // ── Bezier ────────────────────────────────────────────────────

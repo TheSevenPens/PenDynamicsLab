@@ -138,7 +138,6 @@ Stroke state (last position, smoothed position, smoothed pressure) resets when:
 | `Maximum` | `double` | 0-1 | End of output pressure range |
 | `MinApproach` | `MinApproach` enum | Clamp, Cut | Behavior below input minimum |
 | `FlatLevel` | `double` | 0-1 | Constant output for flat curve |
-| `TransitionWidth` | `double` | 0-0.5 | Hermite transition smoothing width |
 | `BezierPoints` | `ImmutableArray<BezierPoint>` | 2-16 points | Bezier control points |
 | `EmaSmoothing` | `double` | 0-0.99 | Pressure EMA smoothing amount |
 | `PositionEmaSmoothing` | `double` | 0-0.99 | Cursor position EMA smoothing |

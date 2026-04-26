@@ -4,16 +4,6 @@ namespace PenDynamicsLab.Curves;
 
 public static class CurveMath
 {
-    public static double CubicHermite(double t, double y0, double m0, double y1, double m1)
-    {
-        double t2 = t * t;
-        double t3 = t2 * t;
-        return (2 * t3 - 3 * t2 + 1) * y0
-             + (t3 - 2 * t2 + t) * m0
-             + (-2 * t3 + 3 * t2) * y1
-             + (t3 - t2) * m1;
-    }
-
     public static double RawCurveOutput(double xNorm, PressureCurveParams p)
     {
         double curved;
@@ -42,14 +32,6 @@ public static class CurveMath
         return p.Minimum + curved * (p.Maximum - p.Minimum);
 
         static double Sig(double t, double k) => 1.0 / (1.0 + Math.Exp(-k * (t - 0.5)));
-    }
-
-    public static double RawCurveSlope(double xNorm, PressureCurveParams p)
-    {
-        const double epsilon = 0.0005;
-        double x1 = Math.Min(1, xNorm + epsilon);
-        double x0 = Math.Max(0, xNorm - epsilon);
-        return (RawCurveOutput(x1, p) - RawCurveOutput(x0, p)) / (x1 - x0);
     }
 
     public static ImmutableArray<BezierPoint> NormalizeBezierPoints(IReadOnlyList<BezierPoint>? points)
@@ -236,30 +218,7 @@ public static class CurveMath
 
         double inputRange = p.InputMaximum - p.InputMinimum;
         double xNorm = inputRange > 0 ? Clamp01((x - p.InputMinimum) / inputRange) : 0;
-        double baseOutput = RawCurveOutput(xNorm, p);
-
-        if (p.TransitionWidth > 0)
-        {
-            double tw = p.TransitionWidth;
-
-            if (xNorm < tw)
-            {
-                double t = xNorm / tw;
-                double y1 = RawCurveOutput(tw, p);
-                double m1 = RawCurveSlope(tw, p) * tw;
-                return CubicHermite(t, p.Minimum, 0, y1, m1);
-            }
-
-            if (xNorm > 1 - tw)
-            {
-                double s = (xNorm - (1 - tw)) / tw;
-                double y0 = RawCurveOutput(1 - tw, p);
-                double m0 = RawCurveSlope(1 - tw, p) * tw;
-                return CubicHermite(s, y0, m0, p.Maximum, 0);
-            }
-        }
-
-        return baseOutput;
+        return RawCurveOutput(xNorm, p);
     }
 
     private static double Clamp01(double v) => Math.Min(1, Math.Max(0, v));

@@ -14,7 +14,6 @@ public sealed record PressureCurveParams
     public double Maximum { get; init; } = 1;
     public CurveType CurveType { get; init; } = CurveType.Basic;
     public MinApproach MinApproach { get; init; } = MinApproach.Clamp;
-    public double TransitionWidth { get; init; } = 0;
     public double FlatLevel { get; init; } = 0.5;
     public ImmutableArray<BezierPoint> BezierPoints { get; init; } = DefaultBezierPoints;
 

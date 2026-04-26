@@ -22,9 +22,8 @@ These settings apply to **basic**, **extended**, and **sigmoid** curve types:
 | `InputMaximum` | 0-1 | Above this input value, output is clamped to the maximum. Controlled by the cyan max control node's X position. |
 | `Minimum` | 0-1 | The output value at the min control node. Controlled by the pink node's Y position. |
 | `Maximum` | 0-1 | The output value at the max control node. Controlled by the cyan node's Y position. |
-| `Softness` | -0.9 to 0.9 | Controls the curve shape. Positive = concave (lighter feel), negative = convex (heavier feel), zero = linear. |
+| `Softness` | -0.9 to 0.9 (Sigmoid: 0 to 0.95) | Controls the curve shape. Positive = concave (lighter feel), negative = convex (heavier feel), zero = linear. |
 | `MinApproach` | `Clamp` / `Cut` | How the curve behaves below `InputMinimum` (see below). |
-| `TransitionWidth` | 0-0.5 | Cubic Hermite smoothing at the boundaries. |
 
 Note: PenDynamicsLab shows the min/max nodes for **Sigmoid** and **Extended** curves only. **Basic** intentionally hides them — same convention as WebPressureExplorer — so Basic effectively uses the full [0, 1] input/output range.
 
@@ -94,7 +93,6 @@ Same math as **Basic**, but exposes the full set of controls:
 - Draggable pink min node (`InputMinimum`, `Minimum`)
 - Draggable cyan max node (`InputMaximum`, `Maximum`)
 - `MinApproach` toggle (Clamp / Cut)
-- `TransitionWidth` for boundary smoothing
 
 Use Extended when you want to remap input or output ranges; use Basic when you just want a power curve across [0, 1].
 
@@ -173,18 +171,6 @@ The 28-iteration binary search gives roughly 3.7 × 10⁻⁹ precision. This is 
 - Missing endpoints auto-generated
 - Handle X values constrained to stay within adjacent anchor X bounds
 - Endpoint handles forced to their anchor position (no overshoot)
-
-## Boundary transition smoothing
-
-When `TransitionWidth > 0`, cubic Hermite interpolation smooths the transition at the boundaries of the input range to avoid sharp corners where the flat clamped segments meet the curve.
-
-```
-cubicHermite(t, y0, m0, y1, m1) =
-  (2t^3 - 3t^2 + 1)*y0 + (t^3 - 2t^2 + t)*m0 +
-  (-2t^3 + 3t^2)*y1   + (t^3 - t^2)*m1
-```
-
-Applied at both the minimum boundary (`xNorm < TransitionWidth`) and maximum boundary (`xNorm > 1 - TransitionWidth`), blending between the clamped flat value and the curve with matching slope continuity.
 
 ## Pressure processing pipeline
 

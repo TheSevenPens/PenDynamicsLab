@@ -146,8 +146,6 @@
                                                 Minimum="0" Maximum="1" Value="0" DefaultValue="0" />
                         <controls:LabeledSlider x:Name="OutputMaxSlider" Label="OUTPUT MAX"
                                                 Minimum="0" Maximum="1" Value="1" DefaultValue="1" />
-                        <controls:LabeledSlider x:Name="TransitionWidthSlider" Label="TRANSITION WIDTH"
-                                                Minimum="0" Maximum="0.5" Value="0" DefaultValue="0" />
 
                         <!-- Min approach -->
                         <StackPanel x:Name="MinApproachPanel" Spacing="4">

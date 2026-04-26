@@ -202,7 +202,6 @@ public partial class MainWindow : Window
         InputMaxSlider.Value = _curveParams.InputMaximum;
         OutputMinSlider.Value = _curveParams.Minimum;
         OutputMaxSlider.Value = _curveParams.Maximum;
-        TransitionWidthSlider.Value = _curveParams.TransitionWidth;
         FlatLevelSlider.Value = _curveParams.FlatLevel;
         PressureEmaSlider.Value = _curveParams.EmaSmoothing;
         PositionEmaSlider.Value = _curveParams.PositionEmaSmoothing;
@@ -226,7 +225,6 @@ public partial class MainWindow : Window
         WireSlider(InputMaxSlider, v => p => p with { InputMaximum = v });
         WireSlider(OutputMinSlider, v => p => p with { Minimum = v });
         WireSlider(OutputMaxSlider, v => p => p with { Maximum = v });
-        WireSlider(TransitionWidthSlider, v => p => p with { TransitionWidth = v });
         WireSlider(FlatLevelSlider, v => p => p with { FlatLevel = v });
         WireSlider(PressureEmaSlider, v => p => p with { EmaSmoothing = v });
         WireSlider(PositionEmaSlider, v => p => p with { PositionEmaSmoothing = v });
@@ -270,7 +268,6 @@ public partial class MainWindow : Window
         InputMaxSlider.Value = _curveParams.InputMaximum;
         OutputMinSlider.Value = _curveParams.Minimum;
         OutputMaxSlider.Value = _curveParams.Maximum;
-        TransitionWidthSlider.Value = _curveParams.TransitionWidth;
         FlatLevelSlider.Value = _curveParams.FlatLevel;
         PressureEmaSlider.Value = _curveParams.EmaSmoothing;
         PositionEmaSlider.Value = _curveParams.PositionEmaSmoothing;
@@ -320,7 +317,6 @@ public partial class MainWindow : Window
         InputMaxSlider.IsVisible = hasRangeControls;
         OutputMinSlider.IsVisible = hasRangeControls;
         OutputMaxSlider.IsVisible = hasRangeControls;
-        TransitionWidthSlider.IsVisible = hasRangeControls;
         MinApproachPanel.IsVisible = hasRangeControls;
         FlatLevelSlider.IsVisible = isFlat;
         BezierToolbar.IsVisible = isBezier;
