@@ -678,11 +678,10 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (_processed == null || _raw == null || _processed.Canvas == null || _raw.Canvas == null)
-        {
-            EnsureSurfaces();
-            if (_processed?.Canvas == null || _raw?.Canvas == null) return;
-        }
+        // Telemetry should keep flowing even if a surface isn't sized yet (e.g., the
+        // raw surface is only sized while the Compare tab is visible). Drawing is
+        // null-guarded per-surface below.
+        EnsureSurfaces();
 
         int maxP = _session.MaxPressure;
         var topLevel = TopLevel.GetTopLevel(this);
@@ -732,14 +731,20 @@ public partial class MainWindow : Window
             {
                 if (_lastDrawPos is { } from)
                 {
-                    DrawSegment(_processed!.Canvas!, from, smoothedPos,
-                        SizeFor(pipeline.Output), OpacityFor(pipeline.Output),
-                        skipIfZero: !BrushRibbon.DrawZeroPressure && pipeline.Output <= 0);
-                    DrawSegment(_raw!.Canvas!, from, smoothedPos,
-                        SizeFor(rawPressure), OpacityFor(rawPressure),
-                        skipIfZero: false);
-                    processedDirty = true;
-                    rawDirty = true;
+                    if (_processed?.Canvas is { } pc)
+                    {
+                        DrawSegment(pc, from, smoothedPos,
+                            SizeFor(pipeline.Output), OpacityFor(pipeline.Output),
+                            skipIfZero: !BrushRibbon.DrawZeroPressure && pipeline.Output <= 0);
+                        processedDirty = true;
+                    }
+                    if (_raw?.Canvas is { } rc)
+                    {
+                        DrawSegment(rc, from, smoothedPos,
+                            SizeFor(rawPressure), OpacityFor(rawPressure),
+                            skipIfZero: false);
+                        rawDirty = true;
+                    }
                 }
                 _lastDrawPos = smoothedPos;
             }
