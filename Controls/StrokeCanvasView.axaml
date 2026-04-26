@@ -1,0 +1,22 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="PenDynamicsLab.Controls.StrokeCanvasView">
+    <DockPanel>
+        <Border DockPanel.Dock="Top" Background="#E8E8E2"
+                BorderBrush="#D0D0C8" BorderThickness="0,0,0,1" Padding="8,4">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" x:Name="SaveButton" Content="Save..." Padding="6,1" />
+                <TextBlock x:Name="HeaderText" FontWeight="SemiBold" Foreground="#333333"
+                           VerticalAlignment="Center" />
+            </DockPanel>
+        </Border>
+        <Border x:Name="ImageHost" Background="#F5F5F0" ClipToBounds="True">
+            <!-- Canvas pins the Image at (0, 0) regardless of how Avalonia's layout would
+                 otherwise handle an oversized bitmap (e.g., when the shared processed bitmap
+                 is larger than this host because it was sized in a different tab). -->
+            <Canvas>
+                <Image x:Name="CanvasImage" Stretch="None" Canvas.Left="0" Canvas.Top="0" />
+            </Canvas>
+        </Border>
+    </DockPanel>
+</UserControl>

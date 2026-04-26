@@ -1,0 +1,41 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="PenDynamicsLab.Controls.BrushRibbon">
+    <Border Background="#F5F5F5" BorderBrush="#CCCCCC" BorderThickness="0,0,0,1" Padding="8,6">
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="16">
+            <StackPanel>
+                <DockPanel>
+                    <TextBlock Text="BRUSH SIZE" FontWeight="Bold" Foreground="#555555" />
+                    <TextBlock x:Name="BrushSizeLabel" HorizontalAlignment="Right" Margin="8,0,0,0" />
+                </DockPanel>
+                <Slider x:Name="BrushSizeSlider" Width="140" Minimum="1" Maximum="200"
+                        Value="40" IsSnapToTickEnabled="True" TickFrequency="1" />
+            </StackPanel>
+            <Rectangle Width="1" Fill="#DDDDDD" />
+
+            <StackPanel>
+                <TextBlock Text="COLOR" FontWeight="Bold" Foreground="#555555" Margin="0,0,0,4" />
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <RadioButton x:Name="ColorBlackRadio" GroupName="ColorMode" Content="Black" IsChecked="True" />
+                    <RadioButton x:Name="ColorRandomRadio" GroupName="ColorMode" Content="Random" />
+                </StackPanel>
+            </StackPanel>
+            <Rectangle Width="1" Fill="#DDDDDD" />
+
+            <StackPanel>
+                <TextBlock Text="PRESSURE → " FontWeight="Bold" Foreground="#555555" Margin="0,0,0,4" />
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <RadioButton x:Name="PressureSizeRadio" GroupName="PressureControl" Content="Size" IsChecked="True" />
+                    <RadioButton x:Name="PressureOpacityRadio" GroupName="PressureControl" Content="Opacity" />
+                </StackPanel>
+            </StackPanel>
+            <Rectangle Width="1" Fill="#DDDDDD" />
+
+            <CheckBox x:Name="DrawZeroPressureCheck" Content="Draw at 0 effective pressure"
+                      VerticalAlignment="Center" />
+            <Rectangle Width="1" Fill="#DDDDDD" />
+
+            <Button x:Name="ClearButton" Content="Clear" Width="60" Height="28" />
+        </StackPanel>
+    </Border>
+</UserControl>

@@ -1,0 +1,69 @@
+name: Release
+
+# Tagging a commit (e.g. v0.1.0) builds a Windows x64 binary and attaches it
+# to a new GitHub Release.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write   # needed to create releases
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out PenDynamicsLab
+        uses: actions/checkout@v4
+        with:
+          path: PenDynamicsLab
+
+      # The csproj references ../WinPenSession/PenSession/*.csproj — clone it as a
+      # sibling so ProjectReferences resolve.
+      - name: Check out WinPenSession (sibling)
+        uses: actions/checkout@v4
+        with:
+          repository: TheSevenPens/WinPenSession
+          path: WinPenSession
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        working-directory: PenDynamicsLab
+        run: dotnet restore PenDynamicsLab.csproj
+
+      - name: Publish (win-x64, self-contained)
+        working-directory: PenDynamicsLab
+        run: >
+          dotnet publish PenDynamicsLab.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -o publish
+
+      - name: Zip publish output
+        working-directory: PenDynamicsLab
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $zip = "PenDynamicsLab-$tag-win-x64.zip"
+          Compress-Archive -Path publish/* -DestinationPath $zip
+          "ASSET=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Create release and upload asset
+        working-directory: PenDynamicsLab
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          gh release create "${{ github.ref_name }}" `
+            "$env:ASSET" `
+            --title "${{ github.ref_name }}" `
+            --generate-notes

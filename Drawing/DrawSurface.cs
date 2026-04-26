@@ -2,18 +2,20 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media.Imaging;
 using SkiaSharp;
+using System.IO;
 
 namespace PenDynamicsLab.Drawing;
 
 /// <summary>
-/// Bundles an SKBitmap, SKCanvas, and Avalonia WriteableBitmap that mirrors it,
-/// hosted on a single Image control. Resizes follow the host control's bounds.
+/// Bundles an SKBitmap, SKCanvas, and Avalonia WriteableBitmap that mirrors it.
+/// Multiple Image hosts can share the same bitmap — useful when the same canvas
+/// content needs to appear in more than one place (e.g., across tabs).
 /// </summary>
 public sealed class DrawSurface : IDisposable
 {
     private static readonly SKColor ClearColor = new(0xF5, 0xF5, 0xF0);
 
-    private readonly Image _host;
+    private readonly List<Image> _hosts = new();
     private SKBitmap? _skBitmap;
     private SKCanvas? _skCanvas;
     private WriteableBitmap? _avBitmap;
@@ -24,10 +26,20 @@ public sealed class DrawSurface : IDisposable
 
     public DrawSurface(Image host)
     {
-        _host = host;
+        AddHost(host);
     }
 
-    /// <summary>Recreate the bitmap if the host's bounds changed; preserve existing pixels on grow/shrink.</summary>
+    public DrawSurface() { }
+
+    /// <summary>Register an Image control that should display this surface's bitmap.</summary>
+    public void AddHost(Image host)
+    {
+        if (_hosts.Contains(host)) return;
+        _hosts.Add(host);
+        if (_avBitmap != null) host.Source = _avBitmap;
+    }
+
+    /// <summary>Recreate the bitmap if the requested size changed; preserve existing pixels.</summary>
     public void EnsureSize(int w, int h)
     {
         if (w <= 0 || h <= 0) return;
@@ -57,7 +69,7 @@ public sealed class DrawSurface : IDisposable
             global::Avalonia.Platform.AlphaFormat.Premul);
 
         CopyToAvBitmap();
-        _host.Source = _avBitmap;
+        foreach (var host in _hosts) host.Source = _avBitmap;
     }
 
     public void Clear()
@@ -66,11 +78,11 @@ public sealed class DrawSurface : IDisposable
         Present();
     }
 
-    /// <summary>Push the SKBitmap pixels into the Avalonia bitmap and invalidate the host.</summary>
+    /// <summary>Push the SKBitmap pixels into the Avalonia bitmap and invalidate every host.</summary>
     public void Present()
     {
         CopyToAvBitmap();
-        _host.InvalidateVisual();
+        foreach (var host in _hosts) host.InvalidateVisual();
     }
 
     private void CopyToAvBitmap()
