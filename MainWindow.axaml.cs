@@ -40,10 +40,6 @@ public partial class MainWindow : Window
     private bool _suppressCurveControlEvents;
 
     // Brush / drawing state.
-    private double _brushSize = 40;
-    private ColorMode _colorMode = ColorMode.Black;
-    private PressureControl _pressureControl = PressureControl.Size;
-    private bool _drawZeroPressure;
     private SKColor _strokeColor = BlackStrokeColor;
     private int _lastColorIndex = -1;
 
@@ -63,17 +59,36 @@ public partial class MainWindow : Window
 
         _renderTimer.Tick += RenderTimer_Tick;
 
-        // Resize bitmaps to follow each canvas host's bounds.
-        ProcessedCanvasHost.PropertyChanged += (_, e) =>
-        {
-            if (e.Property.Name == "Bounds") EnsureSurfaces();
-        };
-        RawCanvasHost.PropertyChanged += (_, e) =>
-        {
-            if (e.Property.Name == "Bounds") EnsureSurfaces();
-        };
+        // The processed surface is shared across both the Stroke tab and the Stroke compare
+        // tab — drawing on either is the same content. The raw surface is unique to the
+        // compare tab.
+        _processed = new DrawSurface();
+        _processed.AddHost(StrokeView.Image);
+        _processed.AddHost(CompareProcessedView.Image);
+        _raw = new DrawSurface();
+        _raw.AddHost(CompareRawView.Image);
 
-        InitializeBrushControls();
+        // Resize bitmaps to follow whichever host is currently visible (the active tab's).
+        StrokeView.Host.PropertyChanged += (_, e) =>
+        {
+            if (e.Property.Name == "Bounds") EnsureSurfaces();
+        };
+        CompareProcessedView.Host.PropertyChanged += (_, e) =>
+        {
+            if (e.Property.Name == "Bounds") EnsureSurfaces();
+        };
+        CompareRawView.Host.PropertyChanged += (_, e) =>
+        {
+            if (e.Property.Name == "Bounds") EnsureSurfaces();
+        };
+        RightTabs.SelectionChanged += (_, _) => { EnsureSurfaces(); ResetStrokeState(); };
+
+        // Save buttons on each canvas view.
+        StrokeView.SaveRequested += async (_, _) => await SaveSurfaceAsPngAsync(_processed, "stroke.png");
+        CompareProcessedView.SaveRequested += async (_, _) => await SaveSurfaceAsPngAsync(_processed, "processed.png");
+        CompareRawView.SaveRequested += async (_, _) => await SaveSurfaceAsPngAsync(_raw, "unprocessed.png");
+
+        BrushRibbon.ClearRequested += (_, _) => ClearCanvases();
         InitializeCurveControls();
         InitializeBezierPresets();
         InitializeResponseSection();
@@ -120,7 +135,7 @@ public partial class MainWindow : Window
             if (e.Handled) return;
             var focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
             if (focused is TextBox) return;
-            Clear_Click(null, new RoutedEventArgs());
+            ClearCanvases();
             e.Handled = true;
         };
     }
@@ -129,52 +144,25 @@ public partial class MainWindow : Window
 
     private void EnsureSurfaces()
     {
-        _processed ??= new DrawSurface(ProcessedImage);
-        _raw ??= new DrawSurface(RawImage);
-        _processed.EnsureSize((int)ProcessedCanvasHost.Bounds.Width, (int)ProcessedCanvasHost.Bounds.Height);
-        _raw.EnsureSize((int)RawCanvasHost.Bounds.Width, (int)RawCanvasHost.Bounds.Height);
+        // IsEffectivelyVisible is true only for the active tab's content — using it
+        // (rather than checking Bounds) avoids picking a host whose layout from a
+        // previous tab is still cached.
+        var processedHost = StrokeView.IsEffectivelyVisible ? StrokeView.Host
+                          : CompareProcessedView.IsEffectivelyVisible ? CompareProcessedView.Host
+                          : null;
+        if (processedHost is { } ph && ph.Bounds.Width > 0 && ph.Bounds.Height > 0)
+            _processed?.EnsureSize((int)ph.Bounds.Width, (int)ph.Bounds.Height);
+
+        if (CompareRawView.IsEffectivelyVisible &&
+            CompareRawView.Host.Bounds.Width > 0 && CompareRawView.Host.Bounds.Height > 0)
+            _raw?.EnsureSize((int)CompareRawView.Host.Bounds.Width, (int)CompareRawView.Host.Bounds.Height);
     }
 
     // ── Brush controls ──────────────────────────────────────────
 
-    private void InitializeBrushControls()
-    {
-        BrushSizeSlider.PropertyChanged += (_, e) =>
-        {
-            if (e.Property.Name != "Value") return;
-            _brushSize = BrushSizeSlider.Value;
-            BrushSizeLabel.Text = $"{(int)_brushSize} px";
-        };
-
-        ColorBlackRadio.IsCheckedChanged += (_, _) =>
-        {
-            if (ColorBlackRadio.IsChecked == true) _colorMode = ColorMode.Black;
-        };
-        ColorRandomRadio.IsCheckedChanged += (_, _) =>
-        {
-            if (ColorRandomRadio.IsChecked == true) _colorMode = ColorMode.Random;
-        };
-
-        PressureSizeRadio.IsCheckedChanged += (_, _) =>
-        {
-            if (PressureSizeRadio.IsChecked == true) _pressureControl = PressureControl.Size;
-        };
-        PressureOpacityRadio.IsCheckedChanged += (_, _) =>
-        {
-            if (PressureOpacityRadio.IsChecked == true) _pressureControl = PressureControl.Opacity;
-        };
-
-        DrawZeroPressureCheck.IsCheckedChanged += (_, _) =>
-        {
-            _drawZeroPressure = DrawZeroPressureCheck.IsChecked == true;
-        };
-
-        BrushSizeLabel.Text = $"{(int)_brushSize} px";
-    }
-
     private void PickStrokeColor()
     {
-        if (_colorMode == ColorMode.Black)
+        if (BrushRibbon.ColorMode == ColorMode.Black)
         {
             _strokeColor = BlackStrokeColor;
             return;
@@ -462,12 +450,6 @@ public partial class MainWindow : Window
     private async void SaveCurveChart_Click(object? sender, RoutedEventArgs e)
         => await SaveControlAsPngAsync(PressureChart, "pressure-curve.png");
 
-    private async void SaveProcessedCanvas_Click(object? sender, RoutedEventArgs e)
-        => await SaveSurfaceAsPngAsync(_processed, "processed.png");
-
-    private async void SaveRawCanvas_Click(object? sender, RoutedEventArgs e)
-        => await SaveSurfaceAsPngAsync(_raw, "unprocessed.png");
-
     private async Task SaveControlAsPngAsync(Control control, string suggestedName)
     {
         if (control.Bounds.Width <= 0 || control.Bounds.Height <= 0) return;
@@ -746,7 +728,7 @@ public partial class MainWindow : Window
                 {
                     DrawSegment(_processed!.Canvas!, from, smoothedPos,
                         SizeFor(pipeline.Output), OpacityFor(pipeline.Output),
-                        skipIfZero: !_drawZeroPressure && pipeline.Output <= 0);
+                        skipIfZero: !BrushRibbon.DrawZeroPressure && pipeline.Output <= 0);
                     DrawSegment(_raw!.Canvas!, from, smoothedPos,
                         SizeFor(rawPressure), OpacityFor(rawPressure),
                         skipIfZero: false);
@@ -775,34 +757,38 @@ public partial class MainWindow : Window
 
     private (ActiveCanvas, Point) ResolveActiveCanvas(TopLevel topLevel, Point clientPt)
     {
-        var processedOrigin = ProcessedCanvasHost.TranslatePoint(new Point(0, 0), topLevel);
-        if (processedOrigin is { } po)
-        {
-            var local = new Point(clientPt.X - po.X, clientPt.Y - po.Y);
-            if (local.X >= 0 && local.X < ProcessedCanvasHost.Bounds.Width &&
-                local.Y >= 0 && local.Y < ProcessedCanvasHost.Bounds.Height)
-                return (ActiveCanvas.Processed, local);
-        }
-        var rawOrigin = RawCanvasHost.TranslatePoint(new Point(0, 0), topLevel);
-        if (rawOrigin is { } ro)
-        {
-            var local = new Point(clientPt.X - ro.X, clientPt.Y - ro.Y);
-            if (local.X >= 0 && local.X < RawCanvasHost.Bounds.Width &&
-                local.Y >= 0 && local.Y < RawCanvasHost.Bounds.Height)
-                return (ActiveCanvas.Raw, local);
-        }
+        // Only probe canvases in the currently-visible tab. Stale layout on inactive
+        // tab content can otherwise produce wrong local coords (manifests as an X/Y
+        // displacement on whichever canvas wins the hit test by accident).
+        if (StrokeView.IsEffectivelyVisible &&
+            TryHitTest(StrokeView.Host) is { } a) return (ActiveCanvas.Processed, a);
+        if (CompareProcessedView.IsEffectivelyVisible &&
+            TryHitTest(CompareProcessedView.Host) is { } b) return (ActiveCanvas.Processed, b);
+        if (CompareRawView.IsEffectivelyVisible &&
+            TryHitTest(CompareRawView.Host) is { } c) return (ActiveCanvas.Raw, c);
         return (ActiveCanvas.None, default);
+
+        Point? TryHitTest(Border host)
+        {
+            if (host.Bounds.Width <= 0 || host.Bounds.Height <= 0) return null;
+            var origin = host.TranslatePoint(new Point(0, 0), topLevel);
+            if (origin is null) return null;
+            var local = new Point(clientPt.X - origin.Value.X, clientPt.Y - origin.Value.Y);
+            if (local.X < 0 || local.X >= host.Bounds.Width ||
+                local.Y < 0 || local.Y >= host.Bounds.Height) return null;
+            return local;
+        }
     }
 
     private float SizeFor(double pressure)
     {
-        if (_pressureControl == PressureControl.Opacity) return (float)_brushSize;
-        return (float)Math.Max(1, pressure * _brushSize);
+        if (BrushRibbon.PressureControl == PressureControl.Opacity) return (float)BrushRibbon.BrushSize;
+        return (float)Math.Max(1, pressure * BrushRibbon.BrushSize);
     }
 
     private float OpacityFor(double pressure)
     {
-        if (_pressureControl == PressureControl.Opacity)
+        if (BrushRibbon.PressureControl == PressureControl.Opacity)
             return (float)Math.Max(0.02, pressure);
         return 1f;
     }
@@ -847,7 +833,7 @@ public partial class MainWindow : Window
 
     private void ApiCombo_SelectionChanged(object? sender, SelectionChangedEventArgs e) => StartSession();
 
-    private void Clear_Click(object? sender, RoutedEventArgs e)
+    private void ClearCanvases()
     {
         _processed?.Clear();
         _raw?.Clear();
