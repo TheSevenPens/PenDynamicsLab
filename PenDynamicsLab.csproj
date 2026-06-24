@@ -26,8 +26,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\WinPenSession\PenSession\PenSession.csproj" />
-    <ProjectReference Include="..\WinPenSession\PenSession.Avalonia\PenSession.Avalonia.csproj" />
+    <ProjectReference Include="..\WinPenKit\WinPenKit\WinPenKit.csproj" />
+    <ProjectReference Include="..\WinPenKit\WinPenKit.Avalonia\WinPenKit.Avalonia.csproj" />
   </ItemGroup>
 
 </Project>

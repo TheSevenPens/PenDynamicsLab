@@ -5,6 +5,6 @@
   </Configurations>
   <Project Path="PenDynamicsLab.csproj" />
   <Project Path="PenDynamicsLab.Tests/PenDynamicsLab.Tests.csproj" />
-  <Project Path="../WinPenSession/PenSession/PenSession.csproj" />
-  <Project Path="../WinPenSession/PenSession.Avalonia/PenSession.Avalonia.csproj" />
+  <Project Path="../WinPenKit/WinPenKit/WinPenKit.csproj" />
+  <Project Path="../WinPenKit/WinPenKit.Avalonia/WinPenKit.Avalonia.csproj" />
 </Solution>

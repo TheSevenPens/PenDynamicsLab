@@ -20,13 +20,13 @@ jobs:
         with:
           path: PenDynamicsLab
 
-      # The csproj references ../WinPenSession/PenSession/*.csproj — clone it as a
+      # The csproj references ../WinPenKit/WinPenKit/*.csproj — clone it as a
       # sibling so ProjectReferences resolve.
-      - name: Check out WinPenSession (sibling)
+      - name: Check out WinPenKit (sibling)
         uses: actions/checkout@v4
         with:
-          repository: TheSevenPens/WinPenSession
-          path: WinPenSession
+          repository: TheSevenPens/WinPenKit
+          path: WinPenKit
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
