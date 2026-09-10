@@ -9,12 +9,12 @@ MainWindow
     ├── Left panel (472 px) — two equal-width columns, settings before curve
     │   ├── Settings column
     │   │   ├── ScrollViewer — SectionCard × 3
-    │   │   │   ├── Curve  [Off]
-    │   │   │   │   ├── Curve type combo + reset
+    │   │   │   ├── Curve  [Off | On · no effect | On]
+    │   │   │   │   ├── Curve type combo + type-scoped reset
     │   │   │   │   ├── Bezier toolbar (Add / Remove / count / preset combo, Bezier only)
     │   │   │   │   ├── LabeledSlider × N (Curve Amount, in/out range, flat level)
     │   │   │   │   └── Min approach radios
-    │   │   │   ├── Smoothing  [Off] — algorithm combo (Passthrough / EMA) + reset, Smoothing Amount
+    │   │   │   ├── Smoothing  [Off | On · no effect | On] — algorithm combo (Passthrough / EMA) + type-scoped reset, Smoothing Amount
     │   │   │   └── Processing  [S → C] — smooth-then-curve / curve-then-smooth dropdown
     │   │   └── Presets (pinned to the bottom row) — empty-state text, saved list, "Save current settings"
     │   └── Curve column
@@ -53,7 +53,7 @@ One vocabulary, defined in `Window.Styles` plus a set of theme-brush overrides i
 | No uppercase labels | Sentence case throughout; hierarchy comes from colour and size, never caps. The bold uppercase micro-labels were the app's strongest dated signal. |
 | No separator rules between controls | A 1px vertical line is what you reach for when spacing has failed. 20px gaps instead; horizontal rules only where two *regions* meet. |
 | One control height | Every combo, button and text field is 32 px, vertically centred. A slider occupies a 32 px box though its track is 4. |
-| State in a pill, not the label | `Curve` plus an `Off` chip, so the name stays stable and only the state moves. |
+| State in a pill, not the label | `Curve` plus an `Off` chip, so the name stays stable and only the state moves. Three states, three tones: grey `Off`, amber `On · no effect`, accent `On`. |
 
 Tokens: surface `#FFFFFF`, pane `#F9F9F9`, canvas paper `#F7F7F4`, plot field `#F7F7FB`, divider `#E5E5E5`, control edge `#D1D1D1`, text `#242424`, muted `#616161`, accent `#0F6CBD`. Body type is 13, labels 12, tabs 14; control radius 4, card radius 8.
 
@@ -151,7 +151,19 @@ _raw       ──► CompareRawView.Image
 `DrawSurface` is also where Avalonia's layout units are reconciled with physical pixels — see [HiDPI](#hidpi-dips-vs-physical-pixels) below, which is required reading before changing anything in this class.
 
 ### `CurveMath` (static)
-Pure math: `ApplyPressureCurve`, `RawCurveOutput`, `RawCurveSlope`, `CubicHermite`, `EvaluateCustomCurve`, `NormalizeBezierPoints`. No Avalonia dependencies — covered directly by the xUnit project.
+Pure math: `ApplyPressureCurve`, `RawCurveOutput`, `RawCurveSlope`, `CubicHermite`, `EvaluateCustomCurve`, `NormalizeBezierPoints`, plus `UsesRangeControls`, which is the single source of truth for which curve types honour the input/output range fields. No Avalonia dependencies — covered directly by the xUnit project.
+
+### `StageStatus` (static)
+Resolves each pipeline stage to a `StageState` — `Off` when the stage is set to Passthrough, `NoEffect` when it is running but its settings mean output equals input, `On` otherwise — which `MainWindow.UpdateCardStatuses` renders as the header pills.
+
+The test is **structural, not numerical**. An earlier version sampled the mapping and compared it against `y = x` within a tolerance, which made the pill's claim depend on where you sampled and how tight the tolerance was. "No effect" now means exactly one checkable thing: *the settings are configured such that nothing changes*. The consequence is that a curve which happens to be indistinguishable from identity without being configured as identity reports `On` — the honest answer, since the stage is shaped, however slightly.
+
+`Processing` is `On` only while both stages alter the signal, because that is the only time the order decides anything.
+
+### `CurveDefaults` (static)
+`ResetCurve` / `ResetSmoothing` back the two reset buttons. They restore the settings of the type the stage is **currently** set to, and never change the type — reaching Passthrough is the dropdown's job alone. Reset used to drag the type back to Passthrough with it, which left no way to undo a tweak without also leaving the curve you were working on.
+
+Only the fields the current type actually uses are touched, because all six curve types share the one `PressureCurveParams`: a blanket reset would silently discard a Bezier you had shaped while you were sitting in Basic, where none of it is even on screen. Under Passthrough there is nothing on screen to restore, so the button is disabled rather than left as a silent no-op.
 
 ### `PresetStore`
 Loads/saves the user's named curve presets from `%LOCALAPPDATA%\PenDynamicsLab\presets.json`. JSON via `System.Text.Json` with `JsonStringEnumConverter` so enums are readable in the file. Beyond `Save` / `Delete` / `Get` it offers `Rename` (in place, keeping list position) and `NextAvailableName`.
@@ -321,7 +333,7 @@ Pen events come from `IPenSession` (WinPenKit, referenced as a sibling project �
 ## Key design points
 
 1. **Immutable params record** — `PressureCurveParams` is a `record` with `init` properties. Every change is a `with { ... }` rebuild, which makes change detection and parity-test reasoning straightforward.
-2. **Pure math separation** — `Curves/CurveMath.cs` has no Avalonia or SkiaSharp dependencies. The xUnit project pins behavior with 31 tests against analytically-derived values.
+2. **Pure math separation** — `Curves/CurveMath.cs` has no Avalonia or SkiaSharp dependencies. The xUnit project pins behavior with 71 tests against analytically-derived values.
 3. **Avalonia DrawingContext for charts; SkiaSharp for canvases** — Charts are simple line geometry and benefit from Avalonia's text rendering + transform stack. The drawing canvases need many small antialiased strokes per frame, where SkiaSharp via `SKBitmap`/`WriteableBitmap` interop is faster.
 4. **Single owner of state** — `MainWindow` holds the params and the surfaces; everything else is a leaf control receiving values via StyledProperties or queried for its current value. Even the chart's own edits round-trip through this owner.
 5. **One surface, many views** — `DrawSurface` supports multiple `Image` hosts so the processed canvas is shared between tabs rather than copied. Sizing and hit-testing both key off `IsEffectivelyVisible` to avoid stale inactive-tab layout.

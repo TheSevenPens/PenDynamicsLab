@@ -8,7 +8,7 @@ The current build re-implements the feature set of [WebPressureExplorer](https:/
 
 The window is split into a fixed left panel and a tabbed right panel:
 
-- **Pressure curve editor** (left, 472 px) — Two equal columns. On the left, collapsible cards: **Curve** (type, amount, range and bezier controls), **Smoothing** (algorithm and amount), **Processing**, and **Presets** pinned to the bottom. On the right, the **Pressure curve** chart, whose right-click menu carries the export actions. That order makes the row read configure → mapping → stroke, and puts the curve against the canvas it drives. Each card header carries a pill showing its state — `Off` while a stage does nothing, `S → C` for the processing order — so the pipeline is legible at a glance, and while collapsed.
+- **Pressure curve editor** (left, 472 px) — Two equal columns. On the left, collapsible cards: **Curve** (type, amount, range and bezier controls), **Smoothing** (algorithm and amount), **Processing**, and **Presets** pinned to the bottom. On the right, the **Pressure curve** chart, whose right-click menu carries the export actions. That order makes the row read configure → mapping → stroke, and puts the curve against the canvas it drives. Each card header carries a pill showing its state — `Off` while a stage is bypassed, `On · no effect` while it is running but configured to change nothing, `On` while it is shaping the signal, and `S → C` for the processing order — so the pipeline is legible at a glance, and while collapsed.
 
 - **Right-hand tabs** — Three workflows, each in its own tab:
   - **Stroke** — A single drawing canvas with the full pressure pipeline applied (smoothing + curve).
@@ -32,6 +32,7 @@ A shared brush ribbon (size, colour, pressure target, draw-at-zero, Clear) sits 
 - **Clear via keyboard** — Delete or Backspace clears both canvases, unless a text box has focus
 - **User presets** — save in one click (the name is generated, and renaming is a separate step), then load, rename or delete from each row's `···` menu; a preset holds the whole parameter configuration (curve type + sliders + smoothing + bezier points), persisted to `%LOCALAPPDATA%\PenDynamicsLab\presets.json`
 - **Direct value editing** — click any LabeledSlider value to type an exact number; right-click for Min / Max / Reset
+- **Per-stage reset** — the ↻ beside the Curve and Smoothing dropdowns restores that stage's *current* type to its starting values without changing the type, so a softened Basic curve goes back to the initial Basic curve. Switching a stage off is the dropdown's job (pick Passthrough), and the button is disabled while a stage is already bypassed.
 - **Driver tip** — a chip at the right end of the telemetry ribbon reminding users to set their tablet driver's pressure curve to default; costs no vertical space, dismissible for the session or for good
 - **Multiple input APIs** — Wintab, Wintab high-res digitizer, and Avalonia's pointer pipeline, switchable at runtime
 

@@ -1,4 +1,4 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -367,9 +367,14 @@ public partial class MainWindow : Window
         FlatLevelSlider.IsVisible = isFlat;
         BezierToolbar.IsVisible = isBezier;
 
+        // Reset is type-scoped, so under Passthrough it has nothing to restore — grey it
+        // out rather than leave a button that silently does nothing.
+        CurveResetButton.IsEnabled = ct != CurveType.Passthrough;
+
         // Passthrough smoothing ignores the amount, so hide it — same convention as the
         // curve card, where Passthrough hides softness and the range controls.
         PressureEmaSlider.IsVisible = _curveParams.SmoothingType != SmoothingType.Passthrough;
+        SmoothingResetButton.IsEnabled = _curveParams.SmoothingType != SmoothingType.Passthrough;
 
         // Range values are driven by dragging the pink/cyan nodes on the chart, so the
         // slider track would be redundant — show only label + value.
@@ -421,28 +426,19 @@ public partial class MainWindow : Window
 
     // ── Section resets ──────────────────────────────────────────
 
+    // Type-scoped: these put the settings of the currently selected type back to their
+    // defaults and leave the type alone. Switching to Passthrough is the dropdown's job.
+    // See CurveDefaults for why reset does not touch the fields other types own.
+
     private void CurveReset_Click(object? sender, RoutedEventArgs e)
     {
-        var d = PressureCurveParams.Default;
-        UpdateParams(p => p with
-        {
-            CurveType = d.CurveType,
-            Softness = d.Softness,
-            InputMinimum = d.InputMinimum,
-            InputMaximum = d.InputMaximum,
-            Minimum = d.Minimum,
-            Maximum = d.Maximum,
-            MinApproach = d.MinApproach,
-            FlatLevel = d.FlatLevel,
-            BezierPoints = d.BezierPoints,
-        });
+        UpdateParams(CurveDefaults.ResetCurve);
         SyncCurveControlsFromParams();
     }
 
     private void SmoothingReset_Click(object? sender, RoutedEventArgs e)
     {
-        var d = PressureCurveParams.Default;
-        UpdateParams(p => p with { SmoothingType = d.SmoothingType, EmaSmoothing = d.EmaSmoothing });
+        UpdateParams(CurveDefaults.ResetSmoothing);
         SyncCurveControlsFromParams();
     }
 

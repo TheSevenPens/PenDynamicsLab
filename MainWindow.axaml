@@ -1,4 +1,4 @@
-<Window xmlns="https://github.com/avaloniaui"
+﻿<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="using:PenDynamicsLab.Controls"
         x:Class="PenDynamicsLab.MainWindow"
@@ -187,7 +187,7 @@
                                             Margin="6,0,0,0"
                                             HorizontalContentAlignment="Center"
                                             VerticalContentAlignment="Center"
-                                            ToolTip.Tip="Reset curve settings"
+                                            ToolTip.Tip="Reset this curve's settings to their defaults"
                                             Click="CurveReset_Click" />
                                     <ComboBox x:Name="CurveTypeCombo" Height="32" HorizontalAlignment="Stretch" />
                                 </DockPanel>
@@ -242,7 +242,7 @@
                                             Margin="6,0,0,0"
                                             HorizontalContentAlignment="Center"
                                             VerticalContentAlignment="Center"
-                                            ToolTip.Tip="Reset smoothing settings"
+                                            ToolTip.Tip="Reset the smoothing amount to its default"
                                             Click="SmoothingReset_Click" />
                                     <ComboBox x:Name="SmoothingTypeCombo" Height="32" HorizontalAlignment="Stretch" />
                                 </DockPanel>
