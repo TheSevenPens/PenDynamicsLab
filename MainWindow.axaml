@@ -35,6 +35,16 @@
             <Setter Property="FontSize" Value="13" />
             <Setter Property="Foreground" Value="#242424" />
         </Style>
+        <!-- Reserves the width of the widest value a readout column can ever hold, so the
+             telemetry groups keep fixed widths and positions while the numbers change.
+             Opacity rather than IsVisible: IsVisible="False" collapses it out of layout,
+             which is the one thing this must not do. Sized in glyphs rather than pixels so
+             it stays correct if the font or DPI changes. -->
+        <Style Selector="TextBlock.sizer">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+        </Style>
 
         <Style Selector="Slider:horizontal /template/ Thumb">
             <Setter Property="Width" Value="14" />
@@ -100,8 +110,12 @@
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <Ellipse x:Name="ProximityDot" Width="7" Height="7" Fill="#B0B0B0"
                                      VerticalAlignment="Center" />
-                            <TextBlock x:Name="ProximityLabel" Text="Out of range" Classes="readout"
-                                       Foreground="#616161" />
+                            <!-- "Out of range" is the wider of the two states it toggles between. -->
+                            <Grid>
+                                <TextBlock Classes="sizer" Text="Out of range" />
+                                <TextBlock x:Name="ProximityLabel" Text="Out of range" Classes="readout"
+                                           Foreground="#616161" />
+                            </Grid>
                         </StackPanel>
                         <TextBlock x:Name="CursorLabel" Text="--" Classes="readout" Foreground="#616161" />
                     </StackPanel>
@@ -110,6 +124,7 @@
                         <TextBlock Text="Position" Classes="groupLabel" />
                         <Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto,Auto,Auto"
                               >
+                            <TextBlock Grid.Row="0" Grid.Column="1" Classes="sizer" Text="888888, 888888" Margin="12,0,0,0" />
                             <TextBlock Grid.Row="0" Grid.Column="0" Text="Raw" Classes="fieldLabel" />
                             <TextBlock Grid.Row="0" Grid.Column="1" x:Name="RawPosLabel" Text="--" Classes="readout" Margin="12,0,0,0" />
                             <TextBlock Grid.Row="1" Grid.Column="0" Text="Screen" Classes="fieldLabel" />
@@ -125,6 +140,7 @@
                         <TextBlock Text="Pressure" Classes="groupLabel" />
                         <Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto,Auto"
                               >
+                            <TextBlock Grid.Row="0" Grid.Column="1" Classes="sizer" Text="888888" FontWeight="SemiBold" Margin="12,0,0,0" />
                             <TextBlock Grid.Row="0" Grid.Column="0" Text="Raw" Classes="fieldLabel" />
                             <TextBlock Grid.Row="0" Grid.Column="1" x:Name="RawPressureLabel" Text="--" Classes="readout" Margin="12,0,0,0" />
                             <TextBlock Grid.Row="1" Grid.Column="0" Text="Normalized" Classes="fieldLabel" />
@@ -139,6 +155,7 @@
                         <TextBlock Text="Orientation" Classes="groupLabel" />
                         <Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto,Auto"
                               >
+                            <TextBlock Grid.Row="0" Grid.Column="1" Classes="sizer" Text="-888.8&#xB0;" Margin="12,0,0,0" />
                             <TextBlock Grid.Row="0" Grid.Column="0" Text="Azimuth" Classes="fieldLabel" />
                             <TextBlock Grid.Row="0" Grid.Column="1" x:Name="AzimuthLabel" Text="--" Classes="readout" Margin="12,0,0,0" />
                             <TextBlock Grid.Row="1" Grid.Column="0" Text="Altitude" Classes="fieldLabel" />

@@ -4,7 +4,7 @@
 
 ```
 MainWindow
-├── Top ribbon (92 px) — Pen API combo + pen telemetry, DriverTipChip at the right edge
+├── Top ribbon (92 px) — Pen API combo + pen telemetry (fixed-width readout columns), DriverTipChip at the right edge
 └── Body Grid
     ├── Left panel (472 px) — two equal-width columns, settings before curve
     │   ├── Settings column
@@ -54,6 +54,7 @@ One vocabulary, defined in `Window.Styles` plus a set of theme-brush overrides i
 | No separator rules between controls | A 1px vertical line is what you reach for when spacing has failed. 20px gaps instead; horizontal rules only where two *regions* meet. |
 | One control height | Every combo, button and text field is 32 px, vertically centred. A slider occupies a 32 px box though its track is 4. |
 | State in a pill, not the label | `Curve` plus an `Off` chip, so the name stays stable and only the state moves. Three states, three tones: grey `Off`, amber `On · no effect`, accent `On`. |
+| Telemetry never reflows | Each readout column reserves the width of the widest value it can hold, so the ribbon groups keep fixed widths and positions while the numbers change. See "Ribbon width sizers" below. |
 
 Tokens: surface `#FFFFFF`, pane `#F9F9F9`, canvas paper `#F7F7F4`, plot field `#F7F7FB`, divider `#E5E5E5`, control edge `#D1D1D1`, text `#242424`, muted `#616161`, accent `#0F6CBD`. Body type is 13, labels 12, tabs 14; control radius 4, card radius 8.
 
@@ -152,6 +153,16 @@ _raw       ──► CompareRawView.Image
 
 ### `CurveMath` (static)
 Pure math: `ApplyPressureCurve`, `RawCurveOutput`, `RawCurveSlope`, `CubicHermite`, `EvaluateCustomCurve`, `NormalizeBezierPoints`, plus `UsesRangeControls`, which is the single source of truth for which curve types honour the input/output range fields. No Avalonia dependencies — covered directly by the xUnit project.
+
+### Ribbon width sizers
+
+The telemetry readouts sit in `Auto` grid columns, which means the column — and therefore the group, and therefore every group to its right — resized every time a value changed. `Raw` going from `--` to `44704, 27940` shoved Pressure and Orientation sideways, and the ribbon shuffled continuously while the pen moved.
+
+Each value column now carries an extra `TextBlock` with `Classes="sizer"` holding the widest string that column can ever hold (`888888, 888888` for a position pair, `888888` for a pressure count, `-888.8°` for an angle), in the same grid cell as the live label. `Auto` then resolves to the sizer's width and stays there. The Pen group gets the same treatment for `Out of range`, which is wider than the `In range` it toggles to.
+
+Two details matter. The sizer uses `Opacity="0"`, **not** `IsVisible="False"` — the latter collapses it out of layout, which is the one thing it must not do. And the width is expressed as glyphs rather than a pixel constant, so it stays correct if the font, the font size or the DPI changes; the digit `8` is the widest digit, so a run of them is the safe reservation.
+
+The field labels are static text, so their `Auto` column was never the problem and is left alone.
 
 ### `StageStatus` (static)
 Resolves each pipeline stage to a `StageState` — `Off` when the stage is set to Passthrough, `NoEffect` when it is running but its settings mean output equals input, `On` otherwise — which `MainWindow.UpdateCardStatuses` renders as the header pills.
