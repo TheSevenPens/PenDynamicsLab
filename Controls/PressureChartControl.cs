@@ -14,13 +14,12 @@ namespace PenDynamicsLab.Controls;
 /// </summary>
 public sealed class PressureChartControl : Control
 {
-    // The axes carry tick marks rather than numeric labels, so the padding only has to
-    // clear the tick, the rotated axis title, and the node radius at the far corners.
-    private const double PadLeft = 30;
+    // The axes carry neither numeric labels nor tick marks, so the padding only has to
+    // clear the rotated axis title and the node radius at the far corners.
+    private const double PadLeft = 25;
     private const double PadRight = 16;
     private const double PadTop = 16;
-    private const double PadBottom = 26;
-    private const double TickLength = 5;
+    private const double PadBottom = 21;
     private const double XAxisLabelSpacing = 2;
     private const double YAxisLabelSpacing = 7;
     private const double NodeRadius = 8;
@@ -31,7 +30,6 @@ public sealed class PressureChartControl : Control
     private static readonly IBrush PlotBrush = new SolidColorBrush(Color.FromRgb(0xF7, 0xF7, 0xFB));
     private static readonly IBrush LabelBrush = Brushes.Black;
     private static readonly IPen GridPen = new Pen(new SolidColorBrush(Color.FromRgb(0xEB, 0xEB, 0xF4)), 1);
-    private static readonly IPen TickPen = new Pen(new SolidColorBrush(Color.FromRgb(0x9A, 0x9A, 0xA8)), 1);
     private static readonly IPen CurvePen = new Pen(Brushes.Black, 2);
     private static readonly Typeface ChartTypeface = new("Segoe UI");
     private const double ChartFontSize = 12;
@@ -126,7 +124,7 @@ public sealed class PressureChartControl : Control
 
     /// <summary>
     /// The plot area in control-local DIP coordinates — the gridded square only,
-    /// excluding the axis tick marks and titles. Used by "Plot area only" export.
+    /// excluding the axis titles. Used by "Plot area only" export.
     /// </summary>
     public Rect PlotRect
     {
@@ -192,21 +190,8 @@ public sealed class PressureChartControl : Control
 
     private void DrawLabels(DrawingContext context, double width, double height, double plotW, double plotH)
     {
-        // Tick marks at 0, 0.25, 0.5, 0.75, 1 on both axes. The half-pixel offset keeps
-        // the 1px strokes crisp instead of straddling two device pixels.
-        double axisY = Math.Round(PadTop + plotH) + 0.5;
-        for (int i = 0; i <= 4; i++)
-        {
-            double gx = Math.Round(PadLeft + i / 4.0 * plotW) + 0.5;
-            context.DrawLine(TickPen, new Point(gx, axisY), new Point(gx, axisY + TickLength));
-        }
-
-        double axisX = Math.Round(PadLeft) + 0.5;
-        for (int i = 0; i <= 4; i++)
-        {
-            double gy = Math.Round(PadTop + plotH - i / 4.0 * plotH) + 0.5;
-            context.DrawLine(TickPen, new Point(axisX - TickLength, gy), new Point(axisX, gy));
-        }
+        // No tick marks or numeric labels on either axis — the grid lines inside the plot
+        // already mark the quarter points. Only the axis titles are drawn.
 
         var xAxisFt = new FormattedText("INPUT", System.Globalization.CultureInfo.InvariantCulture,
             FlowDirection.LeftToRight, ChartTypeface, ChartFontSize, LabelBrush);
