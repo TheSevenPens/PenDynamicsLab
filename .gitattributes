@@ -1,0 +1,30 @@
+# Line endings.
+#
+# Git for Windows sets core.autocrlf=true system-wide, which stores LF in the
+# repository but checks CRLF out into the working tree. Every time a tool writes
+# an LF file (most editors, and anything scripted) Git warns on `git add`:
+#
+#   warning: in the working copy of 'X', LF will be replaced by CRLF ...
+#
+# Pinning eol=lf keeps the working tree and the repository both at LF, so no
+# conversion happens in either direction and the warnings stop. The repository
+# content is unchanged by this: it was already LF.
+#
+# text=auto still lets Git detect and skip binary files.
+* text=auto eol=lf
+
+# Windows batch files are the exception -- cmd.exe requires CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary types, listed pre-emptively: none are tracked today, but sample
+# response data and brush textures are plausible additions.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.dll binary
+*.exe binary
