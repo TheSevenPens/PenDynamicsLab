@@ -2,7 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="using:PenDynamicsLab.Controls"
         x:Class="PenDynamicsLab.MainWindow"
-        Title="PenDynamicsLab" Width="1500" Height="900"
+        Title="PenDynamicsLab" Width="1650" Height="900"
         FontFamily="Segoe UI" FontSize="12">
     <Window.Styles>
         <!-- Force a single font size across every control. FluentTheme defaults don't
@@ -90,104 +90,159 @@
             </StackPanel>
         </Border>
 
-        <!-- Body: left = curve chart + controls, right = drawing canvases -->
+        <!-- Body: left = curve chart + control cards, right = drawing canvases -->
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="360" />
+                <ColumnDefinition Width="780" />
                 <ColumnDefinition Width="1" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!-- LeftPanel: chart + controls -->
-            <DockPanel x:Name="LeftPanel" Grid.Column="0" Background="#FAFAFA">
-                <DockPanel DockPanel.Dock="Top">
-                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" HorizontalAlignment="Right"
-                                Margin="0,4,8,0" Spacing="6">
-                        <Button Content="Save chart..." Padding="6,2"
-                                Click="SaveCurveChart_Click" />
+            <!-- LeftPanel: chart on the left, collapsible control cards on the right -->
+            <Grid x:Name="LeftPanel" Grid.Column="0" Background="#FAFAFA">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" MinWidth="300" />
+                    <ColumnDefinition Width="330" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Chart, with the copy / save split buttons directly beneath it -->
+                <StackPanel Grid.Column="0" Margin="14,12,8,12">
+                    <controls:PressureChartControl x:Name="PressureChart" />
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="10" Margin="0,12,0,0">
+                        <Button x:Name="CopyButton" Content="Copy  ▾" Padding="12,4">
+                            <Button.Flyout>
+                                <MenuFlyout>
+                                    <MenuItem Header="Full chart" Click="CopyFullChart_Click" />
+                                    <MenuItem Header="Plot area only" Click="CopyPlotArea_Click" />
+                                </MenuFlyout>
+                            </Button.Flyout>
+                        </Button>
+                        <Button x:Name="SaveButton" Content="Save  ▾" Padding="12,4">
+                            <Button.Flyout>
+                                <MenuFlyout>
+                                    <MenuItem Header="Full chart" Click="SaveFullChart_Click" />
+                                    <MenuItem Header="Plot area only" Click="SavePlotArea_Click" />
+                                </MenuFlyout>
+                            </Button.Flyout>
+                        </Button>
+                        <TextBlock x:Name="ChartStatusLabel" VerticalAlignment="Center"
+                                   Foreground="#4C8C4A" />
                     </StackPanel>
-                    <controls:PressureChartControl x:Name="PressureChart" Margin="8,0,8,0" />
-                </DockPanel>
-                <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                </StackPanel>
+
+                <!-- Control cards -->
+                <ScrollViewer Grid.Column="1" Margin="0,12,12,12"
+                              HorizontalScrollBarVisibility="Disabled"
                               VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="12,4,12,12" Spacing="10">
-                        <!-- Curve type -->
-                        <StackPanel Spacing="2">
-                            <TextBlock Text="CURVE TYPE" FontWeight="Bold" Foreground="#555555" />
-                            <ComboBox x:Name="CurveTypeCombo" HorizontalAlignment="Stretch" />
-                        </StackPanel>
+                    <StackPanel>
 
-                        <!-- Bezier toolbar (visible only for Bezier curve type) -->
-                        <StackPanel x:Name="BezierToolbar" Spacing="4" IsVisible="False">
-                            <TextBlock Text="BEZIER POINTS" FontWeight="Bold" Foreground="#555555" />
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <Button x:Name="BezierAddButton" Content="Add point" Click="BezierAdd_Click" />
-                                <Button x:Name="BezierRemoveButton" Content="Remove point" Click="BezierRemove_Click" />
-                                <TextBlock x:Name="BezierCountLabel" VerticalAlignment="Center"
-                                           Foreground="#666666" />
+                        <controls:SectionCard x:Name="CurveCard" Title="CURVE">
+                            <controls:SectionCard.CardContent>
+                            <StackPanel Spacing="10">
+                                <DockPanel>
+                                    <Button x:Name="CurveResetButton" DockPanel.Dock="Right"
+                                            Content="↻" Padding="8,3" Margin="6,0,0,0"
+                                            ToolTip.Tip="Reset curve settings"
+                                            Click="CurveReset_Click" />
+                                    <ComboBox x:Name="CurveTypeCombo" HorizontalAlignment="Stretch" />
+                                </DockPanel>
+
+                                <!-- Bezier toolbar (visible only for the Bezier curve type) -->
+                                <StackPanel x:Name="BezierToolbar" Spacing="4" IsVisible="False">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <Button x:Name="BezierAddButton" Content="Add point" Click="BezierAdd_Click" />
+                                        <Button x:Name="BezierRemoveButton" Content="Remove point" Click="BezierRemove_Click" />
+                                        <TextBlock x:Name="BezierCountLabel" VerticalAlignment="Center"
+                                                   Foreground="#666666" />
+                                    </StackPanel>
+                                    <TextBlock Text="Right-click in plot to add or remove."
+                                               Foreground="#888888" TextWrapping="Wrap" />
+                                    <ComboBox x:Name="BezierPresetCombo" HorizontalAlignment="Stretch"
+                                              PlaceholderText="Choose preset..." />
+                                </StackPanel>
+
+                                <controls:LabeledSlider x:Name="SoftnessSlider" Label="Curve Amount"
+                                                        Minimum="-0.9" Maximum="0.9" Value="0" DefaultValue="0" />
+                                <controls:LabeledSlider x:Name="InputMinSlider" Label="Input min"
+                                                        Minimum="0" Maximum="1" Value="0" DefaultValue="0" />
+                                <controls:LabeledSlider x:Name="InputMaxSlider" Label="Input max"
+                                                        Minimum="0" Maximum="1" Value="1" DefaultValue="1" />
+                                <controls:LabeledSlider x:Name="OutputMinSlider" Label="Output min"
+                                                        Minimum="0" Maximum="1" Value="0" DefaultValue="0" />
+                                <controls:LabeledSlider x:Name="OutputMaxSlider" Label="Output max"
+                                                        Minimum="0" Maximum="1" Value="1" DefaultValue="1" />
+
+                                <StackPanel x:Name="MinApproachPanel" Spacing="4">
+                                    <TextBlock Text="Min approach" Foreground="#333333" />
+                                    <StackPanel Orientation="Horizontal" Spacing="12">
+                                        <RadioButton x:Name="MinApproachClampRadio" GroupName="MinApproach"
+                                                     Content="Clamp" IsChecked="True" />
+                                        <RadioButton x:Name="MinApproachCutRadio" GroupName="MinApproach"
+                                                     Content="Cut" />
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <controls:LabeledSlider x:Name="FlatLevelSlider" Label="Flat level"
+                                                        Minimum="0" Maximum="1" Value="0.5" DefaultValue="0.5" />
                             </StackPanel>
-                            <TextBlock Text="Right-click in plot to add or remove."
-                                       Foreground="#888888" />
-                            <DockPanel>
-                                <TextBlock Text="Preset:" VerticalAlignment="Center"                                           Margin="0,0,6,0" />
-                                <ComboBox x:Name="BezierPresetCombo" HorizontalAlignment="Stretch"
-                                          PlaceholderText="Choose preset..." />
-                            </DockPanel>
-                        </StackPanel>
+                            </controls:SectionCard.CardContent>
+                        </controls:SectionCard>
 
-                        <controls:LabeledSlider x:Name="SoftnessSlider" Label="SOFTNESS"
-                                                Minimum="-0.9" Maximum="0.9" Value="0" DefaultValue="0" />
-
-                        <controls:LabeledSlider x:Name="InputMinSlider" Label="INPUT MIN"
-                                                Minimum="0" Maximum="1" Value="0" DefaultValue="0" />
-                        <controls:LabeledSlider x:Name="InputMaxSlider" Label="INPUT MAX"
-                                                Minimum="0" Maximum="1" Value="1" DefaultValue="1" />
-                        <controls:LabeledSlider x:Name="OutputMinSlider" Label="OUTPUT MIN"
-                                                Minimum="0" Maximum="1" Value="0" DefaultValue="0" />
-                        <controls:LabeledSlider x:Name="OutputMaxSlider" Label="OUTPUT MAX"
-                                                Minimum="0" Maximum="1" Value="1" DefaultValue="1" />
-
-                        <!-- Min approach -->
-                        <StackPanel x:Name="MinApproachPanel" Spacing="4">
-                            <TextBlock Text="MIN APPROACH" FontWeight="Bold" Foreground="#555555" />
-                            <StackPanel Orientation="Horizontal" Spacing="12">
-                                <RadioButton x:Name="MinApproachClampRadio" GroupName="MinApproach"
-                                             Content="Clamp" IsChecked="True" />
-                                <RadioButton x:Name="MinApproachCutRadio" GroupName="MinApproach"
-                                             Content="Cut" />
+                        <controls:SectionCard x:Name="SmoothingCard" Title="SMOOTHING">
+                            <controls:SectionCard.CardContent>
+                            <StackPanel Spacing="10">
+                                <DockPanel>
+                                    <Button x:Name="SmoothingResetButton" DockPanel.Dock="Right"
+                                            Content="↻" Padding="8,3" Margin="6,0,0,0"
+                                            ToolTip.Tip="Reset smoothing settings"
+                                            Click="SmoothingReset_Click" />
+                                    <ComboBox x:Name="SmoothingTypeCombo" HorizontalAlignment="Stretch" />
+                                </DockPanel>
+                                <controls:LabeledSlider x:Name="PressureEmaSlider" Label="Smoothing Amount"
+                                                        Minimum="0" Maximum="0.99" Value="0" DefaultValue="0" />
                             </StackPanel>
-                        </StackPanel>
+                            </controls:SectionCard.CardContent>
+                        </controls:SectionCard>
 
-                        <controls:LabeledSlider x:Name="FlatLevelSlider" Label="FLAT LEVEL"
-                                                Minimum="0" Maximum="1" Value="0.5" DefaultValue="0.5" />
+                        <controls:SectionCard x:Name="ProcessingOrderCard" Title="PROCESSING ORDER">
+                            <controls:SectionCard.CardContent>
+                            <StackPanel Spacing="4">
+                                <RadioButton x:Name="SmoothThenCurveRadio" GroupName="SmoothingOrder"
+                                             Content="Smooth then curve" IsChecked="True" />
+                                <RadioButton x:Name="CurveThenSmoothRadio" GroupName="SmoothingOrder"
+                                             Content="Curve then smooth" />
+                            </StackPanel>
+                            </controls:SectionCard.CardContent>
+                        </controls:SectionCard>
 
-                        <!-- Smoothing section -->
-                        <Rectangle Height="1" Fill="#DDDDDD" Margin="0,6,0,0" />
-                        <TextBlock Text="SMOOTHING" FontWeight="Bold" Foreground="#555555" />
+                        <controls:SectionCard x:Name="PresetsCard" Title="PRESETS">
+                            <controls:SectionCard.CardContent>
+                            <StackPanel Spacing="6">
+                                <TextBlock x:Name="PresetEmptyLabel" Text="No saved presets"
+                                           Foreground="#999999" />
+                                <StackPanel x:Name="PresetList" Spacing="2" />
+                                <!-- Revealed by "Save settings"; the mockup has no always-on name box. -->
+                                <StackPanel x:Name="PresetNameRow" Spacing="4" IsVisible="False">
+                                    <TextBox x:Name="PresetNameInput" Watermark="Preset name..." />
+                                    <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
+                                        <Button x:Name="PresetCancelButton" Content="Cancel"
+                                                Click="PresetCancel_Click" />
+                                        <Button x:Name="PresetConfirmButton" Content="Save"
+                                                Click="PresetConfirm_Click" />
+                                    </StackPanel>
+                                </StackPanel>
+                                <Button x:Name="PresetSaveButton" Content="Save settings"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Center"
+                                        Click="PresetSave_Click" />
+                            </StackPanel>
+                            </controls:SectionCard.CardContent>
+                        </controls:SectionCard>
 
-                        <controls:LabeledSlider x:Name="PressureEmaSlider" Label="PRESSURE EMA"
-                                                Minimum="0" Maximum="0.99" Value="0" DefaultValue="0" />
-                        <controls:LabeledSlider x:Name="PositionEmaSlider" Label="POSITION EMA"
-                                                Minimum="0" Maximum="0.99" Value="0" DefaultValue="0" />
-                        <StackPanel Spacing="2">
-                            <TextBlock Text="SMOOTHING ORDER" FontWeight="Bold" Foreground="#555555" />
-                            <ComboBox x:Name="SmoothingOrderCombo" HorizontalAlignment="Stretch" />
-                        </StackPanel>
-
-                        <!-- Presets section -->
-                        <Rectangle Height="1" Fill="#DDDDDD" Margin="0,6,0,0" />
-                        <TextBlock Text="USER PRESETS" FontWeight="Bold" Foreground="#555555" />
-
-                        <DockPanel>
-                            <Button DockPanel.Dock="Right" x:Name="PresetSaveButton" Content="Save"
-                                    Margin="6,0,0,0" Click="PresetSave_Click" />
-                            <TextBox x:Name="PresetNameInput" HorizontalAlignment="Stretch"
-                                     Watermark="Preset name..." />
-                        </DockPanel>
-                        <StackPanel x:Name="PresetList" Spacing="2" />
                     </StackPanel>
                 </ScrollViewer>
-            </DockPanel>
+            </Grid>
 
             <!-- Splitter -->
             <Rectangle Grid.Column="1" Fill="#CCCCCC" />

@@ -221,5 +221,25 @@ public static class CurveMath
         return RawCurveOutput(xNorm, p);
     }
 
+    /// <summary>
+    /// True when the curve maps input to output unchanged, i.e. the stage currently does
+    /// nothing. Drives the "(OFF)" suffix on the curve card header.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately samples the mapping instead of special-casing each curve type, so
+    /// Passthrough, a zero-softness power curve, a full-range Extended and a linear Bezier
+    /// all report identity without this needing to know anything about them.
+    /// </remarks>
+    public static bool IsIdentity(PressureCurveParams p, double tolerance = 1e-6)
+    {
+        const int samples = 8;
+        for (int i = 0; i <= samples; i++)
+        {
+            double x = (double)i / samples;
+            if (Math.Abs(ApplyPressureCurve(x, p) - x) > tolerance) return false;
+        }
+        return true;
+    }
+
     private static double Clamp01(double v) => Math.Min(1, Math.Max(0, v));
 }

@@ -5,7 +5,6 @@ namespace PenDynamicsLab.Curves;
 public sealed record PressureCurveParams
 {
     public double EmaSmoothing { get; init; } = 0;
-    public double PositionEmaSmoothing { get; init; } = 0;
     public SmoothingOrder SmoothingOrder { get; init; } = SmoothingOrder.SmoothThenCurve;
     public double Softness { get; init; } = 0.0;
     public double InputMinimum { get; init; } = 0;

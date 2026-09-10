@@ -200,7 +200,7 @@ smoothed = smoothed + alpha * (raw - smoothed)
 alpha    = 1 - emaSmoothing
 ```
 
-When `EmaSmoothing = 0`, alpha = 1, so output = input (no smoothing). As it approaches 0.99, output becomes increasingly smoothed/lagged. The same formula is used for position smoothing on the (x, y) canvas-local coordinate.
+When `EmaSmoothing = 0`, alpha = 1, so output = input (no smoothing). As it approaches 0.99, output becomes increasingly smoothed/lagged. Only pressure is smoothed — cursor position is drawn unmodified.
 
 The "live" indicators on the curve and response charts use:
 - **Raw** (purple) = the unprocessed `pt.Pressure / pt.MaxPressure`

@@ -1,0 +1,23 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="PenDynamicsLab.Controls.SectionCard">
+    <Border Background="#FFFFFF" BorderBrush="#E2E2E2" BorderThickness="1"
+            CornerRadius="6" Margin="0,0,0,8">
+        <DockPanel>
+            <!-- Whole header row toggles the card. Kept as a Button so it is
+                 keyboard-reachable, styled flat so it reads as a header. -->
+            <Button x:Name="HeaderButton" DockPanel.Dock="Top"
+                    Background="Transparent" BorderThickness="0"
+                    Padding="10,7" HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Stretch" Cursor="Hand">
+                <DockPanel>
+                    <TextBlock x:Name="ChevronText" DockPanel.Dock="Right" Text="▲"
+                               Foreground="#888888" VerticalAlignment="Center" />
+                    <TextBlock x:Name="TitleText" FontWeight="Bold" Foreground="#333333"
+                               VerticalAlignment="Center" />
+                </DockPanel>
+            </Button>
+            <ContentPresenter x:Name="BodyPresenter" Margin="10,0,10,10" />
+        </DockPanel>
+    </Border>
+</UserControl>

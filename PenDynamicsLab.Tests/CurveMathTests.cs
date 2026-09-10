@@ -214,4 +214,56 @@ public class CurveMathTests
             Assert.Equal(1.0, CurveMath.ApplyPressureCurve(1, p), Eps);
         }
     }
+
+    // IsIdentity drives the "(OFF)" suffix on the curve card, so these pin which
+    // configurations count as doing nothing.
+
+    [Fact]
+    public void IsIdentity_Passthrough_IsTrue()
+        => Assert.True(CurveMath.IsIdentity(new PressureCurveParams { CurveType = CurveType.Passthrough }));
+
+    [Fact]
+    public void IsIdentity_DefaultBasicWithZeroSoftness_IsTrue()
+        => Assert.True(CurveMath.IsIdentity(PressureCurveParams.Default));
+
+    [Fact]
+    public void IsIdentity_ExtendedAcrossFullRange_IsTrue()
+        => Assert.True(CurveMath.IsIdentity(new PressureCurveParams
+        {
+            CurveType = CurveType.Extended,
+            Softness = 0,
+            InputMinimum = 0,
+            InputMaximum = 1,
+            Minimum = 0,
+            Maximum = 1,
+        }));
+
+    [Fact]
+    public void IsIdentity_LinearBezierPreset_IsTrue()
+        => Assert.True(CurveMath.IsIdentity(new PressureCurveParams
+        {
+            CurveType = CurveType.Bezier,
+            BezierPoints = BezierPresets.All[0].Points,
+        }));
+
+    [Fact]
+    public void IsIdentity_NonZeroSoftness_IsFalse()
+        => Assert.False(CurveMath.IsIdentity(PressureCurveParams.Default with { Softness = 0.5 }));
+
+    [Fact]
+    public void IsIdentity_Flat_IsFalse()
+        => Assert.False(CurveMath.IsIdentity(new PressureCurveParams
+        {
+            CurveType = CurveType.Flat,
+            FlatLevel = 0.5,
+        }));
+
+    [Fact]
+    public void IsIdentity_NarrowedOutputRange_IsFalse()
+        => Assert.False(CurveMath.IsIdentity(new PressureCurveParams
+        {
+            CurveType = CurveType.Extended,
+            Minimum = 0.2,
+            Maximum = 0.8,
+        }));
 }

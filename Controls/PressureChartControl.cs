@@ -122,6 +122,19 @@ public sealed class PressureChartControl : Control
     private (double plotW, double plotH) Layout()
         => (Bounds.Width - PadLeft - PadRight, Bounds.Height - PadTop - PadBottom);
 
+    /// <summary>
+    /// The plot area in control-local DIP coordinates — the gridded square only,
+    /// excluding axis tick labels and the axis titles. Used by "Plot area only" export.
+    /// </summary>
+    public Rect PlotRect
+    {
+        get
+        {
+            var (w, h) = Layout();
+            return new Rect(PadLeft, PadTop, Math.Max(0, w), Math.Max(0, h));
+        }
+    }
+
     private static double Clamp01(double v) => Math.Min(1, Math.Max(0, v));
 
     private static double Round2(double v) => Math.Round(v * 100) / 100;

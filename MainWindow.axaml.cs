@@ -47,11 +47,10 @@ public partial class MainWindow : Window
     private readonly Controls.BrushRibbon BrushRibbon = new();
     private int _lastColorIndex = -1;
 
-    // Stroke-local smoothing state. Reset whenever the pen lifts or the active canvas changes.
+    // Stroke-local pressure-smoothing state. Reset whenever the pen lifts or the active canvas changes.
     private enum ActiveCanvas { None, Processed, Raw }
     private ActiveCanvas _activeCanvas = ActiveCanvas.None;
     private Point? _lastDrawPos;
-    private Point? _smoothedPos;
     private double? _smoothedPressure;
     private readonly Random _rng = new();
 
@@ -200,12 +199,17 @@ public partial class MainWindow : Window
     {
         foreach (var ct in Enum.GetValues<CurveType>())
             CurveTypeCombo.Items.Add(ct.ToString());
-        foreach (var so in Enum.GetValues<SmoothingOrder>())
-            SmoothingOrderCombo.Items.Add(FormatSmoothingOrder(so));
+
+        // Only one smoothing algorithm exists today. The combo is here because the
+        // design calls for it and more are planned; it stays a single-item list until
+        // a second algorithm lands, at which point it gets backed by a params field.
+        SmoothingTypeCombo.Items.Add("EMA");
+        SmoothingTypeCombo.SelectedIndex = 0;
 
         _suppressCurveControlEvents = true;
         CurveTypeCombo.SelectedIndex = (int)_curveParams.CurveType;
-        SmoothingOrderCombo.SelectedIndex = (int)_curveParams.SmoothingOrder;
+        SmoothThenCurveRadio.IsChecked = _curveParams.SmoothingOrder == SmoothingOrder.SmoothThenCurve;
+        CurveThenSmoothRadio.IsChecked = _curveParams.SmoothingOrder == SmoothingOrder.CurveThenSmooth;
         SoftnessSlider.Value = _curveParams.Softness;
         InputMinSlider.Value = _curveParams.InputMinimum;
         InputMaxSlider.Value = _curveParams.InputMaximum;
@@ -213,7 +217,6 @@ public partial class MainWindow : Window
         OutputMaxSlider.Value = _curveParams.Maximum;
         FlatLevelSlider.Value = _curveParams.FlatLevel;
         PressureEmaSlider.Value = _curveParams.EmaSmoothing;
-        PositionEmaSlider.Value = _curveParams.PositionEmaSmoothing;
         MinApproachClampRadio.IsChecked = _curveParams.MinApproach == MinApproach.Clamp;
         MinApproachCutRadio.IsChecked = _curveParams.MinApproach == MinApproach.Cut;
         _suppressCurveControlEvents = false;
@@ -223,10 +226,17 @@ public partial class MainWindow : Window
             if (_suppressCurveControlEvents || CurveTypeCombo.SelectedIndex < 0) return;
             UpdateParams(p => p with { CurveType = (CurveType)CurveTypeCombo.SelectedIndex });
         };
-        SmoothingOrderCombo.SelectionChanged += (_, _) =>
+        SmoothThenCurveRadio.IsCheckedChanged += (_, _) =>
         {
-            if (_suppressCurveControlEvents || SmoothingOrderCombo.SelectedIndex < 0) return;
-            UpdateParams(p => p with { SmoothingOrder = (SmoothingOrder)SmoothingOrderCombo.SelectedIndex });
+            if (_suppressCurveControlEvents) return;
+            if (SmoothThenCurveRadio.IsChecked == true)
+                UpdateParams(p => p with { SmoothingOrder = SmoothingOrder.SmoothThenCurve });
+        };
+        CurveThenSmoothRadio.IsCheckedChanged += (_, _) =>
+        {
+            if (_suppressCurveControlEvents) return;
+            if (CurveThenSmoothRadio.IsChecked == true)
+                UpdateParams(p => p with { SmoothingOrder = SmoothingOrder.CurveThenSmooth });
         };
 
         WireSlider(SoftnessSlider, v => p => p with { Softness = v });
@@ -236,7 +246,6 @@ public partial class MainWindow : Window
         WireSlider(OutputMaxSlider, v => p => p with { Maximum = v });
         WireSlider(FlatLevelSlider, v => p => p with { FlatLevel = v });
         WireSlider(PressureEmaSlider, v => p => p with { EmaSmoothing = v });
-        WireSlider(PositionEmaSlider, v => p => p with { PositionEmaSmoothing = v });
 
         MinApproachClampRadio.IsCheckedChanged += (_, _) =>
         {
@@ -252,6 +261,7 @@ public partial class MainWindow : Window
         };
 
         UpdateBezierToolbar();
+        UpdateCardStatuses();
         PressureChart.Params = _curveParams;
 
         // The chart writes back to Params when the user drags nodes / handles or uses the
@@ -271,7 +281,8 @@ public partial class MainWindow : Window
     {
         _suppressCurveControlEvents = true;
         CurveTypeCombo.SelectedIndex = (int)_curveParams.CurveType;
-        SmoothingOrderCombo.SelectedIndex = (int)_curveParams.SmoothingOrder;
+        SmoothThenCurveRadio.IsChecked = _curveParams.SmoothingOrder == SmoothingOrder.SmoothThenCurve;
+        CurveThenSmoothRadio.IsChecked = _curveParams.SmoothingOrder == SmoothingOrder.CurveThenSmooth;
         SoftnessSlider.Value = _curveParams.Softness;
         InputMinSlider.Value = _curveParams.InputMinimum;
         InputMaxSlider.Value = _curveParams.InputMaximum;
@@ -279,12 +290,12 @@ public partial class MainWindow : Window
         OutputMaxSlider.Value = _curveParams.Maximum;
         FlatLevelSlider.Value = _curveParams.FlatLevel;
         PressureEmaSlider.Value = _curveParams.EmaSmoothing;
-        PositionEmaSlider.Value = _curveParams.PositionEmaSmoothing;
         MinApproachClampRadio.IsChecked = _curveParams.MinApproach == MinApproach.Clamp;
         MinApproachCutRadio.IsChecked = _curveParams.MinApproach == MinApproach.Cut;
         _suppressCurveControlEvents = false;
 
         UpdateBezierToolbar();
+        UpdateCardStatuses();
     }
 
     private void UpdateBezierToolbar()
@@ -346,6 +357,45 @@ public partial class MainWindow : Window
         }
     }
 
+    // ── Card headers ────────────────────────────────────────────
+
+    /// <summary>
+    /// Refresh the "(OFF)" suffixes. A stage is off when it currently does nothing:
+    /// smoothing when its amount is zero, the curve when it maps input to output
+    /// unchanged (see <see cref="CurveMath.IsIdentity"/>).
+    /// </summary>
+    private void UpdateCardStatuses()
+    {
+        CurveCard.Status = CurveMath.IsIdentity(_curveParams) ? "(OFF)" : "";
+        SmoothingCard.Status = _curveParams.EmaSmoothing > 0 ? "" : "(OFF)";
+    }
+
+    // ── Section resets ──────────────────────────────────────────
+
+    private void CurveReset_Click(object? sender, RoutedEventArgs e)
+    {
+        var d = PressureCurveParams.Default;
+        UpdateParams(p => p with
+        {
+            CurveType = d.CurveType,
+            Softness = d.Softness,
+            InputMinimum = d.InputMinimum,
+            InputMaximum = d.InputMaximum,
+            Minimum = d.Minimum,
+            Maximum = d.Maximum,
+            MinApproach = d.MinApproach,
+            FlatLevel = d.FlatLevel,
+            BezierPoints = d.BezierPoints,
+        });
+        SyncCurveControlsFromParams();
+    }
+
+    private void SmoothingReset_Click(object? sender, RoutedEventArgs e)
+    {
+        UpdateParams(p => p with { EmaSmoothing = PressureCurveParams.Default.EmaSmoothing });
+        SyncCurveControlsFromParams();
+    }
+
     private void BezierAdd_Click(object? sender, RoutedEventArgs e) => PressureChart.AddBezierPointAtLargestGap();
     private void BezierRemove_Click(object? sender, RoutedEventArgs e) => PressureChart.RemoveSelectedBezierPoint();
 
@@ -368,13 +418,32 @@ public partial class MainWindow : Window
 
     // ── User presets ────────────────────────────────────────────
 
+    // "Save settings" reveals an inline name box rather than opening a dialog, keeping
+    // the card compact when it isn't being used.
     private void PresetSave_Click(object? sender, RoutedEventArgs e)
+    {
+        PresetNameRow.IsVisible = true;
+        PresetSaveButton.IsVisible = false;
+        PresetNameInput.Text = "";
+        PresetNameInput.Focus();
+    }
+
+    private void PresetCancel_Click(object? sender, RoutedEventArgs e) => HidePresetNameRow();
+
+    private void PresetConfirm_Click(object? sender, RoutedEventArgs e)
     {
         var name = PresetNameInput.Text?.Trim() ?? "";
         if (name.Length == 0) return;
         _presetStore.Save(name, _curveParams);
-        PresetNameInput.Text = "";
+        HidePresetNameRow();
         RebuildUserPresetList();
+    }
+
+    private void HidePresetNameRow()
+    {
+        PresetNameRow.IsVisible = false;
+        PresetSaveButton.IsVisible = true;
+        PresetNameInput.Text = "";
     }
 
     // ── Pressure response section ───────────────────────────────
@@ -472,12 +541,69 @@ public partial class MainWindow : Window
 
     // ── Image export ────────────────────────────────────────────
 
-    private async void SaveCurveChart_Click(object? sender, RoutedEventArgs e)
-        => await SaveControlAsPngAsync(PressureChart, "pressure-curve.png");
+    private async void SaveFullChart_Click(object? sender, RoutedEventArgs e)
+        => await SaveChartPngAsync(cropToPlot: false, "pressure-curve.png");
 
-    private async Task SaveControlAsPngAsync(Control control, string suggestedName)
+    private async void SavePlotArea_Click(object? sender, RoutedEventArgs e)
+        => await SaveChartPngAsync(cropToPlot: true, "pressure-curve-plot.png");
+
+    private async void CopyFullChart_Click(object? sender, RoutedEventArgs e)
+        => await CopyChartPngAsync(cropToPlot: false);
+
+    private async void CopyPlotArea_Click(object? sender, RoutedEventArgs e)
+        => await CopyChartPngAsync(cropToPlot: true);
+
+    /// <summary>
+    /// Render the curve chart to PNG bytes at full display resolution, optionally
+    /// cropped to just the plot area (dropping axis labels and titles).
+    /// </summary>
+    private byte[]? RenderChartPng(bool cropToPlot)
     {
-        if (control.Bounds.Width <= 0 || control.Bounds.Height <= 0) return;
+        if (PressureChart.Bounds.Width <= 0 || PressureChart.Bounds.Height <= 0) return null;
+
+        // Same DIP-vs-pixel issue as the stroke surfaces: Bounds are DIPs, so rendering
+        // at 96 DPI produces an image at 1/RenderScaling of the on-screen resolution.
+        // Sizing the target in physical pixels and tagging it 96 * scale makes
+        // RenderTargetBitmap.Render scale the visual to match.
+        double scale = RenderScaling;
+        if (scale <= 0 || double.IsNaN(scale)) scale = 1;
+
+        using var rtb = new global::Avalonia.Media.Imaging.RenderTargetBitmap(
+            new PixelSize(
+                (int)Math.Round(PressureChart.Bounds.Width * scale),
+                (int)Math.Round(PressureChart.Bounds.Height * scale)),
+            new Vector(96 * scale, 96 * scale));
+        rtb.Render(PressureChart);
+
+        using var ms = new MemoryStream();
+        rtb.Save(ms);
+        if (!cropToPlot) return ms.ToArray();
+
+        // Crop in pixel space: the plot rect is in DIPs, so scale it to match the render.
+        ms.Position = 0;
+        using var full = SKBitmap.Decode(ms);
+        if (full is null) return null;
+
+        var plot = PressureChart.PlotRect;
+        int left = Math.Clamp((int)Math.Round(plot.X * scale), 0, full.Width);
+        int top = Math.Clamp((int)Math.Round(plot.Y * scale), 0, full.Height);
+        int right = Math.Clamp((int)Math.Round((plot.X + plot.Width) * scale), 0, full.Width);
+        int bottom = Math.Clamp((int)Math.Round((plot.Y + plot.Height) * scale), 0, full.Height);
+        var subset = new SKRectI(left, top, right, bottom);
+        if (subset.Width <= 0 || subset.Height <= 0) return null;
+
+        using var cropped = new SKBitmap(subset.Width, subset.Height);
+        if (!full.ExtractSubset(cropped, subset)) return null;
+        using var image = SKImage.FromBitmap(cropped);
+        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+        return data.ToArray();
+    }
+
+    private async Task SaveChartPngAsync(bool cropToPlot, string suggestedName)
+    {
+        var png = RenderChartPng(cropToPlot);
+        if (png is null) return;
+
         var sp = TopLevel.GetTopLevel(this)?.StorageProvider;
         if (sp is null) return;
 
@@ -491,21 +617,39 @@ public partial class MainWindow : Window
         });
         if (file is null) return;
 
-        // Same DIP-vs-pixel issue as the stroke surfaces: Bounds are DIPs, so rendering
-        // at 96 DPI produces an image at 1/RenderScaling of the on-screen resolution.
-        // Sizing the target in physical pixels and tagging it 96 * scale makes
-        // RenderTargetBitmap.Render scale the visual to match.
-        double scale = RenderScaling;
-        if (scale <= 0 || double.IsNaN(scale)) scale = 1;
-
-        var rtb = new global::Avalonia.Media.Imaging.RenderTargetBitmap(
-            new PixelSize(
-                (int)Math.Round(control.Bounds.Width * scale),
-                (int)Math.Round(control.Bounds.Height * scale)),
-            new Vector(96 * scale, 96 * scale));
-        rtb.Render(control);
         await using var stream = await file.OpenWriteAsync();
-        rtb.Save(stream);
+        await stream.WriteAsync(png);
+    }
+
+    private async Task CopyChartPngAsync(bool cropToPlot)
+    {
+        var png = RenderChartPng(cropToPlot);
+        if (png is null) return;
+
+        var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+        if (clipboard is null) return;
+
+        // Avalonia has no first-class "set image" clipboard API, so the bytes go on under
+        // the PNG format name. Apps that accept PNG from the clipboard (browsers, most
+        // image editors) will paste it; ones that only read CF_DIB may not see it.
+        var data = new global::Avalonia.Input.DataObject();
+        data.Set("PNG", png);
+        try
+        {
+            await clipboard.SetDataObjectAsync(data);
+            FlashChartStatus("Copied");
+        }
+        catch
+        {
+            FlashChartStatus("Copy failed");
+        }
+    }
+
+    /// <summary>Briefly show a word next to the copy/save buttons, then clear it.</summary>
+    private void FlashChartStatus(string text)
+    {
+        ChartStatusLabel.Text = text;
+        DispatcherTimer.RunOnce(() => ChartStatusLabel.Text = "", TimeSpan.FromSeconds(2));
     }
 
     private async Task SaveSurfaceAsPngAsync(DrawSurface? surface, string suggestedName)
@@ -536,6 +680,7 @@ public partial class MainWindow : Window
     private void RebuildUserPresetList()
     {
         PresetList.Children.Clear();
+        PresetEmptyLabel.IsVisible = _presetStore.All.Count == 0;
         foreach (var preset in _presetStore.All.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
         {
             var name = preset.Name;
@@ -585,14 +730,9 @@ public partial class MainWindow : Window
         PressureChart.Params = _curveParams;
         ResponseChart.Params = _curveParams;
         UpdateBezierToolbar();
+        UpdateCardStatuses();
     }
 
-    private static string FormatSmoothingOrder(SmoothingOrder so) => so switch
-    {
-        SmoothingOrder.SmoothThenCurve => "Smooth → Curve",
-        SmoothingOrder.CurveThenSmooth => "Curve → Smooth",
-        _ => so.ToString(),
-    };
 
     // ── Session lifecycle ────────────────────────────────────────
 
@@ -632,7 +772,6 @@ public partial class MainWindow : Window
     {
         _activeCanvas = ActiveCanvas.None;
         _lastDrawPos = null;
-        _smoothedPos = null;
         _smoothedPressure = null;
         PressureChart.LiveRawPressure = null;
         PressureChart.LivePressure = null;
@@ -672,17 +811,6 @@ public partial class MainWindow : Window
             double curved = CurveMath.ApplyPressureCurve(smoothed, _curveParams);
             return new PressurePipelineResult(Raw: raw, PreCurve: smoothed, Output: curved);
         }
-    }
-
-    private Point SmoothPosition(Point raw)
-    {
-        double smoothing = Math.Clamp(_curveParams.PositionEmaSmoothing, 0, EmaConstants.Max);
-        if (smoothing <= 0) { _smoothedPos = raw; return raw; }
-        if (_smoothedPos is not { } prev) { _smoothedPos = raw; return raw; }
-        double alpha = 1 - smoothing;
-        var next = new Point(prev.X + alpha * (raw.X - prev.X), prev.Y + alpha * (raw.Y - prev.Y));
-        _smoothedPos = next;
-        return next;
     }
 
     // ── Render timer ─────────────────────────────────────────────
@@ -759,11 +887,10 @@ public partial class MainWindow : Window
             {
                 _activeCanvas = over;
                 _lastDrawPos = null;
-                _smoothedPos = null;
                 if (pt.Pressure > 0) PickStrokeColor();
             }
 
-            var smoothedPos = SmoothPosition(localPt);
+            var drawPos = localPt;
 
             if (rawPressure > 0)
             {
@@ -771,20 +898,20 @@ public partial class MainWindow : Window
                 {
                     if (_processed?.Canvas is { } pc)
                     {
-                        DrawSegment(pc, from, smoothedPos,
+                        DrawSegment(pc, from, drawPos,
                             SizeFor(pipeline.Output), OpacityFor(pipeline.Output),
                             skipIfZero: !BrushRibbon.DrawZeroPressure && pipeline.Output <= 0);
                         processedDirty = true;
                     }
                     if (_raw?.Canvas is { } rc)
                     {
-                        DrawSegment(rc, from, smoothedPos,
+                        DrawSegment(rc, from, drawPos,
                             SizeFor(rawPressure), OpacityFor(rawPressure),
                             skipIfZero: false);
                         rawDirty = true;
                     }
                 }
-                _lastDrawPos = smoothedPos;
+                _lastDrawPos = drawPos;
             }
             else
             {
