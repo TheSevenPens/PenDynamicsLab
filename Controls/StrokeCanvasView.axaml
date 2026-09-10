@@ -5,16 +5,6 @@
         <Border DockPanel.Dock="Top" Background="#FFFFFF"
                 BorderBrush="#E5E5E5" BorderThickness="0,0,0,1" Padding="16,0">
             <DockPanel Height="40">
-                <Button DockPanel.Dock="Right" x:Name="ExportButton" Content="Export"
-                        Height="28" Padding="10,0" VerticalAlignment="Center"
-                        VerticalContentAlignment="Center">
-                    <Button.Flyout>
-                        <MenuFlyout>
-                            <MenuItem Header="Copy to clipboard" Click="Copy_Click" />
-                            <MenuItem Header="Save as PNG..." Click="Save_Click" />
-                        </MenuFlyout>
-                    </Button.Flyout>
-                </Button>
                 <!-- State as a quiet pill rather than a bold caption bar. -->
                 <Border x:Name="HeaderPill" Background="#EFF6FC" CornerRadius="4" Padding="8,3"
                         HorizontalAlignment="Left" VerticalAlignment="Center">
@@ -28,6 +18,16 @@
             </DockPanel>
         </Border>
         <Border x:Name="ImageHost" Background="#F7F7F4" ClipToBounds="True">
+            <!-- Export and clear live on the canvas's own right-click menu, matching the
+                 curve chart. Nothing competes with the drawing surface for chrome. -->
+            <Border.ContextMenu>
+                <ContextMenu>
+                    <MenuItem Header="Copy to clipboard" Click="Copy_Click" />
+                    <MenuItem Header="Save as PNG..." Click="Save_Click" />
+                    <Separator />
+                    <MenuItem Header="Clear canvas" Click="Clear_Click" />
+                </ContextMenu>
+            </Border.ContextMenu>
             <!-- Canvas pins the Image at (0, 0) regardless of how Avalonia's layout would
                  otherwise handle an oversized bitmap (e.g., when the shared processed bitmap
                  is larger than this host because it was sized in a different tab).

@@ -46,7 +46,7 @@
              was running empty, so the advice costs no vertical band. -->
         <Border DockPanel.Dock="Top" Background="#FFFFFF"
                 BorderBrush="#E5E5E5" BorderThickness="0,0,0,1" Padding="16,0">
-            <DockPanel Height="78">
+            <DockPanel Height="92">
 
                 <Border DockPanel.Dock="Right" x:Name="DriverTipChip"
                         Background="#FFF9F0" BorderBrush="#F0D8A8" BorderThickness="1"
@@ -183,10 +183,13 @@
                             <StackPanel Spacing="10">
                                 <DockPanel>
                                     <Button x:Name="CurveResetButton" DockPanel.Dock="Right"
-                                            Content="↻" Padding="8,3" Margin="6,0,0,0"
+                                            Content="&#x21BB;" Width="32" Height="32" Padding="0"
+                                            Margin="6,0,0,0"
+                                            HorizontalContentAlignment="Center"
+                                            VerticalContentAlignment="Center"
                                             ToolTip.Tip="Reset curve settings"
                                             Click="CurveReset_Click" />
-                                    <ComboBox x:Name="CurveTypeCombo" HorizontalAlignment="Stretch" />
+                                    <ComboBox x:Name="CurveTypeCombo" Height="32" HorizontalAlignment="Stretch" />
                                 </DockPanel>
 
                                 <!-- Bezier toolbar (visible only for the Bezier curve type) -->
@@ -235,10 +238,13 @@
                             <StackPanel Spacing="10">
                                 <DockPanel>
                                     <Button x:Name="SmoothingResetButton" DockPanel.Dock="Right"
-                                            Content="↻" Padding="8,3" Margin="6,0,0,0"
+                                            Content="&#x21BB;" Width="32" Height="32" Padding="0"
+                                            Margin="6,0,0,0"
+                                            HorizontalContentAlignment="Center"
+                                            VerticalContentAlignment="Center"
                                             ToolTip.Tip="Reset smoothing settings"
                                             Click="SmoothingReset_Click" />
-                                    <ComboBox x:Name="SmoothingTypeCombo" HorizontalAlignment="Stretch" />
+                                    <ComboBox x:Name="SmoothingTypeCombo" Height="32" HorizontalAlignment="Stretch" />
                                 </DockPanel>
                                 <controls:LabeledSlider x:Name="PressureEmaSlider" Label="Smoothing Amount"
                                                         Minimum="0" Maximum="0.99" Value="0" DefaultValue="0" />
@@ -248,7 +254,7 @@
 
                         <controls:SectionCard x:Name="ProcessingOrderCard" Title="Processing">
                             <controls:SectionCard.CardContent>
-                            <ComboBox x:Name="ProcessingOrderCombo" HorizontalAlignment="Stretch" />
+                            <ComboBox x:Name="ProcessingOrderCombo" Height="32" HorizontalAlignment="Stretch" />
                             </controls:SectionCard.CardContent>
                         </controls:SectionCard>
 
@@ -261,9 +267,9 @@
                                 <TextBlock x:Name="PresetEmptyLabel" Text="No saved presets yet"
                                            FontSize="12" Foreground="#909090" />
                                 <StackPanel x:Name="PresetList" Spacing="2" />
-                                <!-- Revealed by "Save settings"; the mockup has no always-on name box. -->
+                                <!-- Only shown for a rename; saving generates a name and needs no prompt. -->
                                 <StackPanel x:Name="PresetNameRow" Spacing="4" IsVisible="False">
-                                    <TextBox x:Name="PresetNameInput" Watermark="Preset name..." />
+                                    <TextBox x:Name="PresetNameInput" Height="32" Watermark="Preset name..." />
                                     <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
                                         <Button x:Name="PresetCancelButton" Content="Cancel"
                                                 Click="PresetCancel_Click" />
@@ -286,12 +292,8 @@
                     <Border Background="#FFFFFF" BorderBrush="#E5E5E5" BorderThickness="1"
                             CornerRadius="8" Padding="12,10,12,12">
                         <StackPanel Spacing="8">
-                            <DockPanel>
-                                <TextBlock DockPanel.Dock="Right" Text="right-click to export"
-                                           FontSize="11" Foreground="#909090" VerticalAlignment="Center" />
-                                <TextBlock Text="Response curve" FontSize="13" FontWeight="SemiBold"
-                                           Foreground="#242424" />
-                            </DockPanel>
+                            <TextBlock Text="Response curve" FontSize="13" FontWeight="SemiBold"
+                                       Foreground="#242424" />
                             <controls:PressureChartControl x:Name="PressureChart" />
                         </StackPanel>
                     </Border>
@@ -311,7 +313,7 @@
                     <TabItem x:Name="StrokeTab" Header="Stroke">
                         <DockPanel>
                             <ContentControl x:Name="StrokeBrushSlot" DockPanel.Dock="Top" />
-                            <controls:StrokeCanvasView x:Name="StrokeView" Header="Pressure processing on" />
+                            <controls:StrokeCanvasView x:Name="StrokeView" Header="Use processed pressure data" />
                         </DockPanel>
                     </TabItem>
 
@@ -325,10 +327,10 @@
                                     <RowDefinition Height="*" />
                                 </Grid.RowDefinitions>
                                 <controls:StrokeCanvasView Grid.Row="0" x:Name="CompareProcessedView"
-                                                           Header="Pressure processing on" />
+                                                           Header="Use processed pressure data" />
                                 <Rectangle Grid.Row="1" Fill="#CCCCCC" />
                                 <controls:StrokeCanvasView Grid.Row="2" x:Name="CompareRawView"
-                                                           Header="Pressure processing off" />
+                                                           Header="Use raw pressure data" />
                             </Grid>
                         </DockPanel>
                     </TabItem>

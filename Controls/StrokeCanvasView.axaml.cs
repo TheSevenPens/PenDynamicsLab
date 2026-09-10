@@ -26,6 +26,9 @@ public partial class StrokeCanvasView : UserControl
     /// <summary>Fires when the user picks "Copy to clipboard" from the Export menu.</summary>
     public event EventHandler? CopyRequested;
 
+    /// <summary>Fires when the user picks "Clear canvas" from the Export menu.</summary>
+    public event EventHandler? ClearRequested;
+
     /// <summary>The Image control that should be registered with a DrawSurface.</summary>
     public Image Image => CanvasImage;
 
@@ -49,4 +52,7 @@ public partial class StrokeCanvasView : UserControl
 
     private void Copy_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         => CopyRequested?.Invoke(this, EventArgs.Empty);
+
+    private void Clear_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => ClearRequested?.Invoke(this, EventArgs.Empty);
 }

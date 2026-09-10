@@ -25,6 +25,7 @@ public partial class MainWindow : Window
         new(0x80, 0x00, 0x00), new(0xAA, 0xFF, 0xC3), new(0x80, 0x80, 0x00), new(0x00, 0x00, 0x75),
     ];
     private static readonly SKColor BlackStrokeColor = new(0x1A, 0x1A, 0x2E);
+    private static readonly SKColor RedStrokeColor = new(0xC4, 0x1E, 0x3A);
 
     // Telemetry chrome. Named here so the ribbon's live states use the same tokens as
     // the markup rather than Brushes.Gray / Brushes.LimeGreen.
@@ -63,6 +64,9 @@ public partial class MainWindow : Window
 
     private readonly PresetStore _presetStore = new();
     private readonly UiSettings _uiSettings = new();
+
+    // Non-null while the preset name box is open for a rename.
+    private string? _renamingPreset;
 
     public MainWindow()
     {
@@ -112,6 +116,11 @@ public partial class MainWindow : Window
         StrokeView.CopyRequested += async (_, _) => await CopySurfaceAsync(_processed);
         CompareProcessedView.CopyRequested += async (_, _) => await CopySurfaceAsync(_processed);
         CompareRawView.CopyRequested += async (_, _) => await CopySurfaceAsync(_raw);
+        // Clear always clears both surfaces: they are two views of one stroke, so wiping
+        // only the half you right-clicked would leave the comparison mismatched.
+        StrokeView.ClearRequested += (_, _) => ClearCanvases();
+        CompareProcessedView.ClearRequested += (_, _) => ClearCanvases();
+        CompareRawView.ClearRequested += (_, _) => ClearCanvases();
 
         PressureChart.BuildExportMenuItems = BuildChartExportMenuItems;
         DriverTipChip.IsVisible = !_uiSettings.DriverTipDismissed;
@@ -199,6 +208,11 @@ public partial class MainWindow : Window
         if (BrushRibbon.ColorMode == ColorMode.Black)
         {
             _strokeColor = BlackStrokeColor;
+            return;
+        }
+        if (BrushRibbon.ColorMode == ColorMode.Red)
+        {
+            _strokeColor = RedStrokeColor;
             return;
         }
         int idx;
@@ -445,11 +459,24 @@ public partial class MainWindow : Window
 
     // "Save settings" reveals an inline name box rather than opening a dialog, keeping
     // the card compact when it isn't being used.
+    /// <summary>
+    /// Saving takes a generated name so it stays one click. Naming is a separate,
+    /// deliberate act via the row's Rename, which is where a name is actually worth
+    /// thinking about — by then you know what the preset turned out to be.
+    /// </summary>
     private void PresetSave_Click(object? sender, RoutedEventArgs e)
     {
+        _presetStore.Save(_presetStore.NextAvailableName(), _curveParams);
+        RebuildUserPresetList();
+    }
+
+    private void BeginRenamePreset(string name)
+    {
+        _renamingPreset = name;
         PresetNameRow.IsVisible = true;
         PresetSaveButton.IsVisible = false;
-        PresetNameInput.Text = "";
+        PresetNameInput.Text = name;
+        PresetNameInput.SelectAll();
         PresetNameInput.Focus();
     }
 
@@ -458,14 +485,16 @@ public partial class MainWindow : Window
     private void PresetConfirm_Click(object? sender, RoutedEventArgs e)
     {
         var name = PresetNameInput.Text?.Trim() ?? "";
-        if (name.Length == 0) return;
-        _presetStore.Save(name, _curveParams);
+        if (name.Length > 0 && _renamingPreset is { } original)
+            _presetStore.Rename(original, name);
+
         HidePresetNameRow();
         RebuildUserPresetList();
     }
 
     private void HidePresetNameRow()
     {
+        _renamingPreset = null;
         PresetNameRow.IsVisible = false;
         PresetSaveButton.IsVisible = true;
         PresetNameInput.Text = "";
@@ -745,18 +774,12 @@ public partial class MainWindow : Window
         foreach (var preset in _presetStore.All.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
         {
             var name = preset.Name;
-            var row = new DockPanel { LastChildFill = true, Margin = new Thickness(0, 1, 0, 1) };
+            var row = new DockPanel { LastChildFill = true, Height = 32 };
 
-            var deleteBtn = new Button { Content = "✕", Width = 24, Padding = new Thickness(0), FontSize = 10 };
-            deleteBtn.Click += (_, _) =>
-            {
-                _presetStore.Delete(name);
-                RebuildUserPresetList();
-            };
-            DockPanel.SetDock(deleteBtn, Dock.Right);
-
-            var loadBtn = new Button { Content = "Load", Margin = new Thickness(4, 0), Padding = new Thickness(6, 1) };
-            loadBtn.Click += (_, _) =>
+            // One overflow menu rather than a row of differently-sized buttons: a Load
+            // button beside a tiny glyph button never lines up, and rename needs a home.
+            var loadItem = new MenuItem { Header = "Load" };
+            loadItem.Click += (_, _) =>
             {
                 if (_presetStore.Get(name) is { } p)
                 {
@@ -765,12 +788,37 @@ public partial class MainWindow : Window
                     SyncCurveControlsFromParams();
                 }
             };
-            DockPanel.SetDock(loadBtn, Dock.Right);
+            var renameItem = new MenuItem { Header = "Rename..." };
+            renameItem.Click += (_, _) => BeginRenamePreset(name);
+            var deleteItem = new MenuItem { Header = "Delete" };
+            deleteItem.Click += (_, _) =>
+            {
+                _presetStore.Delete(name);
+                RebuildUserPresetList();
+            };
 
-            var label = new TextBlock { Text = name, VerticalAlignment = global::Avalonia.Layout.VerticalAlignment.Center };
+            var menuBtn = new Button
+            {
+                Content = "···",
+                Width = 28,
+                Height = 28,
+                Padding = new Thickness(0),
+                HorizontalContentAlignment = global::Avalonia.Layout.HorizontalAlignment.Center,
+                VerticalContentAlignment = global::Avalonia.Layout.VerticalAlignment.Center,
+                VerticalAlignment = global::Avalonia.Layout.VerticalAlignment.Center,
+                Flyout = new MenuFlyout { ItemsSource = new[] { loadItem, renameItem, deleteItem } },
+            };
+            ToolTip.SetTip(menuBtn, $"Options for \"{name}\"");
+            DockPanel.SetDock(menuBtn, Dock.Right);
 
-            row.Children.Add(deleteBtn);
-            row.Children.Add(loadBtn);
+            var label = new TextBlock
+            {
+                Text = name,
+                VerticalAlignment = global::Avalonia.Layout.VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+            };
+
+            row.Children.Add(menuBtn);
             row.Children.Add(label);
             PresetList.Children.Add(row);
         }

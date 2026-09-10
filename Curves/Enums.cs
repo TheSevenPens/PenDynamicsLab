@@ -42,6 +42,7 @@ public enum SmoothingOrder
 public enum ColorMode
 {
     Black,
+    Red,
     Random,
 }
 

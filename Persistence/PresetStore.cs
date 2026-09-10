@@ -78,6 +78,37 @@ public sealed class PresetStore
         Persist();
     }
 
+    /// <summary>
+    /// Rename a preset in place, keeping its position in the list. No-ops when the old
+    /// name is unknown, the new name is blank, or the new name is already taken.
+    /// </summary>
+    public bool Rename(string oldName, string newName)
+    {
+        newName = newName.Trim();
+        if (newName.Length == 0 || newName == oldName) return false;
+        if (_presets.Any(p => p.Name == newName)) return false;
+
+        int index = _presets.FindIndex(p => p.Name == oldName);
+        if (index < 0) return false;
+
+        _presets[index] = _presets[index] with { Name = newName };
+        Persist();
+        return true;
+    }
+
+    /// <summary>
+    /// An unused name of the form "Preset 1", "Preset 2", ... so saving can be one click
+    /// rather than a naming prompt. Renaming afterwards is the deliberate step.
+    /// </summary>
+    public string NextAvailableName(string prefix = "Preset")
+    {
+        for (int i = 1; ; i++)
+        {
+            var candidate = $"{prefix} {i}";
+            if (!_presets.Any(p => p.Name == candidate)) return candidate;
+        }
+    }
+
     public UserPreset? Get(string name) => _presets.FirstOrDefault(p => p.Name == name);
 
     private void Persist()

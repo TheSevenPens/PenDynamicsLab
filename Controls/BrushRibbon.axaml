@@ -5,8 +5,12 @@
          rather than stacked above it, which is what let the row collapse from three
          competing baselines to one; spacing replaces the old 1px separator rules. -->
     <Border Background="#FFFFFF" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1" Padding="16,0">
-        <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
-                    Height="56" Spacing="20">
+      <DockPanel Height="56">
+        <!-- Clear sits at the far end, away from the settings it would undo. -->
+        <Button x:Name="ClearButton" DockPanel.Dock="Right" Content="Clear canvas"
+                Height="32" Padding="14,0" VerticalAlignment="Center"
+                VerticalContentAlignment="Center" Margin="20,0,0,0" />
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="20">
 
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
                 <TextBlock Text="Size" Classes="fieldLabel" VerticalAlignment="Center" />
@@ -28,9 +32,7 @@
 
             <CheckBox x:Name="DrawZeroPressureCheck" Content="Draw at zero pressure"
                       Height="32" VerticalAlignment="Center" VerticalContentAlignment="Center" />
-
-            <Button x:Name="ClearButton" Content="Clear canvas" Height="32" Padding="14,0"
-                    VerticalAlignment="Center" VerticalContentAlignment="Center" />
         </StackPanel>
+      </DockPanel>
     </Border>
 </UserControl>

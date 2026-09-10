@@ -14,14 +14,16 @@
                     <TextBlock x:Name="ChevronText" DockPanel.Dock="Right" Text="&#xE70E;"
                                FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10"
                                Foreground="#909090" VerticalAlignment="Center" Margin="8,0,0,0" />
+                    <!-- Title first, then state. DockPanel fills in child order, so the
+                         title must be declared before the pill or the pill leads the row. -->
+                    <TextBlock x:Name="TitleText" DockPanel.Dock="Left" FontWeight="SemiBold"
+                               FontSize="13" Foreground="#242424" VerticalAlignment="Center" />
                     <!-- State lives in a pill, not in the title, so the name stays stable. -->
                     <Border x:Name="StatusPill" DockPanel.Dock="Left" Background="#F0F0F0"
                             CornerRadius="4" Padding="6,1" Margin="8,0,0,0"
                             VerticalAlignment="Center" IsVisible="False">
                         <TextBlock x:Name="StatusText" FontSize="11" Foreground="#616161" />
                     </Border>
-                    <TextBlock x:Name="TitleText" DockPanel.Dock="Left" FontWeight="SemiBold"
-                               FontSize="13" Foreground="#242424" VerticalAlignment="Center" />
                     <Panel />
                 </DockPanel>
             </Button>
