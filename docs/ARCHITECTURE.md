@@ -87,13 +87,19 @@ Three instances exist: `StrokeView`, `CompareProcessedView`, `CompareRawView`.
 
 ### `SectionCard`
 A collapsible titled panel; the left-hand column is four of them. Exposes `Title`,
-`Status`, `IsExpanded`, and `CardContent`. Clicking anywhere in the header row toggles
-the body.
+`Status`, `StatusKind`, `IsExpanded`, and `CardContent`. Clicking anywhere in the header
+row toggles the body.
 
 `Status` renders as a **pill after the title** (`Curve` · `Off`), not as a suffix inside
 it, so the name stays stable while only the state moves. The header is a `DockPanel`,
 which fills in child order — the title element must therefore be declared *before* the
 pill, or the state leads the row.
+
+`StatusKind` is a `StatusTone` — `Neutral` (grey `#F0F0F0`/`#616161`), `Active` (accent
+`#EFF6FC`/`#115EA3`) or `Advisory` (amber `#FFF9F0`/`#7A5A16`). Colour carries the
+distinction so the label can stay short, and Advisory borrows the driver tip's amber,
+which already means "worth a look" everywhere else in the app. `MainWindow` maps
+`StageState` onto these in `ApplyStageStatus`.
 
 The body must be set with the property-element form:
 
@@ -152,7 +158,9 @@ _raw       ──► CompareRawView.Image
 `DrawSurface` is also where Avalonia's layout units are reconciled with physical pixels — see [HiDPI](#hidpi-dips-vs-physical-pixels) below, which is required reading before changing anything in this class.
 
 ### `CurveMath` (static)
-Pure math: `ApplyPressureCurve`, `RawCurveOutput`, `RawCurveSlope`, `CubicHermite`, `EvaluateCustomCurve`, `NormalizeBezierPoints`, plus `UsesRangeControls`, which is the single source of truth for which curve types honour the input/output range fields. No Avalonia dependencies — covered directly by the xUnit project.
+Pure math, no Avalonia dependencies — covered directly by the xUnit project. The public surface is `ApplyPressureCurve`, `RawCurveOutput`, `EvaluateCustomCurve`, `NormalizeBezierPoints`, and `UsesRangeControls`, which is the single source of truth for which curve types honour the input/output range fields — the evaluator, the chart's min/max nodes and `StageStatus` all defer to it rather than repeating the list.
+
+The bezier solver (`BuildCustomSegments`, `CubicAt`, `SolveBezierTForX`) is private: callers go through `EvaluateCustomCurve`. `SigmoidSteepness` (14) and `SigmoidLinearThreshold` (0.01) are exposed as constants so the "no effect" pill can mirror the exact threshold below which the evaluator degenerates to a straight line, instead of guessing at one.
 
 ### Ribbon width sizers
 
@@ -241,7 +249,7 @@ MainWindow._curveParams (PressureCurveParams)
 
 Every control change funnels through `UpdateParams(Func<PressureCurveParams, PressureCurveParams>)` which rebuilds the immutable record with `with { ... }` and pushes it to both charts. Chart-driven changes round-trip through the same property and are mirrored back into the controls.
 
-`UpdateBezierToolbar()` runs on every params change and drives per-curve-type control visibility. It also clamps `Softness` into the active range — Sigmoid restricts the slider to `[0, 0.95]` (steepness is `softness * 14`, and the top of the range is numerically unstable), everything else uses `[-0.9, 0.9]`.
+`UpdateBezierToolbar()` runs on every params change and drives per-curve-type control visibility, including whether each stage's reset button is enabled — under Passthrough there is nothing for a type-scoped reset to restore. It also clamps `Softness` into the active range — Sigmoid restricts the slider to `[0, 0.95]` (steepness is `softness * 14`, and the top of the range is numerically unstable), everything else uses `[-0.9, 0.9]`.
 
 ## Pressure processing pipeline
 
@@ -298,11 +306,11 @@ Stroke state (last position, smoothed pressure, live indicators) resets when:
 |---|---|---|---|
 | `CurveType` | `CurveType` enum | Passthrough, Flat, Basic, Extended, Sigmoid, Bezier | Active curve algorithm |
 | `Softness` | `double` | -0.9 to 0.9 (Sigmoid: 0 to 0.95) | Power exponent / sigmoid steepness |
-| `InputMinimum` | `double` | 0-1 | Start of input pressure range |
-| `InputMaximum` | `double` | 0-1 | End of input pressure range |
-| `Minimum` | `double` | 0-1 | Start of output pressure range |
-| `Maximum` | `double` | 0-1 | End of output pressure range |
-| `MinApproach` | `MinApproach` enum | Clamp, Cut | Behavior below input minimum |
+| `InputMinimum` | `double` | 0-1 | Start of input pressure range (Extended / Sigmoid only) |
+| `InputMaximum` | `double` | 0-1 | End of input pressure range (Extended / Sigmoid only) |
+| `Minimum` | `double` | 0-1 | Start of output pressure range (Extended / Sigmoid only) |
+| `Maximum` | `double` | 0-1 | End of output pressure range (Extended / Sigmoid only) |
+| `MinApproach` | `MinApproach` enum | Clamp, Cut | Behavior below input minimum (Extended / Sigmoid only) |
 | `FlatLevel` | `double` | 0-1 | Constant output for flat curve |
 | `BezierPoints` | `ImmutableArray<BezierPoint>` | 2-16 points | Bezier control points |
 | `SmoothingType` | `SmoothingType` enum | Passthrough, Ema | Smoothing algorithm; Passthrough skips smoothing entirely |
@@ -310,6 +318,10 @@ Stroke state (last position, smoothed pressure, live indicators) resets when:
 | `SmoothingOrder` | `SmoothingOrder` enum | SmoothThenCurve, CurveThenSmooth | Pipeline order |
 
 `BezierPoint`: `(X, Y, InX, InY, OutX, OutY, HandleMode)` — anchor + in handle + out handle + Broken/Mirrored mode.
+
+Every curve type shares this one record, so fields the active type does not use still hold whatever the last type that used them left behind. Two rules follow from that, and both are load-bearing: `CurveMath.UsesRangeControls` gates the five range fields at evaluation time, so Basic cannot silently apply values it never shows; and `CurveDefaults` scopes reset to the active type, so resetting one type cannot discard another's work.
+
+`Default` has both `CurveType` and `SmoothingType` at `Passthrough`, so a fresh session applies nothing and what you draw is the pen's raw behaviour. Changing a default is not a local edit: a preset whose JSON predates a field takes that field's initializer here, so flipping one silently rewrites how already-saved presets behave.
 
 Brush settings (`ColorMode`, `PressureControl`, brush size, draw-at-zero) are deliberately **not** part of this record — they're view state on `BrushRibbon` and aren't saved with user presets.
 

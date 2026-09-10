@@ -14,18 +14,20 @@ In code, the entry point is `CurveMath.ApplyPressureCurve(double x, PressureCurv
 
 ## Common settings
 
-These settings apply to **basic**, **extended**, and **sigmoid** curve types:
+`Softness` applies to **basic**, **extended**, and **sigmoid**. The range settings and `MinApproach` apply to **extended** and **sigmoid** only:
 
-| Setting | Range | Description |
-|---|---|---|
-| `InputMinimum` | 0-1 | Below this input value, output is clamped (or cut to zero). Controlled by the pink min control node's X position. |
-| `InputMaximum` | 0-1 | Above this input value, output is clamped to the maximum. Controlled by the cyan max control node's X position. |
-| `Minimum` | 0-1 | The output value at the min control node. Controlled by the pink node's Y position. |
-| `Maximum` | 0-1 | The output value at the max control node. Controlled by the cyan node's Y position. |
-| `Softness` | -0.9 to 0.9 (Sigmoid: 0 to 0.95) | Controls the curve shape. Positive = concave (lighter feel), negative = convex (heavier feel), zero = linear. |
-| `MinApproach` | `Clamp` / `Cut` | How the curve behaves below `InputMinimum` (see below). |
+| Setting | Applies to | Range | Description |
+|---|---|---|---|
+| `Softness` | basic, extended, sigmoid | -0.9 to 0.9 (Sigmoid: 0 to 0.95) | Controls the curve shape. Positive = concave (lighter feel), negative = convex (heavier feel), zero = linear. |
+| `InputMinimum` | extended, sigmoid | 0-1 | Below this input value, output is clamped (or cut to zero). Controlled by the pink min control node's X position. |
+| `InputMaximum` | extended, sigmoid | 0-1 | Above this input value, output is clamped to the maximum. Controlled by the cyan max control node's X position. |
+| `Minimum` | extended, sigmoid | 0-1 | The output value at the min control node. Controlled by the pink node's Y position. |
+| `Maximum` | extended, sigmoid | 0-1 | The output value at the max control node. Controlled by the cyan node's Y position. |
+| `MinApproach` | extended, sigmoid | `Clamp` / `Cut` | How the curve behaves below `InputMinimum` (see below). |
 
-Note: PenDynamicsLab shows the min/max nodes for **Sigmoid** and **Extended** curves only. **Basic** intentionally hides them — same convention as WebPressureExplorer — so Basic effectively uses the full [0, 1] input/output range.
+Note: the four range values and `MinApproach` are honoured by **Extended** and **Sigmoid** only — `CurveMath.UsesRangeControls` is the single source of truth, and both the evaluator and the chart's min/max nodes follow it. **Basic** hides the nodes (same convention as WebPressureExplorer) *and* ignores the stored values, running across the full [0, 1] range no matter what they hold.
+
+That second half is deliberate. The four values live on the same `PressureCurveParams` as everything else, so a session that spent time in Extended — or a preset saved from one — leaves them narrowed. Before, Basic silently applied those invisible values, so an identical-looking Basic curve behaved differently depending on where you had been. Basic now means exactly what it says.
 
 The four range values (input min/max, output min/max) appear in the Curve card as label + number only, with no slider track. They're meant to be set by dragging the pink and cyan nodes on the chart; the readout is click-to-edit if you need an exact value.
 
@@ -56,14 +58,15 @@ Draws a horizontal line. Every input pressure produces the same output.
 
 ### Basic
 
-Power curve. The core curve shape is a power function applied to the normalized input. Min/max nodes are not shown — the curve runs across the full input/output range.
+Power curve. The core curve shape is a power function applied to the input. Min/max nodes are not shown, and the range fields are ignored — the curve always runs across the full [0, 1] input and output range.
 
 #### Math
 
-1. **Normalize** the input to the [`InputMinimum`, `InputMaximum`] range:
+1. **Clamp** the input to [0, 1]:
    ```
-   xNorm = clamp((x - inputMinimum) / (inputMaximum - inputMinimum), 0, 1)
+   xNorm = clamp(x, 0, 1)
    ```
+   Extended and Sigmoid normalize against [`InputMinimum`, `InputMaximum`] here instead; Basic does not.
 
 2. **Compute exponent** from `Softness`:
    ```
@@ -81,19 +84,16 @@ Power curve. The core curve shape is a power function applied to the normalized 
    curved = xNorm ^ exponent
    ```
 
-4. **Scale to output range:**
-   ```
-   output = minimum + curved * (maximum - minimum)
-   ```
+4. **Output** `curved` directly. Extended and Sigmoid scale to [`Minimum`, `Maximum`] at this step; Basic does not.
 
 #### Behavior
 - **softness > 0** (concave): Light pressure is more sensitive. Curve rises steeply, then flattens. Good for detail work.
 - **softness < 0** (convex): Light pressure is less sensitive. Curve starts flat, then rises steeply. Gives more control in the light-pressure range.
-- **softness = 0** (linear): Straight line from min to max.
+- **softness = 0** (linear): The identity mapping — the Curve card reads `On · no effect`.
 
 ### Extended
 
-Same math as **Basic**, but exposes the full set of controls:
+The same power law as **Basic**, but it normalizes the input against [`InputMinimum`, `InputMaximum`] and scales the result to [`Minimum`, `Maximum`], and it exposes the controls for them:
 - Draggable pink min node (`InputMinimum`, `Minimum`)
 - Draggable cyan max node (`InputMaximum`, `Maximum`)
 - `MinApproach` toggle (Clamp / Cut)
@@ -205,6 +205,8 @@ alpha    = 1 - emaSmoothing
 When `EmaSmoothing = 0`, alpha = 1, so output = input (no smoothing). As it approaches 0.99, output becomes increasingly smoothed/lagged. Only pressure is smoothed — cursor position is drawn unmodified.
 
 Setting `SmoothingType` to **Passthrough** skips smoothing regardless of the amount, mirroring `CurveType.Passthrough` on the curve side. It resolves to the same code path as an amount of 0, and the EMA state keeps tracking the input while bypassed, so switching back mid-stroke resumes from the current pressure rather than a stale one. The amount slider is hidden while Passthrough is selected, and the Smoothing card header shows an `Off` pill.
+
+`Off` and "no smoothing" are not the same claim, and the pills keep them apart: Passthrough reads `Off` because the stage is bypassed, while EMA with an amount of 0 reads `On · no effect` — running, but configured to change nothing. The same distinction holds on the curve side, where Passthrough is `Off` and, say, Basic at an amount of 0 is `On · no effect`. `StageStatus` derives all of this from the settings alone.
 
 The "live" indicators on the curve and response charts use:
 - **Raw** (purple) = the unprocessed `pt.Pressure / pt.MaxPressure`
