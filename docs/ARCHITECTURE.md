@@ -132,6 +132,8 @@ Custom `Control` rendering with Avalonia's `DrawingContext`. Handles:
 - Toolbar-callable `AddBezierPointAtLargestGap()` and `RemoveSelectedBezierPoint()`
 - Live raw (purple) and effective (green) pressure indicators with dashed crosshair guides
 
+The chart draws **no text at all** — no axis titles, numeric labels or tick marks. The grid marks the quarter points, and both axes run 0-1 by definition, so the titles were labelling the obvious; the card's own heading already says what the chart is. That leaves a single uniform `Pad` (16 px) on all four sides, sized only to keep a node centred on the plot boundary from being clipped — `NodeDrawRadius` is 6, so a node at (0, 0) or (1, 1) clears the card edge comfortably.
+
 When the user manipulates the chart, it writes a new `PressureCurveParams` back to its own `Params` StyledProperty. `MainWindow` subscribes to the change notification and mirrors the new values into the slider/combo UI (with a suppression flag to avoid feedback loops).
 
 ### `PressureResponseChartControl`
