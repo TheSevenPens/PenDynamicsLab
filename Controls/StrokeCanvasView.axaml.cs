@@ -20,8 +20,11 @@ public partial class StrokeCanvasView : UserControl
         set => SetValue(HeaderProperty, value);
     }
 
-    /// <summary>Fires when the user clicks the Save button.</summary>
+    /// <summary>Fires when the user picks "Save as PNG..." from the Export menu.</summary>
     public event EventHandler? SaveRequested;
+
+    /// <summary>Fires when the user picks "Copy to clipboard" from the Export menu.</summary>
+    public event EventHandler? CopyRequested;
 
     /// <summary>The Image control that should be registered with a DrawSurface.</summary>
     public Image Image => CanvasImage;
@@ -37,6 +40,13 @@ public partial class StrokeCanvasView : UserControl
         {
             if (e.Property == HeaderProperty) HeaderText.Text = (string?)e.NewValue ?? "";
         };
-        SaveButton.Click += (_, _) => SaveRequested?.Invoke(this, EventArgs.Empty);
     }
+
+    // Handlers are named in XAML rather than wired from x:Name'd MenuItems, because the
+    // flyout's contents live in their own namescope and are not reachable as fields here.
+    private void Save_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => SaveRequested?.Invoke(this, EventArgs.Empty);
+
+    private void Copy_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => CopyRequested?.Invoke(this, EventArgs.Empty);
 }

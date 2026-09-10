@@ -93,7 +93,7 @@
         <!-- Body: left = curve chart + control cards, right = drawing canvases -->
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="524" />
+                <ColumnDefinition Width="472" />
                 <ColumnDefinition Width="1" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
@@ -107,24 +107,19 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
-                <!-- Chart, with the copy / save split buttons directly beneath it -->
+                <!-- Chart, with the Export menu directly beneath it -->
                 <StackPanel Grid.Column="0" Margin="14,12,8,12">
                     <controls:PressureChartControl x:Name="PressureChart" />
                     <StackPanel Orientation="Horizontal"
                                 Spacing="10" Margin="0,12,0,0">
-                        <Button x:Name="CopyButton" Content="Copy  ▾" Padding="12,4">
+                        <Button x:Name="ExportButton" Content="Export  ▾" Padding="12,4">
                             <Button.Flyout>
                                 <MenuFlyout>
-                                    <MenuItem Header="Full chart" Click="CopyFullChart_Click" />
-                                    <MenuItem Header="Plot area only" Click="CopyPlotArea_Click" />
-                                </MenuFlyout>
-                            </Button.Flyout>
-                        </Button>
-                        <Button x:Name="SaveButton" Content="Save  ▾" Padding="12,4">
-                            <Button.Flyout>
-                                <MenuFlyout>
-                                    <MenuItem Header="Full chart" Click="SaveFullChart_Click" />
-                                    <MenuItem Header="Plot area only" Click="SavePlotArea_Click" />
+                                    <MenuItem Header="Copy full chart" Click="CopyFullChart_Click" />
+                                    <MenuItem Header="Copy plot area only" Click="CopyPlotArea_Click" />
+                                    <Separator />
+                                    <MenuItem Header="Save full chart as PNG..." Click="SaveFullChart_Click" />
+                                    <MenuItem Header="Save plot area as PNG..." Click="SavePlotArea_Click" />
                                 </MenuFlyout>
                             </Button.Flyout>
                         </Button>

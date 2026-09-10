@@ -7,10 +7,10 @@ MainWindow
 ├── DriverWarningBanner (dismissible)
 ├── Top ribbon (API selector + pen telemetry)
 └── Body Grid
-    ├── Left panel (524 px) — two equal-width columns
+    ├── Left panel (472 px) — two equal-width columns
     │   ├── Chart column
     │   │   ├── PressureChartControl
-    │   │   └── "Copy ▾" / "Save ▾" (each: Full chart | Plot area only) + status label
+    │   │   └── "Export ▾" (copy / save × full chart | plot area only) + status label
     │   └── Card column (scrolls) — SectionCard × 4
     │       ├── CURVE (OFF)
     │       │   ├── Curve type combo + reset
@@ -57,7 +57,7 @@ The render timer (16 ms tick) drains pen points from the session, runs them thro
 Brush state is *not* stored on `MainWindow` — it's read on demand from `BrushRibbon`'s properties (`BrushSize`, `ColorMode`, `PressureControl`, `DrawZeroPressure`) at draw time. Only `_strokeColor` (the currently-picked random palette entry) lives on the window.
 
 ### `StrokeCanvasView`
-A `UserControl` bundling a header label, a "Save..." button, and an `Image`. It does **not** own pixel data — it exposes `Image` (register with a `DrawSurface`), `Host` (the `Border` whose bounds drive surface size), a `Header` styled property, and a `SaveRequested` event. The `Image` sits inside a `Canvas` pinned at (0, 0) so an oversized shared bitmap doesn't get re-laid-out when it's larger than the current host.
+A `UserControl` bundling a header label, an "Export" menu (Copy to clipboard / Save as PNG), and an `Image`. It does **not** own pixel data — it exposes `Image` (register with a `DrawSurface`), `Host` (the `Border` whose bounds drive surface size), a `Header` styled property, and `SaveRequested` / `CopyRequested` events. The `Image` sits inside a `Canvas` pinned at (0, 0) so an oversized shared bitmap doesn't get re-laid-out when it's larger than the current host.
 
 The `Image` uses `Stretch="Fill"` with no size set in the markup: `DrawSurface` assigns its `Width`/`Height` at allocation time. See the HiDPI section below for why.
 
@@ -85,7 +85,7 @@ The body must be set with the property-element form:
 > all — with no error to point at it.
 
 ### `BrushRibbon`
-A `UserControl` toolbar: brush size slider, color mode radios, pressure-target radios, draw-at-zero checkbox, and Clear. Exposes current values as plain read-only properties plus a `ClearRequested` event.
+A `UserControl` toolbar: brush size slider, colour mode and pressure-target dropdowns, draw-at-zero checkbox, and Clear. Exposes current values as plain read-only properties plus a `ClearRequested` event.
 
 Exactly **one** instance exists, created in the `MainWindow` field initializer and moved between `StrokeBrushSlot` and `CompareBrushSlot` on tab change (`UpdateBrushRibbonHost`). A control can have only one logical parent in Avalonia, so both slots are cleared before assigning to the active one. On the Pressure response tab the ribbon stays detached. This keeps brush settings identical across the stroke tabs with no state syncing.
 

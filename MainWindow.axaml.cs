@@ -97,10 +97,13 @@ public partial class MainWindow : Window
         // the scaling change itself or they'd stay at the old pixel density.
         ScalingChanged += (_, _) => EnsureSurfaces();
 
-        // Save buttons on each canvas view.
+        // Export menu on each canvas view.
         StrokeView.SaveRequested += async (_, _) => await SaveSurfaceAsPngAsync(_processed, "stroke.png");
         CompareProcessedView.SaveRequested += async (_, _) => await SaveSurfaceAsPngAsync(_processed, "processed.png");
         CompareRawView.SaveRequested += async (_, _) => await SaveSurfaceAsPngAsync(_raw, "unprocessed.png");
+        StrokeView.CopyRequested += async (_, _) => await CopySurfaceAsync(_processed);
+        CompareProcessedView.CopyRequested += async (_, _) => await CopySurfaceAsync(_processed);
+        CompareRawView.CopyRequested += async (_, _) => await CopySurfaceAsync(_raw);
 
         BrushRibbon.ClearRequested += (_, _) => ClearCanvases();
         InitializeCurveControls();
@@ -639,9 +642,12 @@ public partial class MainWindow : Window
     }
 
     private async Task CopyChartPngAsync(bool cropToPlot)
+        => await CopyPngToClipboardAsync(RenderChartPng(cropToPlot));
+
+    /// <summary>Copy a rendered PNG to the clipboard, shared by the chart and the canvases.</summary>
+    private async Task CopyPngToClipboardAsync(byte[]? png)
     {
-        var png = RenderChartPng(cropToPlot);
-        if (png is null) return;
+        if (png is null || png.Length == 0) return;
 
         var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
         if (clipboard is null) return;
@@ -660,6 +666,15 @@ public partial class MainWindow : Window
         {
             FlashChartStatus("Copy failed");
         }
+    }
+
+    /// <summary>Copy a stroke canvas to the clipboard at its full physical resolution.</summary>
+    private async Task CopySurfaceAsync(DrawSurface? surface)
+    {
+        if (surface is null || surface.Width <= 0 || surface.Height <= 0) return;
+        using var ms = new MemoryStream();
+        surface.SavePng(ms);
+        await CopyPngToClipboardAsync(ms.ToArray());
     }
 
     /// <summary>Briefly show a word next to the copy/save buttons, then clear it.</summary>

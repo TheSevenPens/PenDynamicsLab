@@ -12,11 +12,11 @@ public partial class BrushRibbon : UserControl
 {
     public double BrushSize => BrushSizeSlider.Value;
 
-    public ColorMode ColorMode =>
-        ColorRandomRadio.IsChecked == true ? ColorMode.Random : ColorMode.Black;
+    // Combo item order mirrors the enum, so the selected index is the enum value.
+    public ColorMode ColorMode => (ColorMode)Math.Max(0, ColorModeCombo.SelectedIndex);
 
     public PressureControl PressureControl =>
-        PressureOpacityRadio.IsChecked == true ? PressureControl.Opacity : PressureControl.Size;
+        (PressureControl)Math.Max(0, PressureControlCombo.SelectedIndex);
 
     public bool DrawZeroPressure => DrawZeroPressureCheck.IsChecked == true;
 
@@ -26,6 +26,12 @@ public partial class BrushRibbon : UserControl
     public BrushRibbon()
     {
         InitializeComponent();
+
+        foreach (var m in Enum.GetValues<ColorMode>()) ColorModeCombo.Items.Add(m.ToString());
+        ColorModeCombo.SelectedIndex = 0;
+
+        foreach (var c in Enum.GetValues<PressureControl>()) PressureControlCombo.Items.Add(c.ToString());
+        PressureControlCombo.SelectedIndex = 0;
         BrushSizeSlider.PropertyChanged += (_, e) =>
         {
             if (e.Property.Name != "Value") return;

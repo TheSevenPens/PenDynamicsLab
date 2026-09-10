@@ -15,19 +15,13 @@
 
             <StackPanel>
                 <TextBlock Text="COLOR" FontWeight="Bold" Foreground="#555555" Margin="0,0,0,4" />
-                <StackPanel Orientation="Horizontal" Spacing="10">
-                    <RadioButton x:Name="ColorBlackRadio" GroupName="ColorMode" Content="Black" IsChecked="True" />
-                    <RadioButton x:Name="ColorRandomRadio" GroupName="ColorMode" Content="Random" />
-                </StackPanel>
+                <ComboBox x:Name="ColorModeCombo" Width="110" />
             </StackPanel>
             <Rectangle Width="1" Fill="#DDDDDD" />
 
             <StackPanel>
                 <TextBlock Text="PRESSURE → " FontWeight="Bold" Foreground="#555555" Margin="0,0,0,4" />
-                <StackPanel Orientation="Horizontal" Spacing="10">
-                    <RadioButton x:Name="PressureSizeRadio" GroupName="PressureControl" Content="Size" IsChecked="True" />
-                    <RadioButton x:Name="PressureOpacityRadio" GroupName="PressureControl" Content="Opacity" />
-                </StackPanel>
+                <ComboBox x:Name="PressureControlCombo" Width="110" />
             </StackPanel>
             <Rectangle Width="1" Fill="#DDDDDD" />
 
