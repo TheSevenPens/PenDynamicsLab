@@ -1,23 +1,31 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="PenDynamicsLab.Controls.SectionCard">
-    <Border Background="#FFFFFF" BorderBrush="#E2E2E2" BorderThickness="1"
-            CornerRadius="6" Margin="0,0,0,8">
+    <Border Background="#FFFFFF" BorderBrush="#E5E5E5" BorderThickness="1"
+            CornerRadius="8" Margin="0,0,0,8">
         <DockPanel>
             <!-- Whole header row toggles the card. Kept as a Button so it is
                  keyboard-reachable, styled flat so it reads as a header. -->
             <Button x:Name="HeaderButton" DockPanel.Dock="Top"
                     Background="Transparent" BorderThickness="0"
-                    Padding="10,7" HorizontalAlignment="Stretch"
+                    Padding="12,10" HorizontalAlignment="Stretch"
                     HorizontalContentAlignment="Stretch" Cursor="Hand">
                 <DockPanel>
-                    <TextBlock x:Name="ChevronText" DockPanel.Dock="Right" Text="▲"
-                               Foreground="#888888" VerticalAlignment="Center" />
-                    <TextBlock x:Name="TitleText" FontWeight="Bold" Foreground="#333333"
-                               VerticalAlignment="Center" />
+                    <TextBlock x:Name="ChevronText" DockPanel.Dock="Right" Text="&#xE70E;"
+                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10"
+                               Foreground="#909090" VerticalAlignment="Center" Margin="8,0,0,0" />
+                    <!-- State lives in a pill, not in the title, so the name stays stable. -->
+                    <Border x:Name="StatusPill" DockPanel.Dock="Left" Background="#F0F0F0"
+                            CornerRadius="4" Padding="6,1" Margin="8,0,0,0"
+                            VerticalAlignment="Center" IsVisible="False">
+                        <TextBlock x:Name="StatusText" FontSize="11" Foreground="#616161" />
+                    </Border>
+                    <TextBlock x:Name="TitleText" DockPanel.Dock="Left" FontWeight="SemiBold"
+                               FontSize="13" Foreground="#242424" VerticalAlignment="Center" />
+                    <Panel />
                 </DockPanel>
             </Button>
-            <ContentPresenter x:Name="BodyPresenter" Margin="10,0,10,10" />
+            <ContentPresenter x:Name="BodyPresenter" Margin="12,0,12,12" />
         </DockPanel>
     </Border>
 </UserControl>

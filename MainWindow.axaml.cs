@@ -26,6 +26,13 @@ public partial class MainWindow : Window
     ];
     private static readonly SKColor BlackStrokeColor = new(0x1A, 0x1A, 0x2E);
 
+    // Telemetry chrome. Named here so the ribbon's live states use the same tokens as
+    // the markup rather than Brushes.Gray / Brushes.LimeGreen.
+    private static readonly IBrush ProximityBrush = new SolidColorBrush(Color.FromRgb(0x16, 0xA3, 0x4A));
+    private static readonly IBrush OutOfRangeBrush = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
+    private static readonly IBrush ForegroundBrush = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
+    private static readonly IBrush MutedBrush = new SolidColorBrush(Color.FromRgb(0x61, 0x61, 0x61));
+
     private IPenSession? _session;
     private readonly DispatcherTimer _renderTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
 
@@ -55,6 +62,7 @@ public partial class MainWindow : Window
     private readonly Random _rng = new();
 
     private readonly PresetStore _presetStore = new();
+    private readonly UiSettings _uiSettings = new();
 
     public MainWindow()
     {
@@ -106,6 +114,7 @@ public partial class MainWindow : Window
         CompareRawView.CopyRequested += async (_, _) => await CopySurfaceAsync(_raw);
 
         PressureChart.BuildExportMenuItems = BuildChartExportMenuItems;
+        DriverTipChip.IsVisible = !_uiSettings.DriverTipDismissed;
 
         BrushRibbon.ClearRequested += (_, _) => ClearCanvases();
         InitializeCurveControls();
@@ -375,14 +384,14 @@ public partial class MainWindow : Window
     /// </summary>
     private void UpdateCardStatuses()
     {
-        CurveCard.Status = CurveMath.IsIdentity(_curveParams) ? "(OFF)" : "";
+        CurveCard.Status = CurveMath.IsIdentity(_curveParams) ? "Off" : "";
 
         bool smoothingActive = _curveParams.SmoothingType != SmoothingType.Passthrough
                             && _curveParams.EmaSmoothing > 0;
-        SmoothingCard.Status = smoothingActive ? "" : "(OFF)";
+        SmoothingCard.Status = smoothingActive ? "" : "Off";
 
         ProcessingOrderCard.Status =
-            _curveParams.SmoothingOrder == SmoothingOrder.SmoothThenCurve ? "(S → C)" : "(C → S)";
+            _curveParams.SmoothingOrder == SmoothingOrder.SmoothThenCurve ? "S → C" : "C → S";
     }
 
     // ── Section resets ──────────────────────────────────────────
@@ -709,10 +718,25 @@ public partial class MainWindow : Window
         surface.SavePng(stream);
     }
 
-    // ── Driver warning ──────────────────────────────────────────
+    // ── Driver tip ──────────────────────────────────────────────
+    //
+    // The advice matters once per tablet, so it lives as a chip in the ribbon's spare
+    // right-hand space rather than a band across the window. Two levels of dismissal: the
+    // × hides it for this session, "Don't show again" remembers the choice.
 
-    private void DismissDriverWarning_Click(object? sender, RoutedEventArgs e)
-        => DriverWarningBanner.IsVisible = false;
+    /// <summary>Hide for this session only.</summary>
+    private void DriverTipDismiss_Click(object? sender, RoutedEventArgs e)
+        => DriverTipChip.IsVisible = false;
+
+    private void DriverTipGotIt_Click(object? sender, RoutedEventArgs e)
+        => DriverTipButton.Flyout?.Hide();
+
+    private void DriverTipNeverShow_Click(object? sender, RoutedEventArgs e)
+    {
+        _uiSettings.DriverTipDismissed = true;
+        DriverTipButton.Flyout?.Hide();
+        DriverTipChip.IsVisible = false;
+    }
 
     private void RebuildUserPresetList()
     {
@@ -880,8 +904,9 @@ public partial class MainWindow : Window
         {
             if ((DateTime.UtcNow - _lastPointTime).TotalMilliseconds > 200)
             {
-                ProximityDot.Fill = Brushes.Gray;
-                ProximityLabel.Text = "Out";
+                ProximityDot.Fill = OutOfRangeBrush;
+                ProximityLabel.Text = "Out of range";
+                ProximityLabel.Foreground = MutedBrush;
                 if (_activeCanvas != ActiveCanvas.None)
                 {
                     ResetStrokeState();
@@ -1048,24 +1073,25 @@ public partial class MainWindow : Window
     /// </param>
     private void UpdateTelemetry(PenPoint pt, Point clientPt, Point? canvasLocal, int maxP, double processed)
     {
-        ProximityDot.Fill = Brushes.LimeGreen;
-        ProximityLabel.Text = "Proximity";
-        CursorLabel.Text = $"Cursor: {pt.Cursor}";
+        // The captions are static markup now, so these carry the value alone.
+        ProximityDot.Fill = ProximityBrush;
+        ProximityLabel.Text = "In range";
+        ProximityLabel.Foreground = ForegroundBrush;
+        CursorLabel.Text = pt.Cursor.ToString();
 
-        RawPosLabel.Text = $"Raw: {pt.RawX},{pt.RawY}";
-        ScreenPosLabel.Text = $"Screen: {pt.DesktopX:F0},{pt.DesktopY:F0}";
-        AppPosLabel.Text = $"App: {clientPt.X:F0},{clientPt.Y:F0}";
-        CanvasPosLabel.Text = canvasLocal is { } cl
-            ? $"Canvas: {cl.X:F1},{cl.Y:F1}" : "Canvas: --,--";
+        RawPosLabel.Text = $"{pt.RawX}, {pt.RawY}";
+        ScreenPosLabel.Text = $"{pt.DesktopX:F0}, {pt.DesktopY:F0}";
+        AppPosLabel.Text = $"{clientPt.X:F0}, {clientPt.Y:F0}";
+        CanvasPosLabel.Text = canvasLocal is { } cl ? $"{cl.X:F1}, {cl.Y:F1}" : "--";
 
         float pct = maxP > 0 ? (float)pt.Pressure / maxP * 100f : 0f;
-        RawPressureLabel.Text = $"Raw: {pt.Pressure}";
-        NormPressureLabel.Text = $"Norm: {pct:F1}%";
-        ProcessedPressureLabel.Text = $"Processed: {processed * 100:F1}%";
+        RawPressureLabel.Text = pt.Pressure.ToString();
+        NormPressureLabel.Text = $"{pct:F1}%";
+        ProcessedPressureLabel.Text = $"{processed * 100:F1}%";
 
-        AzimuthLabel.Text = $"Azimuth: {pt.Azimuth:F1}";
-        AltitudeLabel.Text = $"Altitude: {pt.Altitude:F1}";
-        TwistLabel.Text = $"Twist: {pt.Twist:F1}";
+        AzimuthLabel.Text = $"{pt.Azimuth:F1}°";
+        AltitudeLabel.Text = $"{pt.Altitude:F1}°";
+        TwistLabel.Text = $"{pt.Twist:F1}°";
     }
 
     // ── Event handlers ───────────────────────────────────────────

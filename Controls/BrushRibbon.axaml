@@ -1,35 +1,36 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="PenDynamicsLab.Controls.BrushRibbon">
-    <Border Background="#F5F5F5" BorderBrush="#CCCCCC" BorderThickness="0,0,0,1" Padding="8,6">
-        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="16">
-            <StackPanel>
-                <DockPanel>
-                    <TextBlock Text="BRUSH SIZE" FontWeight="Bold" Foreground="#555555" />
-                    <TextBlock x:Name="BrushSizeLabel" HorizontalAlignment="Right" Margin="8,0,0,0" />
-                </DockPanel>
-                <Slider x:Name="BrushSizeSlider" Width="140" Minimum="1" Maximum="200"
-                        Value="40" IsSnapToTickEnabled="True" TickFrequency="1" />
+    <!-- One 32px control band on a single baseline. Labels sit beside their control
+         rather than stacked above it, which is what let the row collapse from three
+         competing baselines to one; spacing replaces the old 1px separator rules. -->
+    <Border Background="#FFFFFF" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1" Padding="16,0">
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                    Height="56" Spacing="20">
+
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
+                <TextBlock Text="Size" Classes="fieldLabel" VerticalAlignment="Center" />
+                <Slider x:Name="BrushSizeSlider" Width="132" Height="32" VerticalAlignment="Center"
+                        Minimum="1" Maximum="200" Value="40"
+                        IsSnapToTickEnabled="True" TickFrequency="1" />
+                <TextBlock x:Name="BrushSizeLabel" Width="42" VerticalAlignment="Center" />
             </StackPanel>
-            <Rectangle Width="1" Fill="#DDDDDD" />
 
-            <StackPanel>
-                <TextBlock Text="COLOR" FontWeight="Bold" Foreground="#555555" Margin="0,0,0,4" />
-                <ComboBox x:Name="ColorModeCombo" Width="110" />
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
+                <TextBlock Text="Color" Classes="fieldLabel" VerticalAlignment="Center" />
+                <ComboBox x:Name="ColorModeCombo" Width="118" Height="32" VerticalAlignment="Center" />
             </StackPanel>
-            <Rectangle Width="1" Fill="#DDDDDD" />
 
-            <StackPanel>
-                <TextBlock Text="PRESSURE" FontWeight="Bold" Foreground="#555555" Margin="0,0,0,4" />
-                <ComboBox x:Name="PressureControlCombo" Width="110" />
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
+                <TextBlock Text="Pressure drives" Classes="fieldLabel" VerticalAlignment="Center" />
+                <ComboBox x:Name="PressureControlCombo" Width="118" Height="32" VerticalAlignment="Center" />
             </StackPanel>
-            <Rectangle Width="1" Fill="#DDDDDD" />
 
-            <CheckBox x:Name="DrawZeroPressureCheck" Content="Draw at 0 effective pressure"
-                      VerticalAlignment="Center" />
-            <Rectangle Width="1" Fill="#DDDDDD" />
+            <CheckBox x:Name="DrawZeroPressureCheck" Content="Draw at zero pressure"
+                      Height="32" VerticalAlignment="Center" VerticalContentAlignment="Center" />
 
-            <Button x:Name="ClearButton" Content="Clear" Width="60" Height="28" />
+            <Button x:Name="ClearButton" Content="Clear canvas" Height="32" Padding="14,0"
+                    VerticalAlignment="Center" VerticalContentAlignment="Center" />
         </StackPanel>
     </Border>
 </UserControl>

@@ -2,10 +2,12 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="PenDynamicsLab.Controls.StrokeCanvasView">
     <DockPanel>
-        <Border DockPanel.Dock="Top" Background="#E8E8E2"
-                BorderBrush="#D0D0C8" BorderThickness="0,0,0,1" Padding="8,4">
-            <DockPanel>
-                <Button DockPanel.Dock="Right" x:Name="ExportButton" Content="Export  ▾" Padding="8,1">
+        <Border DockPanel.Dock="Top" Background="#FFFFFF"
+                BorderBrush="#E5E5E5" BorderThickness="0,0,0,1" Padding="16,0">
+            <DockPanel Height="40">
+                <Button DockPanel.Dock="Right" x:Name="ExportButton" Content="Export"
+                        Height="28" Padding="10,0" VerticalAlignment="Center"
+                        VerticalContentAlignment="Center">
                     <Button.Flyout>
                         <MenuFlyout>
                             <MenuItem Header="Copy to clipboard" Click="Copy_Click" />
@@ -13,11 +15,19 @@
                         </MenuFlyout>
                     </Button.Flyout>
                 </Button>
-                <TextBlock x:Name="HeaderText" FontWeight="SemiBold" Foreground="#333333"
-                           VerticalAlignment="Center" />
+                <!-- State as a quiet pill rather than a bold caption bar. -->
+                <Border x:Name="HeaderPill" Background="#EFF6FC" CornerRadius="4" Padding="8,3"
+                        HorizontalAlignment="Left" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <Ellipse x:Name="HeaderDot" Width="6" Height="6" Fill="#0F6CBD"
+                                 VerticalAlignment="Center" />
+                        <TextBlock x:Name="HeaderText" FontSize="12" Foreground="#424242"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
             </DockPanel>
         </Border>
-        <Border x:Name="ImageHost" Background="#F5F5F0" ClipToBounds="True">
+        <Border x:Name="ImageHost" Background="#F7F7F4" ClipToBounds="True">
             <!-- Canvas pins the Image at (0, 0) regardless of how Avalonia's layout would
                  otherwise handle an oversized bitmap (e.g., when the shared processed bitmap
                  is larger than this host because it was sized in a different tab).

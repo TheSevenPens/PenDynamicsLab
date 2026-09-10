@@ -39,7 +39,7 @@ namespace PenDynamicsLab.Drawing;
 /// </remarks>
 public sealed class DrawSurface : IDisposable
 {
-    private static readonly SKColor ClearColor = new(0xF5, 0xF5, 0xF0);
+    private static readonly SKColor ClearColor = new(0xF7, 0xF7, 0xF4);
 
     private readonly List<Image> _hosts = new();
     private SKBitmap? _skBitmap;

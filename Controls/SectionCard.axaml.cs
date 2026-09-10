@@ -59,11 +59,16 @@ public partial class SectionCard : UserControl
     }
 
     private void SyncHeader()
-        => TitleText.Text = Status.Length == 0 ? Title : $"{Title} {Status}";
+    {
+        TitleText.Text = Title;
+        StatusText.Text = Status;
+        StatusPill.IsVisible = Status.Length > 0;
+    }
 
     private void SyncExpanded()
     {
         BodyPresenter.IsVisible = IsExpanded;
-        ChevronText.Text = IsExpanded ? "▲" : "▼";
+        // Segoe Fluent Icons: ChevronUp / ChevronDown.
+        ChevronText.Text = IsExpanded ? "\uE70E" : "\uE70D";
     }
 }

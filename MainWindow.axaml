@@ -3,93 +3,154 @@
         xmlns:controls="using:PenDynamicsLab.Controls"
         x:Class="PenDynamicsLab.MainWindow"
         Title="PenDynamicsLab" Width="1650" Height="900"
-        FontFamily="Segoe UI" FontSize="12">
+        Background="#F9F9F9"
+        FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13">
     <Window.Styles>
-        <!-- Force a single font size across every control. FluentTheme defaults don't
-             always inherit from the Window-level FontSize. -->
-        <Style Selector="TextBlock">    <Setter Property="FontSize" Value="12" /></Style>
-        <Style Selector="TextBox">      <Setter Property="FontSize" Value="12" /></Style>
-        <Style Selector="Button">       <Setter Property="FontSize" Value="12" /></Style>
-        <Style Selector="ComboBox">     <Setter Property="FontSize" Value="12" /></Style>
-        <Style Selector="ComboBoxItem"> <Setter Property="FontSize" Value="12" /></Style>
-        <Style Selector="CheckBox">     <Setter Property="FontSize" Value="12" /></Style>
-        <Style Selector="RadioButton">  <Setter Property="FontSize" Value="12" /></Style>
-        <Style Selector="MenuItem">     <Setter Property="FontSize" Value="12" /></Style>
-        <Style Selector="Slider">       <Setter Property="FontSize" Value="12" /></Style>
+        <!-- One vocabulary. Hierarchy comes from colour and size, never from caps or
+             bold; every interactive control is 32px tall with a 4px radius. -->
+        <Style Selector="TextBlock">    <Setter Property="FontSize" Value="13" /></Style>
+        <Style Selector="TextBox">      <Setter Property="FontSize" Value="13" /><Setter Property="CornerRadius" Value="4" /></Style>
+        <Style Selector="Button">       <Setter Property="FontSize" Value="13" /><Setter Property="CornerRadius" Value="4" /></Style>
+        <Style Selector="ComboBox">     <Setter Property="FontSize" Value="13" /><Setter Property="CornerRadius" Value="4" /></Style>
+        <Style Selector="ComboBoxItem"> <Setter Property="FontSize" Value="13" /></Style>
+        <Style Selector="CheckBox">     <Setter Property="FontSize" Value="13" /></Style>
+        <Style Selector="RadioButton">  <Setter Property="FontSize" Value="13" /></Style>
+        <Style Selector="MenuItem">     <Setter Property="FontSize" Value="13" /></Style>
+        <Style Selector="Slider">       <Setter Property="FontSize" Value="13" /></Style>
+        <Style Selector="TabItem">      <Setter Property="FontSize" Value="14" /></Style>
 
-        <!-- Shrink the slider thumb (the draggable knob). FluentTheme defaults to ~16px. -->
+        <!-- A muted label sitting beside its control. Replaces the bold uppercase
+             micro-labels that were the app's strongest dated signal. -->
+        <Style Selector="TextBlock.fieldLabel">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="#616161" />
+        </Style>
+        <!-- Caption over a telemetry group. -->
+        <Style Selector="TextBlock.groupLabel">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="#909090" />
+        </Style>
+        <!-- Live numeric value. -->
+        <Style Selector="TextBlock.readout">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="#242424" />
+        </Style>
+
         <Style Selector="Slider:horizontal /template/ Thumb">
-            <Setter Property="Width" Value="10" />
-            <Setter Property="Height" Value="10" />
+            <Setter Property="Width" Value="14" />
+            <Setter Property="Height" Value="14" />
         </Style>
     </Window.Styles>
     <DockPanel>
-        <!-- Driver warning banner (dismissible) -->
-        <Border DockPanel.Dock="Top" x:Name="DriverWarningBanner"
-                Background="#FFF8E1" BorderBrush="#E0C77A" BorderThickness="0,0,0,1"
-                Padding="10,6">
-            <DockPanel>
-                <Button DockPanel.Dock="Right" Content="✕" Width="24" Padding="0"
-                        Background="Transparent" BorderThickness="0"
-                        Click="DismissDriverWarning_Click" />
-                <TextBlock VerticalAlignment="Center" Foreground="#704C00"
-                           TextWrapping="Wrap">
-                    Tip: set your tablet driver's pressure curve to default (linear) so this app
-                    sees raw pen input — otherwise you're tuning a curve on top of a curve.
-                </TextBlock>
+        <!-- Telemetry ribbon. The driver tip lives at its right-hand end, in space that
+             was running empty, so the advice costs no vertical band. -->
+        <Border DockPanel.Dock="Top" Background="#FFFFFF"
+                BorderBrush="#E5E5E5" BorderThickness="0,0,0,1" Padding="16,0">
+            <DockPanel Height="78">
+
+                <Border DockPanel.Dock="Right" x:Name="DriverTipChip"
+                        Background="#FFF9F0" BorderBrush="#F0D8A8" BorderThickness="1"
+                        CornerRadius="14" Height="28" Padding="10,0,4,0"
+                        VerticalAlignment="Center" Margin="16,0,0,0">
+                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <Button x:Name="DriverTipButton" Background="Transparent" BorderThickness="0"
+                                Padding="0" Cursor="Hand" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <TextBlock Text="&#xE946;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                           FontSize="12" Foreground="#8A6516" VerticalAlignment="Center" />
+                                <TextBlock Text="Set driver curve to linear" FontSize="12"
+                                           Foreground="#7A5A16" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <Button.Flyout>
+                                <Flyout Placement="BottomEdgeAlignedRight">
+                                    <StackPanel Width="320" Spacing="14">
+                                        <TextBlock TextWrapping="Wrap" Foreground="#242424"
+                                                   Text="Set your tablet driver's pressure curve to default (linear) so this app sees raw pen input — otherwise you're tuning a curve on top of a curve." />
+                                        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                                            <Button Content="Don't show again" Height="30" Padding="12,0"
+                                                    VerticalContentAlignment="Center"
+                                                    Click="DriverTipNeverShow_Click" />
+                                            <Button Content="Got it" Height="30" Padding="14,0" Classes="accent"
+                                                    VerticalContentAlignment="Center"
+                                                    Click="DriverTipGotIt_Click" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Flyout>
+                            </Button.Flyout>
+                        </Button>
+                        <Button x:Name="DriverTipDismiss" Content="&#xE711;"
+                                FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10"
+                                Foreground="#8A6516" Background="Transparent" BorderThickness="0"
+                                Width="20" Height="20" Padding="0" VerticalAlignment="Center"
+                                ToolTip.Tip="Hide for this session"
+                                HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                                Click="DriverTipDismiss_Click" />
+                    </StackPanel>
+                </Border>
+
+                <StackPanel Orientation="Horizontal" Spacing="36" VerticalAlignment="Center">
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Pen API" Classes="groupLabel" />
+                        <ComboBox x:Name="ApiCombo" Width="150" Height="32" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Pen" Classes="groupLabel" />
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Ellipse x:Name="ProximityDot" Width="7" Height="7" Fill="#B0B0B0"
+                                     VerticalAlignment="Center" />
+                            <TextBlock x:Name="ProximityLabel" Text="Out of range" Classes="readout"
+                                       Foreground="#616161" />
+                        </StackPanel>
+                        <TextBlock x:Name="CursorLabel" Text="--" Classes="readout" Foreground="#616161" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Position" Classes="groupLabel" />
+                        <Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto,Auto,Auto"
+                              >
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Raw" Classes="fieldLabel" />
+                            <TextBlock Grid.Row="0" Grid.Column="1" x:Name="RawPosLabel" Text="--" Classes="readout" Margin="12,0,0,0" />
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Screen" Classes="fieldLabel" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" x:Name="ScreenPosLabel" Text="--" Classes="readout" Margin="12,0,0,0" />
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="App" Classes="fieldLabel" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" x:Name="AppPosLabel" Text="--" Classes="readout" Margin="12,0,0,0" />
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Canvas" Classes="fieldLabel" />
+                            <TextBlock Grid.Row="3" Grid.Column="1" x:Name="CanvasPosLabel" Text="--" Classes="readout" Margin="12,0,0,0" />
+                        </Grid>
+                    </StackPanel>
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Pressure" Classes="groupLabel" />
+                        <Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto,Auto"
+                              >
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Raw" Classes="fieldLabel" />
+                            <TextBlock Grid.Row="0" Grid.Column="1" x:Name="RawPressureLabel" Text="--" Classes="readout" Margin="12,0,0,0" />
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Normalized" Classes="fieldLabel" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" x:Name="NormPressureLabel" Text="--" Classes="readout" Margin="12,0,0,0" />
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Processed" Classes="fieldLabel" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" x:Name="ProcessedPressureLabel" Text="--" Margin="12,0,0,0"
+                                       Classes="readout" Foreground="#14A050" FontWeight="SemiBold" />
+                        </Grid>
+                    </StackPanel>
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Orientation" Classes="groupLabel" />
+                        <Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto,Auto"
+                              >
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Azimuth" Classes="fieldLabel" />
+                            <TextBlock Grid.Row="0" Grid.Column="1" x:Name="AzimuthLabel" Text="--" Classes="readout" Margin="12,0,0,0" />
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Altitude" Classes="fieldLabel" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" x:Name="AltitudeLabel" Text="--" Classes="readout" Margin="12,0,0,0" />
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Twist" Classes="fieldLabel" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" x:Name="TwistLabel" Text="--" Classes="readout" Margin="12,0,0,0" />
+                        </Grid>
+                    </StackPanel>
+                </StackPanel>
             </DockPanel>
         </Border>
 
-        <!-- Top ribbon: pen telemetry + API selector -->
-        <Border DockPanel.Dock="Top" Background="#F5F5F5"
-                BorderBrush="#CCCCCC" BorderThickness="0,0,0,1" Padding="8,6">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="16">
-                <!-- PEN API -->
-                <StackPanel>
-                    <TextBlock Text="PEN API" FontWeight="Bold"                               Foreground="#555555" Margin="0,0,0,4" />
-                    <ComboBox x:Name="ApiCombo" Width="120" Height="28" />
-                </StackPanel>
-                <Rectangle Width="1" Fill="#DDDDDD" />
-
-                <!-- PEN -->
-                <StackPanel Width="80">
-                    <TextBlock Text="PEN" FontWeight="Bold"                               Foreground="#555555" Margin="0,0,0,4" />
-                    <StackPanel Orientation="Horizontal" Spacing="4">
-                        <Ellipse x:Name="ProximityDot" Width="8" Height="8" Fill="Gray" />
-                        <TextBlock x:Name="ProximityLabel" Text="Out" Foreground="#888888" />
-                    </StackPanel>
-                    <TextBlock x:Name="CursorLabel" Text="Cursor: --" />
-                </StackPanel>
-                <Rectangle Width="1" Fill="#DDDDDD" />
-
-                <!-- POSITION -->
-                <StackPanel Width="160">
-                    <TextBlock Text="POSITION" FontWeight="Bold"                               Foreground="#555555" Margin="0,0,0,4" />
-                    <TextBlock x:Name="RawPosLabel" Text="Raw: --,--" />
-                    <TextBlock x:Name="ScreenPosLabel" Text="Screen: --,--" />
-                    <TextBlock x:Name="AppPosLabel" Text="App: --,--" />
-                    <TextBlock x:Name="CanvasPosLabel" Text="Canvas: --,--" />
-                </StackPanel>
-                <Rectangle Width="1" Fill="#DDDDDD" />
-
-                <!-- PRESSURE -->
-                <StackPanel Width="130">
-                    <TextBlock Text="PRESSURE" FontWeight="Bold"                               Foreground="#555555" Margin="0,0,0,4" />
-                    <TextBlock x:Name="RawPressureLabel" Text="Raw: --" />
-                    <TextBlock x:Name="NormPressureLabel" Text="Norm: --" />
-                    <TextBlock x:Name="ProcessedPressureLabel" Text="Processed: --" />
-                </StackPanel>
-                <Rectangle Width="1" Fill="#DDDDDD" />
-
-                <!-- ORIENTATION -->
-                <StackPanel Width="100">
-                    <TextBlock Text="ORIENTATION" FontWeight="Bold"                               Foreground="#555555" Margin="0,0,0,4" />
-                    <TextBlock x:Name="AzimuthLabel" Text="Azimuth: --" />
-                    <TextBlock x:Name="AltitudeLabel" Text="Altitude: --" />
-                    <TextBlock x:Name="TwistLabel" Text="Twist: --" />
-                </StackPanel>
-            </StackPanel>
-        </Border>
 
         <!-- Body: left = curve chart + control cards, right = drawing canvases -->
         <Grid>
@@ -99,31 +160,25 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!-- LeftPanel: chart on the left, collapsible control cards on the right.
-                 Both columns are equal-width by construction (two * columns), so the card
-                 column always matches the chart column, whatever the panel width. -->
-            <Grid x:Name="LeftPanel" Grid.Column="0" Background="#FAFAFA">
+            <!-- LeftPanel: settings first, then the curve — so the row reads
+                 configure → mapping → stroke, and the curve sits directly against the
+                 canvas it drives rather than across the pane from it. Both columns are
+                 equal-width by construction (two * columns). -->
+            <Grid x:Name="LeftPanel" Grid.Column="0" Background="#F9F9F9">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
-                <!-- Chart, with the Export menu directly beneath it -->
-                <StackPanel Grid.Column="0" Margin="14,12,8,12">
-                    <controls:PressureChartControl x:Name="PressureChart" />
-                    <!-- Transient feedback only ("Copied"); empty the rest of the time, so
-                         the row collapses to nothing. Export is on the right-click menu. -->
-                    <TextBlock x:Name="ChartStatusLabel" Margin="0,10,0,0"
-                               Foreground="#4C8C4A" />
-                </StackPanel>
+                <!-- Column 1: the settings cards. Presets is pinned to the bottom row so
+                     the slack falls between groups instead of trailing off the end. -->
+                <Grid Grid.Column="0" Margin="14,12,7,12" RowDefinitions="*,Auto">
+                    <ScrollViewer Grid.Row="0"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
 
-                <!-- Control cards -->
-                <ScrollViewer Grid.Column="1" Margin="8,12,14,12"
-                              HorizontalScrollBarVisibility="Disabled"
-                              VerticalScrollBarVisibility="Auto">
-                    <StackPanel>
-
-                        <controls:SectionCard x:Name="CurveCard" Title="CURVE">
+                        <controls:SectionCard x:Name="CurveCard" Title="Curve">
                             <controls:SectionCard.CardContent>
                             <StackPanel Spacing="10">
                                 <DockPanel>
@@ -175,7 +230,7 @@
                             </controls:SectionCard.CardContent>
                         </controls:SectionCard>
 
-                        <controls:SectionCard x:Name="SmoothingCard" Title="SMOOTHING">
+                        <controls:SectionCard x:Name="SmoothingCard" Title="Smoothing">
                             <controls:SectionCard.CardContent>
                             <StackPanel Spacing="10">
                                 <DockPanel>
@@ -191,17 +246,20 @@
                             </controls:SectionCard.CardContent>
                         </controls:SectionCard>
 
-                        <controls:SectionCard x:Name="ProcessingOrderCard" Title="PROCESSING">
+                        <controls:SectionCard x:Name="ProcessingOrderCard" Title="Processing">
                             <controls:SectionCard.CardContent>
                             <ComboBox x:Name="ProcessingOrderCombo" HorizontalAlignment="Stretch" />
                             </controls:SectionCard.CardContent>
                         </controls:SectionCard>
 
-                        <controls:SectionCard x:Name="PresetsCard" Title="PRESETS">
-                            <controls:SectionCard.CardContent>
-                            <StackPanel Spacing="6">
-                                <TextBlock x:Name="PresetEmptyLabel" Text="No saved presets"
-                                           Foreground="#999999" />
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <controls:SectionCard Grid.Row="1" x:Name="PresetsCard" Title="Presets" Margin="0,8,0,0">
+                        <controls:SectionCard.CardContent>
+                            <StackPanel Spacing="8">
+                                <TextBlock x:Name="PresetEmptyLabel" Text="No saved presets yet"
+                                           FontSize="12" Foreground="#909090" />
                                 <StackPanel x:Name="PresetList" Spacing="2" />
                                 <!-- Revealed by "Save settings"; the mockup has no always-on name box. -->
                                 <StackPanel x:Name="PresetNameRow" Spacing="4" IsVisible="False">
@@ -213,28 +271,47 @@
                                                 Click="PresetConfirm_Click" />
                                     </StackPanel>
                                 </StackPanel>
-                                <Button x:Name="PresetSaveButton" Content="Save settings"
-                                        HorizontalAlignment="Stretch"
+                                <Button x:Name="PresetSaveButton" Content="Save current settings"
+                                        Height="32" HorizontalAlignment="Stretch"
                                         HorizontalContentAlignment="Center"
+                                        VerticalContentAlignment="Center"
                                         Click="PresetSave_Click" />
                             </StackPanel>
-                            </controls:SectionCard.CardContent>
-                        </controls:SectionCard>
+                        </controls:SectionCard.CardContent>
+                    </controls:SectionCard>
+                </Grid>
 
-                    </StackPanel>
-                </ScrollViewer>
+                <!-- Column 2: the curve, sitting against the canvas it drives. -->
+                <StackPanel Grid.Column="1" Margin="7,12,14,12">
+                    <Border Background="#FFFFFF" BorderBrush="#E5E5E5" BorderThickness="1"
+                            CornerRadius="8" Padding="12,10,12,12">
+                        <StackPanel Spacing="8">
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Right" Text="right-click to export"
+                                           FontSize="11" Foreground="#909090" VerticalAlignment="Center" />
+                                <TextBlock Text="Response curve" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="#242424" />
+                            </DockPanel>
+                            <controls:PressureChartControl x:Name="PressureChart" />
+                        </StackPanel>
+                    </Border>
+                    <!-- Transient feedback only ("Copied"); empty the rest of the time, so
+                         the row collapses to nothing. -->
+                    <TextBlock x:Name="ChartStatusLabel" Margin="0,8,0,0" FontSize="12"
+                               Foreground="#14A050" />
+                </StackPanel>
             </Grid>
 
             <!-- Splitter -->
-            <Rectangle Grid.Column="1" Fill="#CCCCCC" />
+            <Rectangle Grid.Column="1" Fill="#E5E5E5" />
 
             <!-- Right panel: tabbed views. Each tab is its own workflow. -->
-            <DockPanel x:Name="CanvasArea" Grid.Column="2" Background="#F5F5F0">
+            <DockPanel x:Name="CanvasArea" Grid.Column="2" Background="#FFFFFF">
                 <TabControl x:Name="RightTabs" Padding="0">
                     <TabItem x:Name="StrokeTab" Header="Stroke">
                         <DockPanel>
                             <ContentControl x:Name="StrokeBrushSlot" DockPanel.Dock="Top" />
-                            <controls:StrokeCanvasView x:Name="StrokeView" Header="Pressure processing: ON" />
+                            <controls:StrokeCanvasView x:Name="StrokeView" Header="Pressure processing on" />
                         </DockPanel>
                     </TabItem>
 
@@ -248,10 +325,10 @@
                                     <RowDefinition Height="*" />
                                 </Grid.RowDefinitions>
                                 <controls:StrokeCanvasView Grid.Row="0" x:Name="CompareProcessedView"
-                                                           Header="Pressure processing: ON" />
+                                                           Header="Pressure processing on" />
                                 <Rectangle Grid.Row="1" Fill="#CCCCCC" />
                                 <controls:StrokeCanvasView Grid.Row="2" x:Name="CompareRawView"
-                                                           Header="Pressure processing: OFF" />
+                                                           Header="Pressure processing off" />
                             </Grid>
                         </DockPanel>
                     </TabItem>
