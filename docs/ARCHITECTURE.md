@@ -7,11 +7,11 @@ MainWindow
 ├── DriverWarningBanner (dismissible)
 ├── Top ribbon (API selector + pen telemetry)
 └── Body Grid
-    ├── Left panel (592 px) — chart column + card column
+    ├── Left panel (524 px) — two equal-width columns
     │   ├── Chart column
     │   │   ├── PressureChartControl
     │   │   └── "Copy ▾" / "Save ▾" (each: Full chart | Plot area only) + status label
-    │   └── Card column (330 px, scrolls) — SectionCard × 4
+    │   └── Card column (scrolls) — SectionCard × 4
     │       ├── CURVE (OFF)
     │       │   ├── Curve type combo + reset
     │       │   ├── Bezier toolbar (Add / Remove / count / preset combo, Bezier only)

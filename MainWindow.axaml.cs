@@ -911,10 +911,16 @@ public partial class MainWindow : Window
             {
                 _activeCanvas = over;
                 _lastDrawPos = null;
-                if (pt.Pressure > 0) PickStrokeColor();
             }
 
             var drawPos = localPt;
+
+            // A new stroke begins whenever pressure arrives with no segment in progress:
+            // at pen-down, and again after the pen crosses to the other canvas. Keying off
+            // the canvas change alone missed the common case — hovering over the canvas
+            // consumes the change at zero pressure, so pressing down afterwards never
+            // picked a colour and every stroke stayed the initial black.
+            if (rawPressure > 0 && _lastDrawPos is null) PickStrokeColor();
 
             if (rawPressure > 0)
             {

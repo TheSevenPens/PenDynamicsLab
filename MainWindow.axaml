@@ -93,16 +93,18 @@
         <!-- Body: left = curve chart + control cards, right = drawing canvases -->
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="592" />
+                <ColumnDefinition Width="524" />
                 <ColumnDefinition Width="1" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!-- LeftPanel: chart on the left, collapsible control cards on the right -->
+            <!-- LeftPanel: chart on the left, collapsible control cards on the right.
+                 Both columns are equal-width by construction (two * columns), so the card
+                 column always matches the chart column, whatever the panel width. -->
             <Grid x:Name="LeftPanel" Grid.Column="0" Background="#FAFAFA">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" MinWidth="240" />
-                    <ColumnDefinition Width="330" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
                 <!-- Chart, with the copy / save split buttons directly beneath it -->
@@ -132,7 +134,7 @@
                 </StackPanel>
 
                 <!-- Control cards -->
-                <ScrollViewer Grid.Column="1" Margin="0,12,12,12"
+                <ScrollViewer Grid.Column="1" Margin="8,12,14,12"
                               HorizontalScrollBarVisibility="Disabled"
                               VerticalScrollBarVisibility="Auto">
                     <StackPanel>
