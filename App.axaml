@@ -4,4 +4,29 @@
     <Application.Styles>
         <FluentTheme />
     </Application.Styles>
+
+    <!-- Fluent's stock button fill is a mid grey that reads as a dark slab against the
+         white cards and ribbon. Retone it to a white surface with a 1px edge, matching
+         the combo boxes beside it.
+
+         Done by overriding the theme's brushes rather than restyling the template, so
+         buttons that deliberately opt out keep their look: the card headers and the tip
+         chip set Background="Transparent" locally, which still wins, and the accent
+         button draws from the separate AccentButton* resources. -->
+    <Application.Resources>
+        <SolidColorBrush x:Key="ButtonBackground" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#F5F5F5" />
+        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#EBEBEB" />
+        <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="#FAFAFA" />
+
+        <SolidColorBrush x:Key="ButtonBorderBrush" Color="#D1D1D1" />
+        <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#C4C4C4" />
+        <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="#C4C4C4" />
+        <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="#EAEAEA" />
+
+        <SolidColorBrush x:Key="ButtonForeground" Color="#242424" />
+        <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#242424" />
+        <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#424242" />
+        <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="#A0A0A0" />
+    </Application.Resources>
 </Application>
