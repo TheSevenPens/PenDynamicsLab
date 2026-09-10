@@ -27,7 +27,7 @@ These settings apply to **basic**, **extended**, and **sigmoid** curve types:
 
 Note: PenDynamicsLab shows the min/max nodes for **Sigmoid** and **Extended** curves only. **Basic** intentionally hides them — same convention as WebPressureExplorer — so Basic effectively uses the full [0, 1] input/output range.
 
-The four range values (input min/max, output min/max) appear in the left panel as label + number only, with no slider track. They're meant to be set by dragging the pink and cyan nodes on the chart; the readout is click-to-edit if you need an exact value.
+The four range values (input min/max, output min/max) appear in the Curve card as label + number only, with no slider track. They're meant to be set by dragging the pink and cyan nodes on the chart; the readout is click-to-edit if you need an exact value.
 
 ### Min approach modes
 
@@ -204,7 +204,7 @@ alpha    = 1 - emaSmoothing
 
 When `EmaSmoothing = 0`, alpha = 1, so output = input (no smoothing). As it approaches 0.99, output becomes increasingly smoothed/lagged. Only pressure is smoothed — cursor position is drawn unmodified.
 
-Setting `SmoothingType` to **Passthrough** skips smoothing regardless of the amount, mirroring `CurveType.Passthrough` on the curve side. It resolves to the same code path as an amount of 0, and the EMA state keeps tracking the input while bypassed, so switching back mid-stroke resumes from the current pressure rather than a stale one. The amount slider is hidden while Passthrough is selected, and the Smoothing card header reads `(OFF)`.
+Setting `SmoothingType` to **Passthrough** skips smoothing regardless of the amount, mirroring `CurveType.Passthrough` on the curve side. It resolves to the same code path as an amount of 0, and the EMA state keeps tracking the input while bypassed, so switching back mid-stroke resumes from the current pressure rather than a stale one. The amount slider is hidden while Passthrough is selected, and the Smoothing card header shows an `Off` pill.
 
 The "live" indicators on the curve and response charts use:
 - **Raw** (purple) = the unprocessed `pt.Pressure / pt.MaxPressure`

@@ -4,22 +4,22 @@
 
 ```
 MainWindow
-├── DriverWarningBanner (dismissible)
-├── Top ribbon (API selector + pen telemetry)
+├── Top ribbon (92 px) — Pen API combo + pen telemetry, DriverTipChip at the right edge
 └── Body Grid
-    ├── Left panel (472 px) — two equal-width columns
-    │   ├── Chart column
-    │   │   ├── PressureChartControl
-    │   │   └── transient status label (export lives on the chart's right-click menu)
-    │   └── Card column (scrolls) — SectionCard × 4
-    │       ├── CURVE (OFF)
-    │       │   ├── Curve type combo + reset
-    │       │   ├── Bezier toolbar (Add / Remove / count / preset combo, Bezier only)
-    │       │   ├── LabeledSlider × N (Curve Amount, in/out range, flat level)
-    │       │   └── Min approach radios
-    │       ├── SMOOTHING (OFF) — algorithm combo (Passthrough / EMA) + reset, Smoothing Amount
-    │       ├── PROCESSING (S → C) — smooth-then-curve / curve-then-smooth dropdown
-    │       └── PRESETS — empty-state text, saved list, "Save settings"
+    ├── Left panel (472 px) — two equal-width columns, settings before curve
+    │   ├── Settings column
+    │   │   ├── ScrollViewer — SectionCard × 3
+    │   │   │   ├── Curve  [Off]
+    │   │   │   │   ├── Curve type combo + reset
+    │   │   │   │   ├── Bezier toolbar (Add / Remove / count / preset combo, Bezier only)
+    │   │   │   │   ├── LabeledSlider × N (Curve Amount, in/out range, flat level)
+    │   │   │   │   └── Min approach radios
+    │   │   │   ├── Smoothing  [Off] — algorithm combo (Passthrough / EMA) + reset, Smoothing Amount
+    │   │   │   └── Processing  [S → C] — smooth-then-curve / curve-then-smooth dropdown
+    │   │   └── Presets (pinned to the bottom row) — empty-state text, saved list, "Save current settings"
+    │   └── Curve column
+    │       ├── "Pressure curve" card → PressureChartControl (export on its right-click menu)
+    │       └── transient status label ("Copied")
     ├── 1px splitter
     └── CanvasArea (DockPanel)
         └── RightTabs (TabControl)
@@ -29,18 +29,37 @@ MainWindow
             ├── "Stroke compare"
             │   ├── CompareBrushSlot (ContentControl — hosts the shared BrushRibbon)
             │   └── Grid
-            │       ├── CompareProcessedView : StrokeCanvasView  ("Pressure processing: ON")
+            │       ├── CompareProcessedView : StrokeCanvasView  ("Use processed pressure data")
             │       ├── 1px divider
-            │       └── CompareRawView : StrokeCanvasView        ("Pressure processing: OFF")
+            │       └── CompareRawView : StrokeCanvasView        ("Use raw pressure data")
             └── "Pressure response"
                 ├── Data combo + Clear button
                 ├── "Show effect of curve" checkbox + info label
                 └── PressureResponseChartControl
 ```
 
+The columns sit in this order deliberately: the row reads **configure → mapping → stroke**, and it puts the curve directly against the canvas it drives, which is the pair you compare while tuning. Presets is pinned to the bottom row of its column so the slack at default settings falls between groups rather than trailing off the end.
+
 `MainWindow.axaml.cs` owns essentially all state and behavior; controls communicate via events and StyledProperties.
 
 `CanvasArea` (the whole right-hand DockPanel) is also the Avalonia element passed to `AvaloniaPointerSession`, so the Avalonia-pointer input path receives events across every tab.
+
+## Visual language
+
+One vocabulary, defined in `Window.Styles` plus a set of theme-brush overrides in `App.axaml`. The rules that keep it coherent:
+
+| Rule | Why |
+|---|---|
+| No uppercase labels | Sentence case throughout; hierarchy comes from colour and size, never caps. The bold uppercase micro-labels were the app's strongest dated signal. |
+| No separator rules between controls | A 1px vertical line is what you reach for when spacing has failed. 20px gaps instead; horizontal rules only where two *regions* meet. |
+| One control height | Every combo, button and text field is 32 px, vertically centred. A slider occupies a 32 px box though its track is 4. |
+| State in a pill, not the label | `Curve` plus an `Off` chip, so the name stays stable and only the state moves. |
+
+Tokens: surface `#FFFFFF`, pane `#F9F9F9`, canvas paper `#F7F7F4`, plot field `#F7F7FB`, divider `#E5E5E5`, control edge `#D1D1D1`, text `#242424`, muted `#616161`, accent `#0F6CBD`. Body type is 13, labels 12, tabs 14; control radius 4, card radius 8.
+
+The four data colours — raw `#8833CC`, effective `#14A050`, min node `#FF0088`, max node `#00D0FF` — are deliberately *not* part of this system. They carry meaning, match WebPressureExplorer, and are louder than the chrome on purpose: chrome should recede, data should not.
+
+> **Button fills come from `App.axaml`, not a restyled template.** Fluent's stock `ButtonBackground` is a mid grey that reads as a dark slab against white cards, so the `Button*` brushes are overridden there. Doing it with theme brushes rather than a control template is what keeps the deliberate exceptions working without special-casing: the card headers and tip chip set `Background="Transparent"` locally and a local value still wins, while the accent button draws from the separate `AccentButton*` resources.
 
 ## Component roles
 
@@ -50,28 +69,35 @@ Single source of truth. Owns:
 - Two `DrawSurface` instances (`_processed`, `_raw`) for the stroke bitmaps
 - The single shared `BrushRibbon` instance, reparented between tab slots
 - Stroke-local pressure-smoothing state (`_smoothedPressure`, `_lastDrawPos`, `_activeCanvas`)
-- The `PresetStore` and the live `IPenSession`
+- The `PresetStore`, the `UiSettings`, and the live `IPenSession`
 
 The render timer (16 ms tick) drains pen points from the session, runs them through the pressure pipeline, draws line segments to the surfaces, and updates the live indicators on both charts.
 
-Brush state is *not* stored on `MainWindow` — it's read on demand from `BrushRibbon`'s properties (`BrushSize`, `ColorMode`, `PressureControl`, `DrawZeroPressure`) at draw time. Only `_strokeColor` (the currently-picked random palette entry) lives on the window.
+Brush state is *not* stored on `MainWindow` — it's read on demand from `BrushRibbon`'s properties (`BrushSize`, `ColorMode`, `PressureControl`, `DrawZeroPressure`) at draw time. Only `_strokeColor` (the colour in force for the current stroke) lives on the window.
 
 ### `StrokeCanvasView`
-A `UserControl` bundling a header label, an "Export" menu (Copy to clipboard / Save as PNG), and an `Image`. It does **not** own pixel data — it exposes `Image` (register with a `DrawSurface`), `Host` (the `Border` whose bounds drive surface size), a `Header` styled property, and `SaveRequested` / `CopyRequested` events. The `Image` sits inside a `Canvas` pinned at (0, 0) so an oversized shared bitmap doesn't get re-laid-out when it's larger than the current host.
+A `UserControl` bundling a header pill and an `Image`. It does **not** own pixel data — it exposes `Image` (register with a `DrawSurface`), `Host` (the `Border` whose bounds drive surface size), a `Header` styled property, and `SaveRequested` / `CopyRequested` / `ClearRequested` events. The `Image` sits inside a `Canvas` pinned at (0, 0) so an oversized shared bitmap doesn't get re-laid-out when it's larger than the current host.
+
+Copy, save and clear live on the canvas's own **right-click menu**, matching the curve chart, so no chrome competes with the drawing surface. `MainWindow` wires all three views' `ClearRequested` to `ClearCanvases`: the processed and raw surfaces are two views of one stroke, so clearing only the half under the cursor would leave the comparison mismatched.
 
 The `Image` uses `Stretch="Fill"` with no size set in the markup: `DrawSurface` assigns its `Width`/`Height` at allocation time. See the HiDPI section below for why.
 
 Three instances exist: `StrokeView`, `CompareProcessedView`, `CompareRawView`.
 
 ### `SectionCard`
-A collapsible titled panel; the left-hand card column is four of them. Exposes `Title`, a
-`Status` suffix (used for the derived `(OFF)` marker), `IsExpanded`, and `CardContent`.
-Clicking anywhere in the header row toggles the body.
+A collapsible titled panel; the left-hand column is four of them. Exposes `Title`,
+`Status`, `IsExpanded`, and `CardContent`. Clicking anywhere in the header row toggles
+the body.
+
+`Status` renders as a **pill after the title** (`Curve` · `Off`), not as a suffix inside
+it, so the name stays stable while only the state moves. The header is a `DockPanel`,
+which fills in child order — the title element must therefore be declared *before* the
+pill, or the state leads the row.
 
 The body must be set with the property-element form:
 
 ```xml
-<controls:SectionCard Title="CURVE">
+<controls:SectionCard Title="Curve">
     <controls:SectionCard.CardContent>
         <StackPanel>…</StackPanel>
     </controls:SectionCard.CardContent>
@@ -128,7 +154,12 @@ _raw       ──► CompareRawView.Image
 Pure math: `ApplyPressureCurve`, `RawCurveOutput`, `RawCurveSlope`, `CubicHermite`, `EvaluateCustomCurve`, `NormalizeBezierPoints`. No Avalonia dependencies — covered directly by the xUnit project.
 
 ### `PresetStore`
-Loads/saves the user's named curve presets from `%LOCALAPPDATA%\PenDynamicsLab\presets.json`. JSON via `System.Text.Json` with `JsonStringEnumConverter` so enums are readable in the file.
+Loads/saves the user's named curve presets from `%LOCALAPPDATA%\PenDynamicsLab\presets.json`. JSON via `System.Text.Json` with `JsonStringEnumConverter` so enums are readable in the file. Beyond `Save` / `Delete` / `Get` it offers `Rename` (in place, keeping list position) and `NextAvailableName`.
+
+Saving takes a generated `Preset N` rather than prompting, so it stays one click; naming moves to Rename, which is when a name is worth thinking about — by then you know what the preset turned out to be. Each row carries a single `···` menu (Load / Rename / Delete) rather than a Load button beside a glyph button, which never lined up and had nowhere to put rename.
+
+### `UiSettings`
+A small persisted bag of preferences in `%LOCALAPPDATA%\PenDynamicsLab\ui-settings.json` — currently just `DriverTipDismissed`. Deliberately separate from `PresetStore`: presets are user content they name and manage, these are preferences the app remembers on their behalf. Every read and write is best-effort, because a preference failing to persist must never stop the app.
 
 ### `PressureResponseLoader`
 Reads pen hardware response JSON. Includes a custom `JsonConverter<ResponseRecord>` so each record can be a 2-element `[gf, logPct]` array. Bundles three WACOM KP-504E sample files as embedded resources.
@@ -290,10 +321,11 @@ Pen events come from `IPenSession` (WinPenKit, referenced as a sibling project �
 ## Key design points
 
 1. **Immutable params record** — `PressureCurveParams` is a `record` with `init` properties. Every change is a `with { ... }` rebuild, which makes change detection and parity-test reasoning straightforward.
-2. **Pure math separation** — `Curves/CurveMath.cs` has no Avalonia or SkiaSharp dependencies. The xUnit project pins behavior with 30 tests against analytically-derived values.
+2. **Pure math separation** — `Curves/CurveMath.cs` has no Avalonia or SkiaSharp dependencies. The xUnit project pins behavior with 31 tests against analytically-derived values.
 3. **Avalonia DrawingContext for charts; SkiaSharp for canvases** — Charts are simple line geometry and benefit from Avalonia's text rendering + transform stack. The drawing canvases need many small antialiased strokes per frame, where SkiaSharp via `SKBitmap`/`WriteableBitmap` interop is faster.
 4. **Single owner of state** — `MainWindow` holds the params and the surfaces; everything else is a leaf control receiving values via StyledProperties or queried for its current value. Even the chart's own edits round-trip through this owner.
 5. **One surface, many views** — `DrawSurface` supports multiple `Image` hosts so the processed canvas is shared between tabs rather than copied. Sizing and hit-testing both key off `IsEffectivelyVisible` to avoid stale inactive-tab layout.
 6. **DIPs in, pixels out** — callers draw entirely in device-independent units; `DrawSurface` alone knows the render scaling, allocating at physical resolution and carrying a matching canvas transform. Keeping that conversion in one class is what lets the pressure pipeline, brush sizing, and hit-testing all ignore DPI. See [HiDPI](#hidpi-dips-vs-physical-pixels).
 7. **One ribbon, reparented** — rather than duplicating brush UI per tab and syncing it, a single `BrushRibbon` moves between tab slots.
 8. **Stroke-local smoothing reset** — EMA state resets on every pen lift, canvas switch, and tab switch, so smoothing tails don't bleed across strokes or between canvases.
+9. **One visual vocabulary, enforced centrally** — the type scale, control heights and radii live in `Window.Styles`, and the button fills in `App.axaml`'s theme-brush overrides. Nothing restyles a control template, so opting out stays a local property rather than a special case. See [Visual language](#visual-language).
