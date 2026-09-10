@@ -201,8 +201,11 @@ Raw pen pressure (pt.Pressure / pt.MaxPressure  → 0..1)
 [EMA smoothing]    ← if SmoothingOrder = SmoothThenCurve
   │
   ▼
-[ApplyPressureCurve]    ← curve type + all settings
+[ApplyCurve, Curve1]    ← curve 1's type + its settings
   │
+  ▼
+[ApplyCurve, Curve2]    ← curve 2, over curve 1's output
+  │                        (Passthrough when the app is set to one curve)
   ▼
 [EMA smoothing]    ← if SmoothingOrder = CurveThenSmooth
   │

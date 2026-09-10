@@ -6,22 +6,23 @@
 MainWindow
 ├── Top ribbon (92 px, collapsible to 36) — Pen API combo + pen telemetry (fixed-width readout columns), DriverTipChip, the collapse chevron, then the Options gear at the right edge
 └── Body Grid
-    ├── Left panel (472 px) — two equal-width columns, settings before curve
+    ├── Left panel (472 px) — two equal-width columns, settings before curves
+    │       (one curve by default; a second card and two more charts appear with UseTwoCurves)
     │   ├── Settings column
-    │   │   ├── ScrollViewer — SectionCard × 3
+    │   │   ├── ScrollViewer — SectionCard × 3 or 4
     │   │   │   ├── Curve 1  [Off | On · no effect | On] — CurveEditorView
-    │   │   │   ├── Curve 2  [Off | On · no effect | On] — CurveEditorView
     │   │   │   │   ├── Curve type combo + type-scoped reset
     │   │   │   │   ├── Bezier toolbar (Add / Remove / count / preset combo, Bezier only)
     │   │   │   │   ├── LabeledSlider × N (Curve Amount, in/out range, flat level)
     │   │   │   │   └── Min approach radios
+    │   │   │   ├── Curve 2  [same] — CurveEditorView          (only when UseTwoCurves)
     │   │   │   ├── Smoothing  [Off | On · no effect | On] — algorithm combo (Passthrough / EMA) + type-scoped reset, Smoothing Amount
-    │   │   │   └── Processing  [S → C] — smooth-then-curve / curve-then-smooth dropdown
+    │   │   │   └── Processing  [S → C | S → C1 → C2] — smooth-first / curve-first dropdown
     │   │   └── Presets (pinned to the bottom row) — empty-state text, saved list, "Save current settings"
     │   └── Curve column
     │       ├── "Pressure curve 1" card → PressureChartControl (export on its right-click menu)
-    │       ├── "Pressure curve 2" card → PressureChartControl
-    │       ├── "Effective pressure curve" card [pill] → EffectiveCurveChartControl (read-only)
+    │       ├── "Pressure curve 2" card → PressureChartControl        (only when UseTwoCurves)
+    │       ├── "Effective pressure curve" card [pill] → EffectiveCurveChartControl (read-only, ditto)
     │       └── transient status label ("Copied")
     ├── 1px splitter
     └── CanvasArea (DockPanel)
@@ -260,7 +261,7 @@ That converter reads both shapes — the current one with `Curve1`/`Curve2`, and
 Saving takes a generated `Preset N` rather than prompting, so it stays one click; naming moves to Rename, which is when a name is worth thinking about — by then you know what the preset turned out to be. Each row carries a single `···` menu (Load / Rename / Delete) rather than a Load button beside a glyph button, which never lined up and had nowhere to put rename.
 
 ### `UiSettings`
-A small persisted bag of preferences in `%LOCALAPPDATA%\PenDynamicsLab\ui-settings.json` — `DriverTipDismissed` and the `AppTheme`. Enums serialize by name, so inserting a theme into the middle of the enum cannot silently repoint everyone's saved preference. Deliberately separate from `PresetStore`: presets are user content they name and manage, these are preferences the app remembers on their behalf. Every read and write is best-effort, because a preference failing to persist must never stop the app.
+A small persisted bag of preferences in `%LOCALAPPDATA%\PenDynamicsLab\ui-settings.json` — `DriverTipDismissed`, the `AppTheme`, and `UseTwoCurves`. Enums serialize by name, so inserting a theme into the middle of the enum cannot silently repoint everyone's saved preference. Deliberately separate from `PresetStore`: presets are user content they name and manage, these are preferences the app remembers on their behalf. Every read and write is best-effort, because a preference failing to persist must never stop the app.
 
 ### `PressureResponseLoader`
 Reads pen hardware response JSON. Includes a custom `JsonConverter<ResponseRecord>` so each record can be a 2-element `[gf, logPct]` array. Bundles three WACOM KP-504E sample files as embedded resources.
@@ -307,19 +308,24 @@ Both paths end in `CopyPngToClipboardAsync` when copying. Avalonia has no set-im
 ```
 MainWindow._curveParams (PressureCurveParams)
    │
-   ├──► PressureChart.Params           (re-render on change)
-   ├──► ResponseChart.Params           (re-render on change)
+   ├──► PressureChart.Curve   = Curve1     (re-render on change)
+   ├──► PressureChart2.Curve  = Curve2
+   ├──► EffectiveChart.Params              (draws the pair composed)
+   ├──► ResponseChart.Params
+   ├──► Curve1Editor.Curve / Curve2Editor.Curve
    │
-   ◄── slider ValueChanged / combo SelectionChanged / radio IsCheckedChanged
-        UpdateParams(p => p with { ... })
-   │
-   ◄── PressureChart writes Params (drag node / handle / context menu)
-        SyncCurveControlsFromParams()  (with _suppressCurveControlEvents = true)
+   ◄── CurveEditorView.CurveChanged        (its sliders, combos, radios, reset)
+   ◄── PressureChartN writes Curve         (drag node / handle / context menu)
+   ◄── smoothing / processing controls, preset load, ApplyCurveCount
+        all via UpdateParams(p => p with { ... })
+        then SyncCurveControlsFromParams()  (with _suppressCurveControlEvents = true)
 ```
 
-Every control change funnels through `UpdateParams(Func<PressureCurveParams, PressureCurveParams>)` which rebuilds the immutable record with `with { ... }` and pushes it to both charts. Chart-driven changes round-trip through the same property and are mirrored back into the controls.
+Every change funnels through `UpdateParams(Func<PressureCurveParams, PressureCurveParams>)`, which rebuilds the immutable record with `with { ... }` and pushes it to every chart and editor. That single owner is what keeps two curve editors and three charts from disagreeing about what the pipeline currently is: an editor never writes to its own `Curve` from its own handlers — it raises `CurveChanged` and `MainWindow` writes back.
 
-`UpdateBezierToolbar()` runs on every params change and drives per-curve-type control visibility, including whether each stage's reset button is enabled — under Passthrough there is nothing for a type-scoped reset to restore. It also clamps `Softness` into the active range — Sigmoid restricts the slider to `[0, 0.95]` (steepness is `softness * 14`, and the top of the range is numerically unstable), everything else uses `[-0.9, 0.9]`.
+`CurveEditorView.UpdateVisibility()` runs whenever its `Curve` changes and drives per-curve-type control visibility, including whether that curve's reset button is enabled — a type with no settings of its own has nothing for a type-scoped reset to restore. It also clamps `Softness` into the active range — Sigmoid restricts the slider to `[0, 0.95]` (steepness is `softness * 14`, and the top of the range is numerically unstable), everything else uses `[-0.9, 0.9]`.
+
+`MainWindow.SyncCurveControlsFromParams()` is the counterpart for what stayed global: the smoothing and processing controls, and pushing the current parameters out to both editors and all three charts.
 
 ## Pressure processing pipeline
 
