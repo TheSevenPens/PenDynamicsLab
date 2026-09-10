@@ -4,10 +4,13 @@ namespace PenDynamicsLab.Curves;
 
 public sealed record PressureCurveParams
 {
-    // Defaults to Ema, not Passthrough: an amount of 0 is already a no-op, and presets
-    // saved before this field existed deserialize to the default — picking Passthrough
-    // would silently disable smoothing on any of them that had an amount set.
-    public SmoothingType SmoothingType { get; init; } = SmoothingType.Ema;
+    // Both pipeline stages default to Passthrough, so a fresh session applies nothing and
+    // what you draw is the pen's raw behaviour until you opt into a curve or smoothing.
+    //
+    // Note for any future default change: a preset whose JSON predates a field takes that
+    // field's initializer here, so flipping a default silently rewrites how already-saved
+    // presets behave.
+    public SmoothingType SmoothingType { get; init; } = SmoothingType.Passthrough;
     public double EmaSmoothing { get; init; } = 0;
     public SmoothingOrder SmoothingOrder { get; init; } = SmoothingOrder.SmoothThenCurve;
     public double Softness { get; init; } = 0.0;
@@ -15,7 +18,7 @@ public sealed record PressureCurveParams
     public double InputMaximum { get; init; } = 1;
     public double Minimum { get; init; } = 0;
     public double Maximum { get; init; } = 1;
-    public CurveType CurveType { get; init; } = CurveType.Basic;
+    public CurveType CurveType { get; init; } = CurveType.Passthrough;
     public MinApproach MinApproach { get; init; } = MinApproach.Clamp;
     public double FlatLevel { get; init; } = 0.5;
     public ImmutableArray<BezierPoint> BezierPoints { get; init; } = DefaultBezierPoints;

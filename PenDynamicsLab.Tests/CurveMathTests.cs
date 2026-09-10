@@ -223,8 +223,16 @@ public class CurveMathTests
         => Assert.True(CurveMath.IsIdentity(new PressureCurveParams { CurveType = CurveType.Passthrough }));
 
     [Fact]
-    public void IsIdentity_DefaultBasicWithZeroSoftness_IsTrue()
+    public void IsIdentity_DefaultParams_IsTrue()
         => Assert.True(CurveMath.IsIdentity(PressureCurveParams.Default));
+
+    [Fact]
+    public void IsIdentity_BasicWithZeroSoftness_IsTrue()
+        => Assert.True(CurveMath.IsIdentity(new PressureCurveParams
+        {
+            CurveType = CurveType.Basic,
+            Softness = 0,
+        }));
 
     [Fact]
     public void IsIdentity_ExtendedAcrossFullRange_IsTrue()
@@ -246,9 +254,15 @@ public class CurveMathTests
             BezierPoints = BezierPresets.All[0].Points,
         }));
 
+    // Names the curve type explicitly rather than leaning on Default, which is
+    // Passthrough and would ignore Softness entirely.
     [Fact]
-    public void IsIdentity_NonZeroSoftness_IsFalse()
-        => Assert.False(CurveMath.IsIdentity(PressureCurveParams.Default with { Softness = 0.5 }));
+    public void IsIdentity_BasicWithNonZeroSoftness_IsFalse()
+        => Assert.False(CurveMath.IsIdentity(new PressureCurveParams
+        {
+            CurveType = CurveType.Basic,
+            Softness = 0.5,
+        }));
 
     [Fact]
     public void IsIdentity_Flat_IsFalse()

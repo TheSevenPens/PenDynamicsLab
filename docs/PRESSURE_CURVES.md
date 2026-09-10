@@ -42,6 +42,8 @@ Controls the curve segment from `x = 0` to `x = InputMinimum`:
 
 Output equals input: `f(x) = x`. Draws a straight diagonal line from (0, 0) to (1, 1). No settings apply. Useful as a baseline to see raw pen behavior.
 
+**This is the default**, as is Passthrough on the smoothing side: a fresh session applies nothing, so what you draw is the pen's raw behaviour until you opt into a curve or smoothing.
+
 ### Flat
 
 Constant output: `f(x) = FlatLevel` for all inputs.
