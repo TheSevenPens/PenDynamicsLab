@@ -390,22 +390,33 @@ public partial class MainWindow : Window
     // ── Card headers ────────────────────────────────────────────
 
     /// <summary>
-    /// Refresh the card header suffixes, so each card's state is readable while collapsed.
-    /// Curve and Smoothing show "(OFF)" when the stage currently does nothing: smoothing
-    /// when passthrough or its amount is zero, the curve when it maps input to output
-    /// unchanged (see <see cref="CurveMath.IsIdentity"/>). Processing shows the order as
-    /// "(S → C)" or "(C → S)".
+    /// Refresh the card header pills, so each card's state is readable while collapsed.
+    /// Curve and Smoothing carry the three states from <see cref="StageStatus"/> — Off
+    /// when bypassed, "On · no effect" when running but configured to change nothing,
+    /// On otherwise. Processing names the order and greys it out while the order is moot.
     /// </summary>
     private void UpdateCardStatuses()
     {
-        CurveCard.Status = CurveMath.IsIdentity(_curveParams) ? "Off" : "";
+        ApplyStageStatus(CurveCard, StageStatus.Curve(_curveParams));
+        ApplyStageStatus(SmoothingCard, StageStatus.Smoothing(_curveParams));
 
-        bool smoothingActive = _curveParams.SmoothingType != SmoothingType.Passthrough
-                            && _curveParams.EmaSmoothing > 0;
-        SmoothingCard.Status = smoothingActive ? "" : "Off";
-
+        // Processing always names the order; the tone says whether the order decides
+        // anything, which it only does while both stages are altering the signal.
         ProcessingOrderCard.Status =
             _curveParams.SmoothingOrder == SmoothingOrder.SmoothThenCurve ? "S → C" : "C → S";
+        ProcessingOrderCard.StatusKind = StageStatus.Processing(_curveParams) == StageState.On
+            ? StatusTone.Active
+            : StatusTone.Neutral;
+    }
+
+    private static void ApplyStageStatus(SectionCard card, StageState state)
+    {
+        (card.Status, card.StatusKind) = state switch
+        {
+            StageState.Off => ("Off", StatusTone.Neutral),
+            StageState.NoEffect => ("On · no effect", StatusTone.Advisory),
+            _ => ("On", StatusTone.Active),
+        };
     }
 
     // ── Section resets ──────────────────────────────────────────

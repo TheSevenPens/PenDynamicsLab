@@ -4,14 +4,32 @@ namespace PenDynamicsLab.Curves;
 
 public static class CurveMath
 {
+    /// <summary>Sigmoid steepness per unit of softness: <c>k = Softness * 14</c>.</summary>
+    public const double SigmoidSteepness = 14;
+
+    /// <summary>Below this |k| the sigmoid degenerates to a straight line.</summary>
+    public const double SigmoidLinearThreshold = 0.01;
+
+    /// <summary>
+    /// Whether a curve type exposes the input/output range controls.
+    /// </summary>
+    /// <remarks>
+    /// Basic deliberately does not: it is defined as the power curve across the full
+    /// [0, 1] range. The range fields still exist on the record, though, and can hold
+    /// values left behind by Extended/Sigmoid or carried in a saved preset — so the
+    /// evaluator consults this rather than the fields, and Basic is exactly what it says.
+    /// </remarks>
+    public static bool UsesRangeControls(CurveType type)
+        => type is CurveType.Extended or CurveType.Sigmoid;
+
     public static double RawCurveOutput(double xNorm, PressureCurveParams p)
     {
         double curved;
 
         if (p.CurveType == CurveType.Sigmoid)
         {
-            double k = p.Softness * 14;
-            if (Math.Abs(k) < 0.01)
+            double k = p.Softness * SigmoidSteepness;
+            if (Math.Abs(k) < SigmoidLinearThreshold)
             {
                 curved = xNorm;
             }
@@ -29,7 +47,10 @@ public static class CurveMath
             curved = Math.Pow(Math.Max(0, xNorm), exponent);
         }
 
-        return p.Minimum + curved * (p.Maximum - p.Minimum);
+        bool usesRange = UsesRangeControls(p.CurveType);
+        double outMin = usesRange ? p.Minimum : 0;
+        double outMax = usesRange ? p.Maximum : 1;
+        return outMin + curved * (outMax - outMin);
 
         static double Sig(double t, double k) => 1.0 / (1.0 + Math.Exp(-k * (t - 0.5)));
     }
@@ -214,31 +235,18 @@ public static class CurveMath
             return EvaluateCustomCurve(clampedX, p.BezierPoints);
         }
 
-        if (p.MinApproach == MinApproach.Cut && x < p.InputMinimum) return 0;
+        // Basic exposes no range or min-approach controls, so it must not silently apply
+        // values left over from Extended/Sigmoid or carried in a preset. See
+        // UsesRangeControls.
+        bool usesRange = UsesRangeControls(p.CurveType);
+        double inMin = usesRange ? p.InputMinimum : 0;
+        double inMax = usesRange ? p.InputMaximum : 1;
 
-        double inputRange = p.InputMaximum - p.InputMinimum;
-        double xNorm = inputRange > 0 ? Clamp01((x - p.InputMinimum) / inputRange) : 0;
+        if (usesRange && p.MinApproach == MinApproach.Cut && x < inMin) return 0;
+
+        double inputRange = inMax - inMin;
+        double xNorm = inputRange > 0 ? Clamp01((x - inMin) / inputRange) : 0;
         return RawCurveOutput(xNorm, p);
-    }
-
-    /// <summary>
-    /// True when the curve maps input to output unchanged, i.e. the stage currently does
-    /// nothing. Drives the "(OFF)" suffix on the curve card header.
-    /// </summary>
-    /// <remarks>
-    /// Deliberately samples the mapping instead of special-casing each curve type, so
-    /// Passthrough, a zero-softness power curve, a full-range Extended and a linear Bezier
-    /// all report identity without this needing to know anything about them.
-    /// </remarks>
-    public static bool IsIdentity(PressureCurveParams p, double tolerance = 1e-6)
-    {
-        const int samples = 8;
-        for (int i = 0; i <= samples; i++)
-        {
-            double x = (double)i / samples;
-            if (Math.Abs(ApplyPressureCurve(x, p) - x) > tolerance) return false;
-        }
-        return true;
     }
 
     private static double Clamp01(double v) => Math.Min(1, Math.Max(0, v));

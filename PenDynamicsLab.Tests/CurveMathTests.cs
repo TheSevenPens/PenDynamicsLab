@@ -22,15 +22,18 @@ public class CurveMathTests
     [Fact]
     public void RawCurveOutput_RemappedOutputRange()
     {
-        // softness 0, x=0.5, output range [0.2, 0.8] → 0.2 + 0.5*0.6 = 0.5
+        // Extended, because only it honours the output range. x=0.25 rather than the
+        // midpoint: 0.5 is invariant under a symmetric remap, so a midpoint test would
+        // pass whether or not the range was applied at all.
+        // softness 0, x=0.25, output range [0.2, 0.8] → 0.2 + 0.25*0.6 = 0.35
         var p = PressureCurveParams.Default with
         {
-            CurveType = CurveType.Basic,
+            CurveType = CurveType.Extended,
             Softness = 0,
             Minimum = 0.2,
             Maximum = 0.8,
         };
-        Assert.Equal(0.5, CurveMath.RawCurveOutput(0.5, p), Eps);
+        Assert.Equal(0.35, CurveMath.RawCurveOutput(0.25, p), Eps);
     }
 
     // ── RawCurveOutput: sigmoid ──────────────────────────────────
@@ -78,29 +81,34 @@ public class CurveMathTests
     [Fact]
     public void Apply_InputRange_RemapsBeforeCurve()
     {
-        // x=0.5 with input range [0.2,0.8] → xNorm = 0.5; basic softness 0 → 0.5
+        // Extended, because only it honours the input range. x=0.35 rather than the
+        // midpoint, which would remap to itself and so prove nothing.
+        // x=0.35 with input range [0.2, 0.8] → xNorm = 0.15/0.6 = 0.25; softness 0 → 0.25
         var p = PressureCurveParams.Default with
         {
-            CurveType = CurveType.Basic,
+            CurveType = CurveType.Extended,
             Softness = 0,
             InputMinimum = 0.2,
             InputMaximum = 0.8,
         };
-        Assert.Equal(0.5, CurveMath.ApplyPressureCurve(0.5, p), Eps);
+        Assert.Equal(0.25, CurveMath.ApplyPressureCurve(0.35, p), Eps);
     }
 
     [Fact]
     public void Apply_MinApproachClamp_BelowInputMin_OutputsMinimum()
     {
+        // Extended, not Basic: min approach and the range are only exposed — and only
+        // honoured — there. Minimum is 0.15 rather than 0.1 so the expected value differs
+        // from the input, and the test cannot pass by coincidence if the range is ignored.
         var p = PressureCurveParams.Default with
         {
-            CurveType = CurveType.Basic,
+            CurveType = CurveType.Extended,
             InputMinimum = 0.2,
-            Minimum = 0.1,
+            Minimum = 0.15,
             MinApproach = MinApproach.Clamp,
         };
-        // x < inputMin → xNorm clamped to 0 → softness 0 → 0^1 = 0 → 0.1 + 0*(1-0.1) = 0.1
-        Assert.Equal(0.1, CurveMath.ApplyPressureCurve(0.1, p), Eps);
+        // x < inputMin → xNorm clamped to 0 → softness 0 → 0^1 = 0 → 0.15 + 0*(1-0.15) = 0.15
+        Assert.Equal(0.15, CurveMath.ApplyPressureCurve(0.1, p), Eps);
     }
 
     [Fact]
@@ -108,7 +116,7 @@ public class CurveMathTests
     {
         var p = PressureCurveParams.Default with
         {
-            CurveType = CurveType.Basic,
+            CurveType = CurveType.Extended,
             InputMinimum = 0.2,
             Minimum = 0.1,
             MinApproach = MinApproach.Cut,
@@ -214,70 +222,4 @@ public class CurveMathTests
             Assert.Equal(1.0, CurveMath.ApplyPressureCurve(1, p), Eps);
         }
     }
-
-    // IsIdentity drives the "(OFF)" suffix on the curve card, so these pin which
-    // configurations count as doing nothing.
-
-    [Fact]
-    public void IsIdentity_Passthrough_IsTrue()
-        => Assert.True(CurveMath.IsIdentity(new PressureCurveParams { CurveType = CurveType.Passthrough }));
-
-    [Fact]
-    public void IsIdentity_DefaultParams_IsTrue()
-        => Assert.True(CurveMath.IsIdentity(PressureCurveParams.Default));
-
-    [Fact]
-    public void IsIdentity_BasicWithZeroSoftness_IsTrue()
-        => Assert.True(CurveMath.IsIdentity(new PressureCurveParams
-        {
-            CurveType = CurveType.Basic,
-            Softness = 0,
-        }));
-
-    [Fact]
-    public void IsIdentity_ExtendedAcrossFullRange_IsTrue()
-        => Assert.True(CurveMath.IsIdentity(new PressureCurveParams
-        {
-            CurveType = CurveType.Extended,
-            Softness = 0,
-            InputMinimum = 0,
-            InputMaximum = 1,
-            Minimum = 0,
-            Maximum = 1,
-        }));
-
-    [Fact]
-    public void IsIdentity_LinearBezierPreset_IsTrue()
-        => Assert.True(CurveMath.IsIdentity(new PressureCurveParams
-        {
-            CurveType = CurveType.Bezier,
-            BezierPoints = BezierPresets.All[0].Points,
-        }));
-
-    // Names the curve type explicitly rather than leaning on Default, which is
-    // Passthrough and would ignore Softness entirely.
-    [Fact]
-    public void IsIdentity_BasicWithNonZeroSoftness_IsFalse()
-        => Assert.False(CurveMath.IsIdentity(new PressureCurveParams
-        {
-            CurveType = CurveType.Basic,
-            Softness = 0.5,
-        }));
-
-    [Fact]
-    public void IsIdentity_Flat_IsFalse()
-        => Assert.False(CurveMath.IsIdentity(new PressureCurveParams
-        {
-            CurveType = CurveType.Flat,
-            FlatLevel = 0.5,
-        }));
-
-    [Fact]
-    public void IsIdentity_NarrowedOutputRange_IsFalse()
-        => Assert.False(CurveMath.IsIdentity(new PressureCurveParams
-        {
-            CurveType = CurveType.Extended,
-            Minimum = 0.2,
-            Maximum = 0.8,
-        }));
 }

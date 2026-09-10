@@ -19,10 +19,10 @@
                     <TextBlock x:Name="TitleText" DockPanel.Dock="Left" FontWeight="SemiBold"
                                FontSize="13" Foreground="#242424" VerticalAlignment="Center" />
                     <!-- State lives in a pill, not in the title, so the name stays stable. -->
-                    <Border x:Name="StatusPill" DockPanel.Dock="Left" Background="#F0F0F0"
+                    <Border x:Name="StatusPill" DockPanel.Dock="Left"
                             CornerRadius="4" Padding="6,1" Margin="8,0,0,0"
                             VerticalAlignment="Center" IsVisible="False">
-                        <TextBlock x:Name="StatusText" FontSize="11" Foreground="#616161" />
+                        <TextBlock x:Name="StatusText" FontSize="11" />
                     </Border>
                     <Panel />
                 </DockPanel>
