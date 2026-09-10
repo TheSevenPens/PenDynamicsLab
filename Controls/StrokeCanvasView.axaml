@@ -1,23 +1,23 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="PenDynamicsLab.Controls.StrokeCanvasView">
     <DockPanel>
-        <Border DockPanel.Dock="Top" Background="#FFFFFF"
-                BorderBrush="#E5E5E5" BorderThickness="0,0,0,1" Padding="16,0">
+        <Border DockPanel.Dock="Top" Background="{DynamicResource Pdl.Surface}"
+                BorderBrush="{DynamicResource Pdl.Divider}" BorderThickness="0,0,0,1" Padding="16,0">
             <DockPanel Height="40">
                 <!-- State as a quiet pill rather than a bold caption bar. -->
-                <Border x:Name="HeaderPill" Background="#EFF6FC" CornerRadius="4" Padding="8,3"
+                <Border x:Name="HeaderPill" Background="{DynamicResource Pdl.ActiveFill}" CornerRadius="4" Padding="8,3"
                         HorizontalAlignment="Left" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                        <Ellipse x:Name="HeaderDot" Width="6" Height="6" Fill="#0F6CBD"
+                        <Ellipse x:Name="HeaderDot" Width="6" Height="6" Fill="{DynamicResource Pdl.Accent}"
                                  VerticalAlignment="Center" />
-                        <TextBlock x:Name="HeaderText" FontSize="12" Foreground="#424242"
+                        <TextBlock x:Name="HeaderText" FontSize="12" Foreground="{DynamicResource Pdl.SubtleText}"
                                    VerticalAlignment="Center" />
                     </StackPanel>
                 </Border>
             </DockPanel>
         </Border>
-        <Border x:Name="ImageHost" Background="#F7F7F4" ClipToBounds="True">
+        <Border x:Name="ImageHost" Background="{DynamicResource Pdl.CanvasPaper}" ClipToBounds="True">
             <!-- Export and clear live on the canvas's own right-click menu, matching the
                  curve chart. Nothing competes with the drawing surface for chrome. -->
             <Border.ContextMenu>

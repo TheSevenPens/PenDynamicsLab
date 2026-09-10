@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using PenDynamicsLab.Curves;
+using PenDynamicsLab.Theming;
 using System.Collections.Immutable;
 
 namespace PenDynamicsLab.Controls;
@@ -22,10 +23,10 @@ public sealed class PressureChartControl : Control
     private const double NodeDrawRadius = 6;
     private const double HandleRadius = 5;
 
-    private static readonly IBrush BackgroundBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0xFF, 0xFF));
-    private static readonly IBrush PlotBrush = new SolidColorBrush(Color.FromRgb(0xF7, 0xF7, 0xFB));
-    private static readonly IPen GridPen = new Pen(new SolidColorBrush(Color.FromRgb(0xEB, 0xEB, 0xF4)), 1);
-    private static readonly IPen CurvePen = new Pen(Brushes.Black, 2);
+    private IBrush BackgroundBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0xFF, 0xFF));
+    private IBrush PlotBrush = new SolidColorBrush(Color.FromRgb(0xF7, 0xF7, 0xFB));
+    private IPen GridPen = new Pen(new SolidColorBrush(Color.FromRgb(0xEB, 0xEB, 0xF4)), 1);
+    private IPen CurvePen = new Pen(Brushes.Black, 2);
 
     // Live indicator colors — green = effective (post-smoothing pre-curve), purple = raw input.
     private static readonly IBrush EffectiveDotBrush = new SolidColorBrush(Color.FromRgb(0x14, 0xA0, 0x50));
@@ -38,17 +39,17 @@ public sealed class PressureChartControl : Control
     // Standard control node colors (min = pink, max = cyan); guides are translucent black dashed.
     private static readonly IBrush MinNodeBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0x00, 0x88));
     private static readonly IBrush MaxNodeBrush = new SolidColorBrush(Color.FromRgb(0x00, 0xD0, 0xFF));
-    private static readonly IPen StandardNodeGuidePen = new Pen(new SolidColorBrush(Color.FromArgb(0x40, 0, 0, 0)), 1)
+    private IPen StandardNodeGuidePen = new Pen(new SolidColorBrush(Color.FromArgb(0x40, 0, 0, 0)), 1)
     { DashStyle = new DashStyle(new double[] { 3, 4 }, 0) };
-    private static readonly IPen NodeOutlineWhite = new Pen(Brushes.White, 1.5);
-    private static readonly IPen NodeOutlineSelected = new Pen(new SolidColorBrush(Color.FromRgb(0x11, 0x11, 0x11)), 2.2);
+    private IPen NodeOutlineWhite = new Pen(Brushes.White, 1.5);
+    private IPen NodeOutlineSelected = new Pen(new SolidColorBrush(Color.FromRgb(0x11, 0x11, 0x11)), 2.2);
 
     // Bezier-specific colors.
-    private static readonly IBrush BezierEndpointBrush = new SolidColorBrush(Color.FromRgb(0x7A, 0x7A, 0x8B));
-    private static readonly IBrush BezierInteriorBrush = new SolidColorBrush(Color.FromRgb(0x22, 0x55, 0xCC));
-    private static readonly IBrush BezierHandleSelectedBrush = new SolidColorBrush(Color.FromRgb(0x11, 0x11, 0x11));
-    private static readonly IPen BezierHandleStemPen = new Pen(new SolidColorBrush(Color.FromArgb(0x38, 0, 0, 0)), 1);
-    private static readonly IPen BezierHandleOutlinePen = new Pen(new SolidColorBrush(Color.FromRgb(0x22, 0x55, 0xCC)), 1.3);
+    private IBrush BezierEndpointBrush = new SolidColorBrush(Color.FromRgb(0x7A, 0x7A, 0x8B));
+    private IBrush BezierInteriorBrush = new SolidColorBrush(Color.FromRgb(0x22, 0x55, 0xCC));
+    private IBrush BezierHandleSelectedBrush = new SolidColorBrush(Color.FromRgb(0x11, 0x11, 0x11));
+    private IPen BezierHandleStemPen = new Pen(new SolidColorBrush(Color.FromArgb(0x38, 0, 0, 0)), 1);
+    private IPen BezierHandleOutlinePen = new Pen(new SolidColorBrush(Color.FromRgb(0x22, 0x55, 0xCC)), 1.3);
 
     public static readonly StyledProperty<PressureCurveParams> ParamsProperty =
         AvaloniaProperty.Register<PressureChartControl, PressureCurveParams>(
@@ -104,10 +105,36 @@ public sealed class PressureChartControl : Control
 
     public PressureChartControl()
     {
+        RefreshInk();
+        ActualThemeVariantChanged += (_, _) => { RefreshInk(); InvalidateVisual(); };
+
         ContextMenu = new ContextMenu();
         // Suppress the default ContextMenu open: we open it manually on right-click in the bezier
         // path so the menu can carry per-location data (insert position / hit-tested point index).
         ContextMenu.Opening += (_, e) => e.Cancel = true;
+    }
+
+    /// <summary>
+    /// Repoints the chart's chrome at the active theme. The data colours (raw purple,
+    /// effective green, min pink, max cyan) are left alone on purpose — see ThemeInk.
+    /// </summary>
+    private void RefreshInk()
+    {
+        var dash = new DashStyle(new double[] { 3, 4 }, 0);
+
+        BackgroundBrush          = ThemeInk.Brush(this, "Pdl.Surface", BackgroundBrush);
+        PlotBrush                = ThemeInk.Brush(this, "Pdl.PlotField", PlotBrush);
+        BezierEndpointBrush      = ThemeInk.Brush(this, "Pdl.BezierEnd", BezierEndpointBrush);
+        BezierInteriorBrush      = ThemeInk.Brush(this, "Pdl.BezierNode", BezierInteriorBrush);
+        BezierHandleSelectedBrush = ThemeInk.Brush(this, "Pdl.CurveInk", BezierHandleSelectedBrush);
+
+        GridPen                  = ThemeInk.Pen(this, "Pdl.PlotGrid", GridPen, 1);
+        CurvePen                 = ThemeInk.Pen(this, "Pdl.CurveInk", CurvePen, 2);
+        StandardNodeGuidePen     = ThemeInk.Pen(this, "Pdl.GuideInk", StandardNodeGuidePen, 1, dash);
+        NodeOutlineWhite         = ThemeInk.Pen(this, "Pdl.NodeOutline", NodeOutlineWhite, 1.5);
+        NodeOutlineSelected      = ThemeInk.Pen(this, "Pdl.CurveInk", NodeOutlineSelected, 2.2);
+        BezierHandleStemPen      = ThemeInk.Pen(this, "Pdl.HandleStem", BezierHandleStemPen, 1);
+        BezierHandleOutlinePen   = ThemeInk.Pen(this, "Pdl.BezierNode", BezierHandleOutlinePen, 1.3);
     }
 
     // ── Layout helpers ──────────────────────────────────────────

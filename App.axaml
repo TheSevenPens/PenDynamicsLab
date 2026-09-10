@@ -1,32 +1,23 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             x:Class="PenDynamicsLab.App">
+             x:Class="PenDynamicsLab.App"
+             RequestedThemeVariant="Light">
     <Application.Styles>
         <FluentTheme />
     </Application.Styles>
 
-    <!-- Fluent's stock button fill is a mid grey that reads as a dark slab against the
-         white cards and ribbon. Retone it to a white surface with a 1px edge, matching
-         the combo boxes beside it.
+    <!-- The whole palette, light and dark, lives in Theming/Palette.axaml. It also carries
+         the Button* overrides that retone Fluent's mid-grey button fill to a white surface
+         with a 1px edge; those are theme-scoped now, so the dark column retones them again
+         rather than leaving light-mode greys on a dark window.
 
-         Done by overriding the theme's brushes rather than restyling the template, so
-         buttons that deliberately opt out keep their look: the card headers and the tip
-         chip set Background="Transparent" locally, which still wins, and the accent
-         button draws from the separate AccentButton* resources. -->
+         RequestedThemeVariant is a starting value only. MainWindow's constructor replaces it
+         with the saved preference before building its tree, and ThemeService owns it after. -->
     <Application.Resources>
-        <SolidColorBrush x:Key="ButtonBackground" Color="#FFFFFF" />
-        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#F5F5F5" />
-        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#EBEBEB" />
-        <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="#FAFAFA" />
-
-        <SolidColorBrush x:Key="ButtonBorderBrush" Color="#D1D1D1" />
-        <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#C4C4C4" />
-        <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="#C4C4C4" />
-        <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="#EAEAEA" />
-
-        <SolidColorBrush x:Key="ButtonForeground" Color="#242424" />
-        <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#242424" />
-        <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#424242" />
-        <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="#A0A0A0" />
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://PenDynamicsLab/Theming/Palette.axaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
     </Application.Resources>
 </Application>

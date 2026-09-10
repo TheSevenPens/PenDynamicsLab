@@ -3,7 +3,7 @@
         xmlns:controls="using:PenDynamicsLab.Controls"
         x:Class="PenDynamicsLab.MainWindow"
         Title="PenDynamicsLab" Width="1650" Height="900"
-        Background="#F9F9F9"
+        Background="{DynamicResource Pdl.Pane}"
         FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13">
     <Window.Styles>
         <!-- One vocabulary. Hierarchy comes from colour and size, never from caps or
@@ -23,17 +23,17 @@
              micro-labels that were the app's strongest dated signal. -->
         <Style Selector="TextBlock.fieldLabel">
             <Setter Property="FontSize" Value="12" />
-            <Setter Property="Foreground" Value="#616161" />
+            <Setter Property="Foreground" Value="{DynamicResource Pdl.Muted}" />
         </Style>
         <!-- Caption over a telemetry group. -->
         <Style Selector="TextBlock.groupLabel">
             <Setter Property="FontSize" Value="12" />
-            <Setter Property="Foreground" Value="#909090" />
+            <Setter Property="Foreground" Value="{DynamicResource Pdl.GroupLabel}" />
         </Style>
         <!-- Live numeric value. -->
         <Style Selector="TextBlock.readout">
             <Setter Property="FontSize" Value="13" />
-            <Setter Property="Foreground" Value="#242424" />
+            <Setter Property="Foreground" Value="{DynamicResource Pdl.Text}" />
         </Style>
         <!-- Reserves the width of the widest value a readout column can ever hold, so the
              telemetry groups keep fixed widths and positions while the numbers change.
@@ -54,12 +54,24 @@
     <DockPanel>
         <!-- Telemetry ribbon. The driver tip lives at its right-hand end, in space that
              was running empty, so the advice costs no vertical band. -->
-        <Border DockPanel.Dock="Top" Background="#FFFFFF"
-                BorderBrush="#E5E5E5" BorderThickness="0,0,0,1" Padding="16,0">
+        <Border DockPanel.Dock="Top" Background="{DynamicResource Pdl.Surface}"
+                BorderBrush="{DynamicResource Pdl.Divider}" BorderThickness="0,0,0,1" Padding="16,0">
             <DockPanel Height="92">
 
+                <!-- Gear first, so it takes the OUTERMOST right slot: DockPanel fills in
+                     child order, and the tip chip beside it is dismissible. Declared the
+                     other way round, the gear would slide sideways the moment the tip
+                     went away. 32x32 with a 4px radius, the same glyph button the curve
+                     and smoothing resets use. -->
+                <Button DockPanel.Dock="Right" x:Name="OptionsButton"
+                        Content="&#xE713;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                        FontSize="15" Width="32" Height="32" Padding="0"
+                        Margin="16,0,0,0" VerticalAlignment="Center"
+                        HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                        ToolTip.Tip="Options" Click="Options_Click" />
+
                 <Border DockPanel.Dock="Right" x:Name="DriverTipChip"
-                        Background="#FFF9F0" BorderBrush="#F0D8A8" BorderThickness="1"
+                        Background="{DynamicResource Pdl.AdvisoryFill}" BorderBrush="{DynamicResource Pdl.AdvisoryEdge}" BorderThickness="1"
                         CornerRadius="14" Height="28" Padding="10,0,4,0"
                         VerticalAlignment="Center" Margin="16,0,0,0">
                     <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
@@ -67,14 +79,14 @@
                                 Padding="0" Cursor="Hand" VerticalAlignment="Center">
                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                 <TextBlock Text="&#xE946;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                           FontSize="12" Foreground="#8A6516" VerticalAlignment="Center" />
+                                           FontSize="12" Foreground="{DynamicResource Pdl.AdvisoryIcon}" VerticalAlignment="Center" />
                                 <TextBlock Text="Set driver curve to linear" FontSize="12"
-                                           Foreground="#7A5A16" VerticalAlignment="Center" />
+                                           Foreground="{DynamicResource Pdl.AdvisoryInk}" VerticalAlignment="Center" />
                             </StackPanel>
                             <Button.Flyout>
                                 <Flyout Placement="BottomEdgeAlignedRight">
                                     <StackPanel Width="320" Spacing="14">
-                                        <TextBlock TextWrapping="Wrap" Foreground="#242424"
+                                        <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource Pdl.Text}"
                                                    Text="Set your tablet driver's pressure curve to default (linear) so this app sees raw pen input — otherwise you're tuning a curve on top of a curve." />
                                         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
                                             <Button Content="Don't show again" Height="30" Padding="12,0"
@@ -90,7 +102,7 @@
                         </Button>
                         <Button x:Name="DriverTipDismiss" Content="&#xE711;"
                                 FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10"
-                                Foreground="#8A6516" Background="Transparent" BorderThickness="0"
+                                Foreground="{DynamicResource Pdl.AdvisoryIcon}" Background="Transparent" BorderThickness="0"
                                 Width="20" Height="20" Padding="0" VerticalAlignment="Center"
                                 ToolTip.Tip="Hide for this session"
                                 HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
@@ -108,16 +120,16 @@
                     <StackPanel Spacing="4">
                         <TextBlock Text="Pen" Classes="groupLabel" />
                         <StackPanel Orientation="Horizontal" Spacing="6">
-                            <Ellipse x:Name="ProximityDot" Width="7" Height="7" Fill="#B0B0B0"
+                            <Ellipse x:Name="ProximityDot" Width="7" Height="7" Fill="{DynamicResource Pdl.ProximityIdle}"
                                      VerticalAlignment="Center" />
                             <!-- "Out of range" is the wider of the two states it toggles between. -->
                             <Grid>
                                 <TextBlock Classes="sizer" Text="Out of range" />
                                 <TextBlock x:Name="ProximityLabel" Text="Out of range" Classes="readout"
-                                           Foreground="#616161" />
+                                           Foreground="{DynamicResource Pdl.Muted}" />
                             </Grid>
                         </StackPanel>
-                        <TextBlock x:Name="CursorLabel" Text="--" Classes="readout" Foreground="#616161" />
+                        <TextBlock x:Name="CursorLabel" Text="--" Classes="readout" Foreground="{DynamicResource Pdl.Muted}" />
                     </StackPanel>
 
                     <StackPanel Spacing="4">
@@ -147,7 +159,7 @@
                             <TextBlock Grid.Row="1" Grid.Column="1" x:Name="NormPressureLabel" Text="--" Classes="readout" Margin="12,0,0,0" />
                             <TextBlock Grid.Row="2" Grid.Column="0" Text="Processed" Classes="fieldLabel" />
                             <TextBlock Grid.Row="2" Grid.Column="1" x:Name="ProcessedPressureLabel" Text="--" Margin="12,0,0,0"
-                                       Classes="readout" Foreground="#14A050" FontWeight="SemiBold" />
+                                       Classes="readout" Foreground="{DynamicResource Pdl.Processed}" FontWeight="SemiBold" />
                         </Grid>
                     </StackPanel>
 
@@ -181,7 +193,7 @@
                  configure → mapping → stroke, and the curve sits directly against the
                  canvas it drives rather than across the pane from it. Both columns are
                  equal-width by construction (two * columns). -->
-            <Grid x:Name="LeftPanel" Grid.Column="0" Background="#F9F9F9">
+            <Grid x:Name="LeftPanel" Grid.Column="0" Background="{DynamicResource Pdl.Pane}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />
@@ -215,10 +227,10 @@
                                         <Button x:Name="BezierAddButton" Content="Add point" Click="BezierAdd_Click" />
                                         <Button x:Name="BezierRemoveButton" Content="Remove point" Click="BezierRemove_Click" />
                                         <TextBlock x:Name="BezierCountLabel" VerticalAlignment="Center"
-                                                   Foreground="#666666" />
+                                                   Foreground="{DynamicResource Pdl.Muted}" />
                                     </StackPanel>
                                     <TextBlock Text="Right-click in plot to add or remove."
-                                               Foreground="#888888" TextWrapping="Wrap" />
+                                               Foreground="{DynamicResource Pdl.Hint}" TextWrapping="Wrap" />
                                     <ComboBox x:Name="BezierPresetCombo" HorizontalAlignment="Stretch"
                                               PlaceholderText="Choose preset..." />
                                 </StackPanel>
@@ -235,7 +247,7 @@
                                                         Minimum="0" Maximum="1" Value="1" DefaultValue="1" />
 
                                 <StackPanel x:Name="MinApproachPanel" Spacing="4">
-                                    <TextBlock Text="Min approach" Foreground="#333333" />
+                                    <TextBlock Text="Min approach" Foreground="{DynamicResource Pdl.Text}" />
                                     <StackPanel Orientation="Horizontal" Spacing="12">
                                         <RadioButton x:Name="MinApproachClampRadio" GroupName="MinApproach"
                                                      Content="Clamp" IsChecked="True" />
@@ -282,7 +294,7 @@
                         <controls:SectionCard.CardContent>
                             <StackPanel Spacing="8">
                                 <TextBlock x:Name="PresetEmptyLabel" Text="No saved presets yet"
-                                           FontSize="12" Foreground="#909090" />
+                                           FontSize="12" Foreground="{DynamicResource Pdl.GroupLabel}" />
                                 <StackPanel x:Name="PresetList" Spacing="2" />
                                 <!-- Only shown for a rename; saving generates a name and needs no prompt. -->
                                 <StackPanel x:Name="PresetNameRow" Spacing="4" IsVisible="False">
@@ -306,26 +318,26 @@
 
                 <!-- Column 2: the curve, sitting against the canvas it drives. -->
                 <StackPanel Grid.Column="1" Margin="7,12,14,12">
-                    <Border Background="#FFFFFF" BorderBrush="#E5E5E5" BorderThickness="1"
+                    <Border Background="{DynamicResource Pdl.Surface}" BorderBrush="{DynamicResource Pdl.Divider}" BorderThickness="1"
                             CornerRadius="8" Padding="12,10,12,12">
                         <StackPanel Spacing="8">
                             <TextBlock Text="Pressure curve" FontSize="13" FontWeight="SemiBold"
-                                       Foreground="#242424" />
+                                       Foreground="{DynamicResource Pdl.Text}" />
                             <controls:PressureChartControl x:Name="PressureChart" />
                         </StackPanel>
                     </Border>
                     <!-- Transient feedback only ("Copied"); empty the rest of the time, so
                          the row collapses to nothing. -->
                     <TextBlock x:Name="ChartStatusLabel" Margin="0,8,0,0" FontSize="12"
-                               Foreground="#14A050" />
+                               Foreground="{DynamicResource Pdl.Processed}" />
                 </StackPanel>
             </Grid>
 
             <!-- Splitter -->
-            <Rectangle Grid.Column="1" Fill="#E5E5E5" />
+            <Rectangle Grid.Column="1" Fill="{DynamicResource Pdl.Divider}" />
 
             <!-- Right panel: tabbed views. Each tab is its own workflow. -->
-            <DockPanel x:Name="CanvasArea" Grid.Column="2" Background="#FFFFFF">
+            <DockPanel x:Name="CanvasArea" Grid.Column="2" Background="{DynamicResource Pdl.Surface}">
                 <TabControl x:Name="RightTabs" Padding="0">
                     <TabItem x:Name="StrokeTab" Header="Stroke">
                         <DockPanel>
@@ -345,7 +357,7 @@
                                 </Grid.RowDefinitions>
                                 <controls:StrokeCanvasView Grid.Row="0" x:Name="CompareProcessedView"
                                                            Header="Use processed pressure data" />
-                                <Rectangle Grid.Row="1" Fill="#CCCCCC" />
+                                <Rectangle Grid.Row="1" Fill="{DynamicResource Pdl.Splitter}" />
                                 <controls:StrokeCanvasView Grid.Row="2" x:Name="CompareRawView"
                                                            Header="Use raw pressure data" />
                             </Grid>
@@ -363,7 +375,7 @@
                             </DockPanel>
                             <CheckBox x:Name="ResponseShowCurveEffectCheck" Content="Show effect of curve"
                                       IsChecked="True" />
-                            <TextBlock x:Name="ResponseInfoLabel" Foreground="#888888" />
+                            <TextBlock x:Name="ResponseInfoLabel" Foreground="{DynamicResource Pdl.Hint}" />
                         </StackPanel>
                         <controls:PressureResponseChartControl x:Name="ResponseChart" />
                     </DockPanel>

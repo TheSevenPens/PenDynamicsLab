@@ -1,10 +1,10 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="PenDynamicsLab.Controls.BrushRibbon">
     <!-- One 32px control band on a single baseline. Labels sit beside their control
          rather than stacked above it, which is what let the row collapse from three
          competing baselines to one; spacing replaces the old 1px separator rules. -->
-    <Border Background="#FFFFFF" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1" Padding="16,0">
+    <Border Background="{DynamicResource Pdl.Surface}" BorderBrush="{DynamicResource Pdl.Divider}" BorderThickness="0,0,0,1" Padding="16,0">
       <DockPanel Height="56">
         <!-- Clear sits at the far end, away from the settings it would undo. -->
         <Button x:Name="ClearButton" DockPanel.Dock="Right" Content="Clear canvas"

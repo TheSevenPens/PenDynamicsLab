@@ -1,8 +1,9 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using PenDynamicsLab.Curves;
 using PenDynamicsLab.Persistence;
+using PenDynamicsLab.Theming;
 
 namespace PenDynamicsLab.Controls;
 
@@ -23,12 +24,14 @@ public sealed class PressureResponseChartControl : Control
     private const double XAxisLabelSpacing = 2;
     private const double YAxisLabelSpacing = 7;
 
-    private static readonly IBrush BackgroundBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0xFF, 0xFF));
-    private static readonly IBrush PlotBrush = new SolidColorBrush(Color.FromRgb(0xF7, 0xF7, 0xFB));
-    private static readonly IBrush LabelBrush = Brushes.Black;
-    private static readonly IPen GridPen = new Pen(new SolidColorBrush(Color.FromRgb(0xEB, 0xEB, 0xF4)), 1);
-    private static readonly IPen ResponsePen = new Pen(Brushes.Black, 1.5);
-    private static readonly IBrush ResponseDotBrush = Brushes.Black;
+    // Chrome. Instance fields, seeded with the light values so the seed doubles as the
+    // fallback, refreshed from the palette whenever the theme changes. See ThemeInk.
+    private IBrush BackgroundBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0xFF, 0xFF));
+    private IBrush PlotBrush = new SolidColorBrush(Color.FromRgb(0xF7, 0xF7, 0xFB));
+    private IBrush LabelBrush = Brushes.Black;
+    private IPen GridPen = new Pen(new SolidColorBrush(Color.FromRgb(0xEB, 0xEB, 0xF4)), 1);
+    private IPen ResponsePen = new Pen(Brushes.Black, 1.5);
+    private IBrush ResponseDotBrush = Brushes.Black;
     private static readonly Typeface ChartTypeface = new("Segoe UI");
     private const double ChartFontSize = 12;
 
@@ -38,6 +41,23 @@ public sealed class PressureResponseChartControl : Control
     private static readonly IBrush RawDotBrush = new SolidColorBrush(Color.FromRgb(0x88, 0x33, 0xCC));
     private static readonly IPen RawGuidePen = new Pen(new SolidColorBrush(Color.FromArgb(0x40, 0x88, 0x33, 0xCC)), 1)
     { DashStyle = new DashStyle(new double[] { 3, 4 }, 0) };
+
+    public PressureResponseChartControl()
+    {
+        RefreshInk();
+        ActualThemeVariantChanged += (_, _) => { RefreshInk(); InvalidateVisual(); };
+    }
+
+    /// <summary>Repoints the chart's chrome at the active theme; data colours are left alone.</summary>
+    private void RefreshInk()
+    {
+        BackgroundBrush  = ThemeInk.Brush(this, "Pdl.Surface", BackgroundBrush);
+        PlotBrush        = ThemeInk.Brush(this, "Pdl.PlotField", PlotBrush);
+        LabelBrush       = ThemeInk.Brush(this, "Pdl.CurveInk", LabelBrush);
+        ResponseDotBrush = ThemeInk.Brush(this, "Pdl.CurveInk", ResponseDotBrush);
+        GridPen          = ThemeInk.Pen(this, "Pdl.PlotGrid", GridPen, 1);
+        ResponsePen      = ThemeInk.Pen(this, "Pdl.CurveInk", ResponsePen, 1.5);
+    }
 
     public static readonly StyledProperty<PressureResponseData?> DataProperty =
         AvaloniaProperty.Register<PressureResponseChartControl, PressureResponseData?>(nameof(Data));

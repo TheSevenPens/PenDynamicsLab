@@ -11,6 +11,7 @@ using PenDynamicsLab.Controls;
 using PenDynamicsLab.Curves;
 using PenDynamicsLab.Drawing;
 using PenDynamicsLab.Persistence;
+using PenDynamicsLab.Theming;
 using SkiaSharp;
 
 namespace PenDynamicsLab;
@@ -64,12 +65,19 @@ public partial class MainWindow : Window
 
     private readonly PresetStore _presetStore = new();
     private readonly UiSettings _uiSettings = new();
+    private readonly ThemeService _theme;
 
     // Non-null while the preset name box is open for a rename.
     private string? _renamingPreset;
 
     public MainWindow()
     {
+        // Before InitializeComponent: the palette is resolved as the tree is built, so
+        // applying the saved theme first means the window paints correct on the first
+        // frame instead of flashing light and then correcting itself.
+        _theme = new ThemeService(_uiSettings);
+        _theme.ApplySaved();
+
         InitializeComponent();
 
         _renderTimer.Tick += RenderTimer_Tick;
@@ -759,6 +767,13 @@ public partial class MainWindow : Window
     // The advice matters once per tablet, so it lives as a chip in the ribbon's spare
     // right-hand space rather than a band across the window. Two levels of dismissal: the
     // × hides it for this session, "Don't show again" remembers the choice.
+
+    /// <summary>
+    /// Opens the global options. Modal to the main window so the theme change repaints
+    /// visibly behind it, which is the whole preview.
+    /// </summary>
+    private async void Options_Click(object? sender, RoutedEventArgs e)
+        => await new OptionsWindow(_theme).ShowDialog(this);
 
     /// <summary>Hide for this session only.</summary>
     private void DriverTipDismiss_Click(object? sender, RoutedEventArgs e)

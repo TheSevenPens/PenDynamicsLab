@@ -1,0 +1,68 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="PenDynamicsLab.OptionsWindow"
+        Title="Options" Width="620" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False" ShowInTaskbar="False"
+        Background="{DynamicResource Pdl.Pane}"
+        FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13">
+
+    <!-- Category rail on the left, detail pane on the right. The rail carries one entry
+         today; the shape is chosen so a second option group is one more row rather than
+         a taller dialog.
+
+         There is no OK / Cancel: a theme choice takes effect the moment it is made, the
+         way the Windows settings this mirrors do, which also makes the app behind the
+         dialog the preview. Close is the only button, and it only closes. -->
+    <DockPanel>
+
+        <Border DockPanel.Dock="Bottom" Background="{DynamicResource Pdl.Pane}"
+                BorderBrush="{DynamicResource Pdl.Divider}" BorderThickness="0,1,0,0"
+                Padding="16,12">
+            <DockPanel>
+                <Button x:Name="CloseButton" DockPanel.Dock="Right" Content="Close"
+                        Height="32" Padding="14,0" VerticalContentAlignment="Center"
+                        IsDefault="True" IsCancel="True" Click="Close_Click" />
+                <TextBlock Text="Changes apply immediately." FontSize="12"
+                           Foreground="{DynamicResource Pdl.Muted}" VerticalAlignment="Center" />
+            </DockPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Left" Width="168" Background="{DynamicResource Pdl.Pane}"
+                BorderBrush="{DynamicResource Pdl.Divider}" BorderThickness="0,0,1,0"
+                Padding="8,12">
+            <StackPanel Spacing="2">
+                <Border Background="{DynamicResource Pdl.ActiveFill}" CornerRadius="4"
+                        Height="32" Padding="12,0">
+                    <TextBlock Text="Appearance" FontSize="13"
+                               Foreground="{DynamicResource Pdl.ActiveInk}"
+                               VerticalAlignment="Center" />
+                </Border>
+            </StackPanel>
+        </Border>
+
+        <Border Background="{DynamicResource Pdl.Surface}" Padding="16" MinHeight="190">
+            <StackPanel Spacing="14">
+                <TextBlock Text="Appearance" FontWeight="SemiBold" FontSize="13"
+                           Foreground="{DynamicResource Pdl.Text}" />
+
+                <StackPanel Spacing="10">
+                    <TextBlock Text="Theme" FontSize="12"
+                               Foreground="{DynamicResource Pdl.Muted}" />
+
+                    <RadioButton x:Name="LightRadio" GroupName="Theme" Content="Light" />
+                    <RadioButton x:Name="DarkRadio" GroupName="Theme" Content="Dark" />
+                    <RadioButton x:Name="SystemRadio" GroupName="Theme">
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="Follow system" />
+                            <TextBlock Text="Uses the Windows app mode setting, and tracks it while the app is open."
+                                       FontSize="12" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource Pdl.Muted}" />
+                        </StackPanel>
+                    </RadioButton>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+    </DockPanel>
+</Window>

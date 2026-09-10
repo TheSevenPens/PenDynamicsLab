@@ -1,7 +1,16 @@
-using System.IO;
+﻿using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace PenDynamicsLab.Persistence;
+
+/// <summary>Which theme the user asked for. <see cref="System"/> follows the OS setting.</summary>
+public enum AppTheme
+{
+    System,
+    Light,
+    Dark,
+}
 
 /// <summary>
 /// Small persisted bag of UI preferences, kept beside the presets in
@@ -18,9 +27,21 @@ public sealed class UiSettings
     {
         /// <summary>True once the user has chosen "Don't show again" on the driver tip.</summary>
         public bool DriverTipDismissed { get; init; }
+
+        /// <summary>
+        /// Defaults to <see cref="AppTheme.System"/>, so a first run looks like the rest
+        /// of the desktop rather than announcing an opinion the user never expressed.
+        /// </summary>
+        public AppTheme Theme { get; init; } = AppTheme.System;
     }
 
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    // Enums as names, not ordinals: the file is meant to be readable, and adding a theme
+    // in the middle of the enum must not silently repoint everyone's saved preference.
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = true,
+        Converters = { new JsonStringEnumConverter() },
+    };
 
     private readonly string _filePath;
     private Model _model = new();
@@ -40,6 +61,17 @@ public sealed class UiSettings
         {
             if (_model.DriverTipDismissed == value) return;
             _model = _model with { DriverTipDismissed = value };
+            Save();
+        }
+    }
+
+    public AppTheme Theme
+    {
+        get => _model.Theme;
+        set
+        {
+            if (_model.Theme == value) return;
+            _model = _model with { Theme = value };
             Save();
         }
     }

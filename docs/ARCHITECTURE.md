@@ -4,7 +4,7 @@
 
 ```
 MainWindow
-├── Top ribbon (92 px) — Pen API combo + pen telemetry (fixed-width readout columns), DriverTipChip at the right edge
+├── Top ribbon (92 px) — Pen API combo + pen telemetry (fixed-width readout columns), DriverTipChip then the Options gear at the right edge
 └── Body Grid
     ├── Left panel (472 px) — two equal-width columns, settings before curve
     │   ├── Settings column
@@ -55,6 +55,7 @@ One vocabulary, defined in `Window.Styles` plus a set of theme-brush overrides i
 | One control height | Every combo, button and text field is 32 px, vertically centred. A slider occupies a 32 px box though its track is 4. |
 | State in a pill, not the label | `Curve` plus an `Off` chip, so the name stays stable and only the state moves. Three states, three tones: grey `Off`, amber `On · no effect`, accent `On`. |
 | Telemetry never reflows | Each readout column reserves the width of the widest value it can hold, so the ribbon groups keep fixed widths and positions while the numbers change. See "Ribbon width sizers" below. |
+| No literal colours outside the palette | Every colour is a `Pdl.*` token in `Theming/Palette.axaml`, referenced with `{DynamicResource}`. A literal hex in a control is a colour that cannot follow the theme. |
 
 Tokens: surface `#FFFFFF`, pane `#F9F9F9`, canvas paper `#F7F7F4`, plot field `#F7F7FB`, divider `#E5E5E5`, control edge `#D1D1D1`, text `#242424`, muted `#616161`, accent `#0F6CBD`. Body type is 13, labels 12, tabs 14; control radius 4, card radius 8.
 
@@ -174,6 +175,28 @@ Two details matter. The sizer uses `Opacity="0"`, **not** `IsVisible="False"` �
 
 The field labels are static text, so their `Auto` column was never the problem and is left alone.
 
+### Theming
+
+`Theming/Palette.axaml` is a `ResourceDictionary` with `ThemeDictionaries` for `Light` and `Dark`, merged into `App.axaml`. Every colour the app draws is a `Pdl.*` key in it; XAML reads them with **`{DynamicResource}`**, never `{StaticResource}` — a static reference resolves once at load and silently keeps its old colour through a theme change.
+
+The light column is the palette the app already shipped, lifted value for value, so light mode is unchanged by the move.
+
+**`ThemeService`** maps the saved `AppTheme` onto Avalonia's `ThemeVariant`. The mapping is the whole trick: `ThemeVariant.Default` is not a third palette, it means *take the platform's* — so `AppTheme.System` maps to it and Avalonia keeps `ActualThemeVariant` in step with the Windows app-mode setting by itself, including while the app runs. Nothing polls. `MainWindow`'s constructor applies the saved preference **before** `InitializeComponent`, so the window paints correctly on its first frame rather than flashing light and correcting.
+
+**`ThemeInk`** exists for the two chart controls, which paint with `DrawingContext` where `{DynamicResource}` is unavailable. Their colours were `static readonly` fields — exactly the shape a theme switch cannot reach — and are now instance fields seeded with the light values and refreshed on `ActualThemeVariantChanged`. The seed doubles as the fallback, so a missing key degrades to the old appearance rather than to a blank chart.
+
+Two deliberate exclusions:
+
+- **The four data colours** — raw purple, effective green, min pink, max cyan — stay literal in both themes. They carry meaning, they match WebPressureExplorer, and they are louder than the chrome on purpose.
+- **`Pdl.CanvasPaper` is identical in both themes.** The drawing surface keeps its paper: strokes default to black, so a dark canvas would swallow them, and a canvas exported from dark would not match one exported from light. Theme is one setting, not two. It needs no border of its own either — the canvas header's divider and the pane splitter already bound it.
+
+### `OptionsWindow`
+Global app options, opened by the gear at the right end of the telemetry ribbon. A category rail on the left (Appearance today) and a detail pane on the right, so a second option group is one more row rather than a taller dialog.
+
+The gear is declared **before** `DriverTipChip` in the ribbon's `DockPanel`, which fills in child order, so it takes the outermost right slot. The tip chip beside it is dismissible; the other order would slide the gear sideways the moment the tip went away.
+
+There is no OK / Cancel. `ThemeService.Set` applies and persists in one call, so the window owns no draft state and has nothing to roll back — and with the change already live behind a modal dialog, the app itself is the preview. Close is the only button.
+
 ### `StageStatus` (static)
 Resolves each pipeline stage to a `StageState` — `Off` when the stage is set to Passthrough, `NoEffect` when it is running but its settings mean output equals input, `On` otherwise — which `MainWindow.UpdateCardStatuses` renders as the header pills.
 
@@ -192,7 +215,7 @@ Loads/saves the user's named curve presets from `%LOCALAPPDATA%\PenDynamicsLab\p
 Saving takes a generated `Preset N` rather than prompting, so it stays one click; naming moves to Rename, which is when a name is worth thinking about — by then you know what the preset turned out to be. Each row carries a single `···` menu (Load / Rename / Delete) rather than a Load button beside a glyph button, which never lined up and had nowhere to put rename.
 
 ### `UiSettings`
-A small persisted bag of preferences in `%LOCALAPPDATA%\PenDynamicsLab\ui-settings.json` — currently just `DriverTipDismissed`. Deliberately separate from `PresetStore`: presets are user content they name and manage, these are preferences the app remembers on their behalf. Every read and write is best-effort, because a preference failing to persist must never stop the app.
+A small persisted bag of preferences in `%LOCALAPPDATA%\PenDynamicsLab\ui-settings.json` — `DriverTipDismissed` and the `AppTheme`. Enums serialize by name, so inserting a theme into the middle of the enum cannot silently repoint everyone's saved preference. Deliberately separate from `PresetStore`: presets are user content they name and manage, these are preferences the app remembers on their behalf. Every read and write is best-effort, because a preference failing to persist must never stop the app.
 
 ### `PressureResponseLoader`
 Reads pen hardware response JSON. Includes a custom `JsonConverter<ResponseRecord>` so each record can be a 2-element `[gf, logPct]` array. Bundles three WACOM KP-504E sample files as embedded resources.
@@ -358,7 +381,7 @@ Pen events come from `IPenSession` (WinPenKit, referenced as a sibling project �
 ## Key design points
 
 1. **Immutable params record** — `PressureCurveParams` is a `record` with `init` properties. Every change is a `with { ... }` rebuild, which makes change detection and parity-test reasoning straightforward.
-2. **Pure math separation** — `Curves/CurveMath.cs` has no Avalonia or SkiaSharp dependencies. The xUnit project pins behavior with 84 tests against analytically-derived values.
+2. **Pure math separation** — `Curves/CurveMath.cs` has no Avalonia or SkiaSharp dependencies. The xUnit project pins behavior with 92 tests against analytically-derived values.
 3. **Avalonia DrawingContext for charts; SkiaSharp for canvases** — Charts are simple line geometry and benefit from Avalonia's text rendering + transform stack. The drawing canvases need many small antialiased strokes per frame, where SkiaSharp via `SKBitmap`/`WriteableBitmap` interop is faster.
 4. **Single owner of state** — `MainWindow` holds the params and the surfaces; everything else is a leaf control receiving values via StyledProperties or queried for its current value. Even the chart's own edits round-trip through this owner.
 5. **One surface, many views** — `DrawSurface` supports multiple `Image` hosts so the processed canvas is shared between tabs rather than copied. Sizing and hit-testing both key off `IsEffectivelyVisible` to avoid stale inactive-tab layout.
