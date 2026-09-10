@@ -10,7 +10,7 @@ MainWindow
     ├── Left panel (472 px) — two equal-width columns
     │   ├── Chart column
     │   │   ├── PressureChartControl
-    │   │   └── hint text + transient status label (export lives on the chart's right-click menu)
+    │   │   └── transient status label (export lives on the chart's right-click menu)
     │   └── Card column (scrolls) — SectionCard × 4
     │       ├── CURVE (OFF)
     │       │   ├── Curve type combo + reset

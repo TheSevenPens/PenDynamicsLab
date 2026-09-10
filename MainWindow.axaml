@@ -110,16 +110,10 @@
                 <!-- Chart, with the Export menu directly beneath it -->
                 <StackPanel Grid.Column="0" Margin="14,12,8,12">
                     <controls:PressureChartControl x:Name="PressureChart" />
-                    <!-- Export lives on the chart's right-click menu, so the hint carries
-                         the affordance the button used to. Same convention as the bezier
-                         toolbar's "Right-click in plot to add or remove." -->
-                    <StackPanel Orientation="Horizontal"
-                                Spacing="10" Margin="0,10,0,0">
-                        <TextBlock Text="Right-click the chart to export."
-                                   Foreground="#888888" VerticalAlignment="Center" />
-                        <TextBlock x:Name="ChartStatusLabel" VerticalAlignment="Center"
-                                   Foreground="#4C8C4A" />
-                    </StackPanel>
+                    <!-- Transient feedback only ("Copied"); empty the rest of the time, so
+                         the row collapses to nothing. Export is on the right-click menu. -->
+                    <TextBlock x:Name="ChartStatusLabel" Margin="0,10,0,0"
+                               Foreground="#4C8C4A" />
                 </StackPanel>
 
                 <!-- Control cards -->

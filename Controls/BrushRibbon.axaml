@@ -20,7 +20,7 @@
             <Rectangle Width="1" Fill="#DDDDDD" />
 
             <StackPanel>
-                <TextBlock Text="PRESSURE → " FontWeight="Bold" Foreground="#555555" Margin="0,0,0,4" />
+                <TextBlock Text="PRESSURE" FontWeight="Bold" Foreground="#555555" Margin="0,0,0,4" />
                 <ComboBox x:Name="PressureControlCombo" Width="110" />
             </StackPanel>
             <Rectangle Width="1" Fill="#DDDDDD" />
