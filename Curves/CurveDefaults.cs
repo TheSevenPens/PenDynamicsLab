@@ -1,4 +1,4 @@
-namespace PenDynamicsLab.Curves;
+﻿namespace PenDynamicsLab.Curves;
 
 /// <summary>
 /// Restores one pipeline stage to the starting values for the type it is currently set to,
@@ -24,8 +24,16 @@ namespace PenDynamicsLab.Curves;
 public static class CurveDefaults
 {
     /// <summary>
+    /// Whether a curve type has any settings of its own to restore. Passthrough and
+    /// Inverted have none — both are fixed mappings — so their reset button is disabled
+    /// rather than left as a control that silently does nothing.
+    /// </summary>
+    public static bool CurveHasSettings(CurveType type)
+        => type is not (CurveType.Passthrough or CurveType.Inverted);
+
+    /// <summary>
     /// The curve settings for <paramref name="p"/>'s current type, restored to their
-    /// defaults. Passthrough has nothing on screen to restore, so it comes back unchanged.
+    /// defaults. A type with no settings of its own comes back unchanged.
     /// </summary>
     public static PressureCurveParams ResetCurve(PressureCurveParams p)
     {
@@ -37,7 +45,7 @@ public static class CurveDefaults
                 => p with { Softness = d.Softness },
             CurveType.Flat => p with { FlatLevel = d.FlatLevel },
             CurveType.Bezier => p with { BezierPoints = d.BezierPoints },
-            _ => p,
+            _ => p,   // Passthrough, Inverted — nothing of their own to restore
         };
 
         // The range fields are shared, but only the types CurveMath.UsesRangeControls names

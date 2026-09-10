@@ -195,6 +195,11 @@ public sealed class PressureChartControl : Control
             context.DrawLine(CurvePen, new Point(Pad, fy), new Point(Pad + plotW, fy));
             return;
         }
+        if (curveType == CurveType.Inverted)
+        {
+            context.DrawLine(CurvePen, new Point(Pad, Pad), new Point(Pad + plotW, Pad + plotH));
+            return;
+        }
         if (curveType == CurveType.Bezier)
         {
             DrawBezier(context, plotW, plotH);
@@ -248,9 +253,10 @@ public sealed class PressureChartControl : Control
             new Point(Pad + inMax * plotW, Pad + plotH - outMax * plotH),
             new Point(Pad + plotW, Pad + plotH - outMax * plotH));
 
-        // Standard control nodes — drawn for all power-law / sigmoid types EXCEPT BASIC, matching
-        // the web app's intent that BASIC has no input/output remapping handles.
-        if (curveType != CurveType.Basic)
+        // Standard control nodes — only for the types that actually honour the range
+        // fields. Asking UsesRangeControls rather than naming the types keeps this in step
+        // with the evaluator: a node you can drag but that changes nothing would be a lie.
+        if (CurveMath.UsesRangeControls(curveType))
         {
             DrawStandardNode(context, inMin, outMin, MinNodeBrush);
             DrawStandardNode(context, inMax, outMax, MaxNodeBrush);

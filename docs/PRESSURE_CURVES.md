@@ -10,7 +10,7 @@ A pressure curve is a function `f(x) → y` where:
 
 The output drives brush size, opacity, or other pressure-dependent parameters. Different curve shapes give different drawing "feels" — a concave curve makes light strokes more sensitive, while a convex curve requires more force for the same effect.
 
-In code, the entry point is `CurveMath.ApplyPressureCurve(double x, PressureCurveParams p)`.
+In code, the entry point is `CurveMath.ApplyPressureCurve(double x, PressureCurveParams p)`. Passthrough, Flat, Inverted and Bezier return from it directly; only the parametric family (Basic, Extended, Sigmoid) goes on to `RawCurveOutput`.
 
 ## Common settings
 
@@ -99,6 +99,16 @@ The same power law as **Basic**, but it normalizes the input against [`InputMini
 - `MinApproach` toggle (Clamp / Cut)
 
 Use Extended when you want to remap input or output ranges; use Basic when you just want a power curve across [0, 1].
+
+### Inverted
+
+Reflects the pressure: `f(x) = 1 - clamp(x, 0, 1)`. Press hard for a light stroke, barely touch for a heavy one.
+
+No settings — like Passthrough and Flat it is a fixed mapping, so the Curve card shows only the type dropdown and the reset button is disabled (`CurveDefaults.CurveHasSettings` returns false). It shares the record with every other type, so as with Basic the evaluator ignores softness, the range fields, min approach and the flat level rather than picking up whatever the last type left there.
+
+The card always reads `On`: nothing about it can be dialled back to identity, which is the same reason Flat is never `On · no effect`.
+
+Mostly it is a quick way to feel how wrong a mapping can be, and to check that a stroke really is following processed pressure rather than raw — an inverted curve makes any mix-up obvious at a glance.
 
 ### Sigmoid
 

@@ -19,7 +19,7 @@ A shared brush ribbon (size, colour, pressure target, draw-at-zero, Clear) sits 
 
 ## Key features
 
-- **Six curve types** — passthrough (identity, the default), flat (constant), basic (power law across the full [0, 1] range), extended (the same power law, plus input/output range controls), sigmoid (S-curve), and bezier (custom cubic bezier with up to 16 points)
+- **Seven curve types** — passthrough (identity, the default), flat (constant), basic (power law across the full [0, 1] range), extended (the same power law, plus input/output range controls), inverted (`1 - x`), sigmoid (S-curve), and bezier (custom cubic bezier with up to 16 points)
 - **Bezier presets** — built-in shapes (Linear, Soft, Firm, S-Curve, Light Touch, Heavy, Step) for quick setup
 - **Draggable control nodes** — pink/cyan min/max nodes on extended/sigmoid curves; full bezier anchor/handle dragging with broken vs mirrored handle modes; right-click context menu in the plot to add/remove points or change handle mode
 - **Pressure smoothing** — Passthrough (none, the default) or EMA with an adjustable amount, plus configurable application order (smooth-then-curve or curve-then-smooth)

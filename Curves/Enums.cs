@@ -1,4 +1,4 @@
-namespace PenDynamicsLab.Curves;
+﻿namespace PenDynamicsLab.Curves;
 
 public enum CurveType
 {
@@ -6,6 +6,7 @@ public enum CurveType
     Flat,
     Basic,
     Extended,
+    Inverted,
     Sigmoid,
     Bezier,
 }

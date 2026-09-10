@@ -124,8 +124,8 @@ Exactly **one** instance exists, created in the `MainWindow` field initializer a
 
 ### `PressureChartControl`
 Custom `Control` rendering with Avalonia's `DrawingContext`. Handles:
-- Curve trace for all curve types (passthrough / flat / power / sigmoid / bezier)
-- Standard min/max control nodes (pink/cyan) with optional dashed projection guides — shown for Sigmoid and Extended (Basic intentionally hides them)
+- Curve trace for all curve types (passthrough / flat / power / inverted / sigmoid / bezier)
+- Standard min/max control nodes (pink/cyan) with optional dashed projection guides — shown only for the types `CurveMath.UsesRangeControls` names, so a node can never appear on a curve that would ignore it
 - Bezier anchors + handles with selection highlight
 - Hit-tested left-button drag of standard nodes, bezier anchors, and bezier handles
 - Right-click context menu in the plot: the bezier entries (`Add point at (x, y)` / `Remove point #i` / `Handles: Broken | Mirrored`) when they apply, then the owner-supplied export entries
@@ -306,7 +306,7 @@ Stroke state (last position, smoothed pressure, live indicators) resets when:
 
 | Field | Type | Range | Purpose |
 |---|---|---|---|
-| `CurveType` | `CurveType` enum | Passthrough, Flat, Basic, Extended, Sigmoid, Bezier | Active curve algorithm |
+| `CurveType` | `CurveType` enum | Passthrough, Flat, Basic, Extended, Inverted, Sigmoid, Bezier | Active curve algorithm. The declaration order is the dropdown order: the combo is filled by iterating the enum and selected by casting to `int`. |
 | `Softness` | `double` | -0.9 to 0.9 (Sigmoid: 0 to 0.95) | Power exponent / sigmoid steepness |
 | `InputMinimum` | `double` | 0-1 | Start of input pressure range (Extended / Sigmoid only) |
 | `InputMaximum` | `double` | 0-1 | End of input pressure range (Extended / Sigmoid only) |
@@ -358,7 +358,7 @@ Pen events come from `IPenSession` (WinPenKit, referenced as a sibling project �
 ## Key design points
 
 1. **Immutable params record** — `PressureCurveParams` is a `record` with `init` properties. Every change is a `with { ... }` rebuild, which makes change detection and parity-test reasoning straightforward.
-2. **Pure math separation** — `Curves/CurveMath.cs` has no Avalonia or SkiaSharp dependencies. The xUnit project pins behavior with 71 tests against analytically-derived values.
+2. **Pure math separation** — `Curves/CurveMath.cs` has no Avalonia or SkiaSharp dependencies. The xUnit project pins behavior with 84 tests against analytically-derived values.
 3. **Avalonia DrawingContext for charts; SkiaSharp for canvases** — Charts are simple line geometry and benefit from Avalonia's text rendering + transform stack. The drawing canvases need many small antialiased strokes per frame, where SkiaSharp via `SKBitmap`/`WriteableBitmap` interop is faster.
 4. **Single owner of state** — `MainWindow` holds the params and the surfaces; everything else is a leaf control receiving values via StyledProperties or queried for its current value. Even the chart's own edits round-trip through this owner.
 5. **One surface, many views** — `DrawSurface` supports multiple `Image` hosts so the processed canvas is shared between tabs rather than copied. Sizing and hit-testing both key off `IsEffectivelyVisible` to avoid stale inactive-tab layout.

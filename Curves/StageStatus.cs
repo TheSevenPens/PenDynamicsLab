@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 
 namespace PenDynamicsLab.Curves;
 
@@ -62,8 +62,9 @@ public static class StageStatus
 
     private static bool CurveIsNeutral(PressureCurveParams p)
     {
-        // A constant output always changes something.
-        if (p.CurveType == CurveType.Flat) return false;
+        // A constant output always changes something, and so does a reflection. Neither
+        // has a setting that could dial it back to identity.
+        if (p.CurveType is CurveType.Flat or CurveType.Inverted) return false;
 
         if (p.CurveType == CurveType.Bezier) return BezierIsDiagonal(p.BezierPoints);
 

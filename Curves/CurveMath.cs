@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 
 namespace PenDynamicsLab.Curves;
 
@@ -229,6 +229,10 @@ public static class CurveMath
     {
         if (p.CurveType == CurveType.Passthrough) return x;
         if (p.CurveType == CurveType.Flat) return p.FlatLevel;
+        // Inverted has no settings of its own: hard pressure gives a light stroke and
+        // vice versa. Like Passthrough and Flat it never reaches RawCurveOutput, which
+        // covers only the parametric power-law/sigmoid family.
+        if (p.CurveType == CurveType.Inverted) return 1 - Clamp01(x);
         if (p.CurveType == CurveType.Bezier)
         {
             double clampedX = Clamp01(x);

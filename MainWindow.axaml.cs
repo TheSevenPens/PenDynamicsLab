@@ -367,9 +367,9 @@ public partial class MainWindow : Window
         FlatLevelSlider.IsVisible = isFlat;
         BezierToolbar.IsVisible = isBezier;
 
-        // Reset is type-scoped, so under Passthrough it has nothing to restore — grey it
-        // out rather than leave a button that silently does nothing.
-        CurveResetButton.IsEnabled = ct != CurveType.Passthrough;
+        // Reset is type-scoped, so for a type with no settings of its own it has nothing
+        // to restore — grey it out rather than leave a button that silently does nothing.
+        CurveResetButton.IsEnabled = CurveDefaults.CurveHasSettings(ct);
 
         // Passthrough smoothing ignores the amount, so hide it — same convention as the
         // curve card, where Passthrough hides softness and the range controls.
