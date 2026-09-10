@@ -73,10 +73,11 @@
                 <Rectangle Width="1" Fill="#DDDDDD" />
 
                 <!-- PRESSURE -->
-                <StackPanel Width="90">
+                <StackPanel Width="130">
                     <TextBlock Text="PRESSURE" FontWeight="Bold"                               Foreground="#555555" Margin="0,0,0,4" />
                     <TextBlock x:Name="RawPressureLabel" Text="Raw: --" />
                     <TextBlock x:Name="NormPressureLabel" Text="Norm: --" />
+                    <TextBlock x:Name="ProcessedPressureLabel" Text="Processed: --" />
                 </StackPanel>
                 <Rectangle Width="1" Fill="#DDDDDD" />
 

@@ -925,7 +925,7 @@ public partial class MainWindow : Window
             double rawPressure = maxP > 0 ? (double)pt.Pressure / maxP : 0;
             var pipeline = ProcessPressure(rawPressure);
 
-            UpdateTelemetry(pt, clientPt, over == ActiveCanvas.None ? null : (Point?)localPt, maxP);
+            UpdateTelemetry(pt, clientPt, over == ActiveCanvas.None ? null : (Point?)localPt, maxP, pipeline.Output);
             PressureChart.LiveRawPressure = pipeline.Raw;
             PressureChart.LivePressure = pipeline.PreCurve;
             ResponseChart.LiveRawPressure = pipeline.Raw;
@@ -1041,7 +1041,12 @@ public partial class MainWindow : Window
         canvas.DrawLine((float)from.X, (float)from.Y, (float)to.X, (float)to.Y, paint);
     }
 
-    private void UpdateTelemetry(PenPoint pt, Point clientPt, Point? canvasLocal, int maxP)
+    /// <param name="processed">
+    /// The pipeline's final output — raw pressure after smoothing and the curve. With both
+    /// stages on Passthrough this equals the normalized value, which is the point: the row
+    /// always shows something, and a difference means a stage is actually doing work.
+    /// </param>
+    private void UpdateTelemetry(PenPoint pt, Point clientPt, Point? canvasLocal, int maxP, double processed)
     {
         ProximityDot.Fill = Brushes.LimeGreen;
         ProximityLabel.Text = "Proximity";
@@ -1056,6 +1061,7 @@ public partial class MainWindow : Window
         float pct = maxP > 0 ? (float)pt.Pressure / maxP * 100f : 0f;
         RawPressureLabel.Text = $"Raw: {pt.Pressure}";
         NormPressureLabel.Text = $"Norm: {pct:F1}%";
+        ProcessedPressureLabel.Text = $"Processed: {processed * 100:F1}%";
 
         AzimuthLabel.Text = $"Azimuth: {pt.Azimuth:F1}";
         AltitudeLabel.Text = $"Altitude: {pt.Altitude:F1}";

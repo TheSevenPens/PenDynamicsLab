@@ -24,6 +24,7 @@ A shared brush ribbon (size, color, pressure target, draw-at-zero, Clear) sits a
 - **Draggable control nodes** — pink/cyan min/max nodes on extended/sigmoid curves; full bezier anchor/handle dragging with broken vs mirrored handle modes; right-click context menu in the plot to add/remove points or change handle mode
 - **Pressure smoothing** — Passthrough (none, the default) or EMA with an adjustable amount, plus configurable application order (smooth-then-curve or curve-then-smooth)
 - **Min approach modes** (clamp vs cut) controlling how the curve behaves below the input minimum
+- **Pen telemetry** — the ribbon shows raw pressure, its normalized percentage, and the processed value after smoothing and the curve, so you can watch the pipeline's effect numerically
 - **Live pressure indicators** on the chart showing raw (purple) and effective (green) pressure positions in real time, plus matching indicators projected onto the response chart. These stay live on every tab, including Pressure response, which has no canvas of its own.
 - **Pressure response data** — load pen hardware measurement data from bundled WACOM samples or uploaded JSON files, with optional curve-effect overlay. The first bundled sample auto-loads at startup so the tab shows something immediately.
 - **Image export** — right-click the curve chart to copy or save it (full chart or plot area alone); every stroke canvas has an Export menu (copy to clipboard or save as PNG)
