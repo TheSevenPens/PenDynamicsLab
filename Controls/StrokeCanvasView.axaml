@@ -13,9 +13,16 @@
         <Border x:Name="ImageHost" Background="#F5F5F0" ClipToBounds="True">
             <!-- Canvas pins the Image at (0, 0) regardless of how Avalonia's layout would
                  otherwise handle an oversized bitmap (e.g., when the shared processed bitmap
-                 is larger than this host because it was sized in a different tab). -->
+                 is larger than this host because it was sized in a different tab).
+
+                 Stretch=Fill with an explicit Width/Height, both assigned by DrawSurface in
+                 DIPs, is what maps the high-resolution backing store onto the screen 1:1.
+                 Stretch=None would lay the bitmap out one pixel per DIP, which the compositor
+                 then magnifies by the render scaling — strokes land RenderScaling times too
+                 far from the origin. Because the DIP size always equals pixel size / scale,
+                 "Fill" is an identity transform here, not a resample. -->
             <Canvas>
-                <Image x:Name="CanvasImage" Stretch="None" Canvas.Left="0" Canvas.Top="0" />
+                <Image x:Name="CanvasImage" Stretch="Fill" Canvas.Left="0" Canvas.Top="0" />
             </Canvas>
         </Border>
     </DockPanel>

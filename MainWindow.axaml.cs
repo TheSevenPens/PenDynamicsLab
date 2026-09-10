@@ -93,6 +93,11 @@ public partial class MainWindow : Window
         };
         UpdateBrushRibbonHost();
 
+        // Dragging to a monitor with different DPI keeps the window the same size in
+        // DIPs, so no Bounds change fires — the surfaces have to be re-allocated off
+        // the scaling change itself or they'd stay at the old pixel density.
+        ScalingChanged += (_, _) => EnsureSurfaces();
+
         // Save buttons on each canvas view.
         StrokeView.SaveRequested += async (_, _) => await SaveSurfaceAsPngAsync(_processed, "stroke.png");
         CompareProcessedView.SaveRequested += async (_, _) => await SaveSurfaceAsPngAsync(_processed, "processed.png");
@@ -154,6 +159,12 @@ public partial class MainWindow : Window
 
     private void EnsureSurfaces()
     {
+        // Bounds are in DIPs; the surfaces allocate at DIP * RenderScaling physical
+        // pixels so strokes render at the display's true resolution rather than being
+        // magnified by the compositor. Read the scaling every time — it changes when
+        // the window is dragged to a monitor with different DPI.
+        double scale = RenderScaling;
+
         // IsEffectivelyVisible is true only for the active tab's content — using it
         // (rather than checking Bounds) avoids picking a host whose layout from a
         // previous tab is still cached.
@@ -161,11 +172,11 @@ public partial class MainWindow : Window
                           : CompareProcessedView.IsEffectivelyVisible ? CompareProcessedView.Host
                           : null;
         if (processedHost is { } ph && ph.Bounds.Width > 0 && ph.Bounds.Height > 0)
-            _processed?.EnsureSize((int)ph.Bounds.Width, (int)ph.Bounds.Height);
+            _processed?.EnsureSize(ph.Bounds.Width, ph.Bounds.Height, scale);
 
         if (CompareRawView.IsEffectivelyVisible &&
             CompareRawView.Host.Bounds.Width > 0 && CompareRawView.Host.Bounds.Height > 0)
-            _raw?.EnsureSize((int)CompareRawView.Host.Bounds.Width, (int)CompareRawView.Host.Bounds.Height);
+            _raw?.EnsureSize(CompareRawView.Host.Bounds.Width, CompareRawView.Host.Bounds.Height, scale);
     }
 
     // ── Brush controls ──────────────────────────────────────────
