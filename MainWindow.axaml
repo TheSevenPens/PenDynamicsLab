@@ -207,7 +207,7 @@
                             </controls:SectionCard.CardContent>
                         </controls:SectionCard>
 
-                        <controls:SectionCard x:Name="ProcessingOrderCard" Title="PROCESSING ORDER">
+                        <controls:SectionCard x:Name="ProcessingOrderCard" Title="PROCESSING">
                             <controls:SectionCard.CardContent>
                             <StackPanel Spacing="4">
                                 <RadioButton x:Name="SmoothThenCurveRadio" GroupName="SmoothingOrder"

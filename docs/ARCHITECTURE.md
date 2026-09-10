@@ -18,7 +18,7 @@ MainWindow
     │       │   ├── LabeledSlider × N (Curve Amount, in/out range, flat level)
     │       │   └── Min approach radios
     │       ├── SMOOTHING (OFF) — algorithm combo (Passthrough / EMA) + reset, Smoothing Amount
-    │       ├── PROCESSING ORDER — smooth-then-curve / curve-then-smooth radios
+    │       ├── PROCESSING (S → C) — smooth-then-curve / curve-then-smooth radios
     │       └── PRESETS — empty-state text, saved list, "Save settings"
     ├── 1px splitter
     └── CanvasArea (DockPanel)

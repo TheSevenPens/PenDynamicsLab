@@ -368,9 +368,11 @@ public partial class MainWindow : Window
     // ── Card headers ────────────────────────────────────────────
 
     /// <summary>
-    /// Refresh the "(OFF)" suffixes. A stage is off when it currently does nothing:
-    /// smoothing when its amount is zero, the curve when it maps input to output
-    /// unchanged (see <see cref="CurveMath.IsIdentity"/>).
+    /// Refresh the card header suffixes, so each card's state is readable while collapsed.
+    /// Curve and Smoothing show "(OFF)" when the stage currently does nothing: smoothing
+    /// when passthrough or its amount is zero, the curve when it maps input to output
+    /// unchanged (see <see cref="CurveMath.IsIdentity"/>). Processing shows the order as
+    /// "(S → C)" or "(C → S)".
     /// </summary>
     private void UpdateCardStatuses()
     {
@@ -379,6 +381,9 @@ public partial class MainWindow : Window
         bool smoothingActive = _curveParams.SmoothingType != SmoothingType.Passthrough
                             && _curveParams.EmaSmoothing > 0;
         SmoothingCard.Status = smoothingActive ? "" : "(OFF)";
+
+        ProcessingOrderCard.Status =
+            _curveParams.SmoothingOrder == SmoothingOrder.SmoothThenCurve ? "(S → C)" : "(C → S)";
     }
 
     // ── Section resets ──────────────────────────────────────────
