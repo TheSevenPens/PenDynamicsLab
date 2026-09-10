@@ -93,7 +93,7 @@
         <!-- Body: left = curve chart + control cards, right = drawing canvases -->
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="780" />
+                <ColumnDefinition Width="652" />
                 <ColumnDefinition Width="1" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>

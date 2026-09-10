@@ -7,7 +7,7 @@ MainWindow
 ├── DriverWarningBanner (dismissible)
 ├── Top ribbon (API selector + pen telemetry)
 └── Body Grid
-    ├── Left panel (780 px) — chart column + card column
+    ├── Left panel (652 px) — chart column + card column
     │   ├── Chart column
     │   │   ├── PressureChartControl
     │   │   └── "Copy ▾" / "Save ▾" (each: Full chart | Plot area only) + status label
