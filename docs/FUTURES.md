@@ -38,7 +38,6 @@ The desktop port unlocks input the web app can't reach. The "Pen Dynamics" in th
 ## Technical improvements
 
 - **Test the bezier solver edge cases** — The suite is 23 tests, and `EvaluateCustomCurve` is currently exercised mostly on the linear preset and endpoints. Add tests for very-narrow segments (`span ≤ 1e-6` early return) and Step-preset shapes.
-- **Decompose `MainWindow`** — At ~880 lines it's the largest C# file, and it grew with the tabbed layout. The pressure pipeline (`ProcessPressure`, `SmoothPosition`, `ResolveActiveCanvas`, `DrawSegment`) could move to a `StrokeProcessor` class, and surface/tab plumbing (`EnsureSurfaces`, `UpdateBrushRibbonHost`) to a small view-coordinator, so the window only deals with UI wiring.
 - **Decompose `PressureChartControl`** — At ~800 lines, hit-testing, drag dispatch, and the bezier context menu could split out into a separate interaction layer.
 - **Tab-aware surface sizing is subtle** — Both `EnsureSurfaces` and `ResolveActiveCanvas` depend on `IsEffectivelyVisible` to avoid stale inactive-tab layout, and the raw surface only gets allocated once the compare tab has been shown. A small abstraction owning "the surfaces of the active tab" would make this less easy to break.
 - **`.gitattributes`** — Pin LF for source files to silence the CRLF warnings on commit.
