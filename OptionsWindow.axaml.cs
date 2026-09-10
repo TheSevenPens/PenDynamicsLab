@@ -12,21 +12,28 @@ namespace PenDynamicsLab;
 /// <remarks>
 /// Settings commit as they are made rather than on close, so this window owns no draft
 /// state and has nothing to roll back — <see cref="ThemeService.Set"/> both applies and
-/// persists. That is why the footer carries Close and not OK / Cancel: with the change
-/// already live behind the dialog, an OK button would imply a commit that already
-/// happened and a Cancel button would promise an undo that does not exist.
+/// persists, and the curve count writes straight to <see cref="UiSettings"/> and raises
+/// <see cref="UseTwoCurvesChanged"/>. That is why the footer carries Close and not
+/// OK / Cancel: with the change already live behind the dialog, an OK button would imply
+/// a commit that already happened and a Cancel button would promise an undo that does not
+/// exist.
 /// </remarks>
 public partial class OptionsWindow : Window
 {
     private readonly ThemeService _theme;
-    private bool _suppressThemeEvents;
+    private readonly UiSettings _settings;
+    private bool _suppress;
 
-    // Parameterless ctor for the XAML previewer only; the app always passes a service.
-    public OptionsWindow() : this(new ThemeService(new UiSettings())) { }
+    /// <summary>Raised when the user changes the curve count. The owner applies the layout.</summary>
+    public event EventHandler<bool>? UseTwoCurvesChanged;
 
-    public OptionsWindow(ThemeService theme)
+    // Parameterless ctor for the XAML previewer only; the app always passes its own.
+    public OptionsWindow() : this(new ThemeService(new UiSettings()), new UiSettings()) { }
+
+    public OptionsWindow(ThemeService theme, UiSettings settings)
     {
         _theme = theme;
+        _settings = settings;
 
         // Do NOT define InitializeComponent() here. The Avalonia source generator emits
         // one into the other half of this partial class; a hand-written copy shadows it,
@@ -35,26 +42,63 @@ public partial class OptionsWindow : Window
         // already.
         InitializeComponent();
 
-        _suppressThemeEvents = true;
+        _suppress = true;
         (_theme.Current switch
         {
             AppTheme.Light => LightRadio,
             AppTheme.Dark => DarkRadio,
             _ => SystemRadio,
         }).IsChecked = true;
-        _suppressThemeEvents = false;
+        (_settings.UseTwoCurves ? TwoCurveRadio : OneCurveRadio).IsChecked = true;
+        _suppress = false;
 
-        LightRadio.IsCheckedChanged += (_, _) => Choose(LightRadio, AppTheme.Light);
-        DarkRadio.IsCheckedChanged += (_, _) => Choose(DarkRadio, AppTheme.Dark);
-        SystemRadio.IsCheckedChanged += (_, _) => Choose(SystemRadio, AppTheme.System);
+        LightRadio.IsCheckedChanged += (_, _) => ChooseTheme(LightRadio, AppTheme.Light);
+        DarkRadio.IsCheckedChanged += (_, _) => ChooseTheme(DarkRadio, AppTheme.Dark);
+        SystemRadio.IsCheckedChanged += (_, _) => ChooseTheme(SystemRadio, AppTheme.System);
+
+        OneCurveRadio.IsCheckedChanged += (_, _) => ChooseCurveCount(OneCurveRadio, false);
+        TwoCurveRadio.IsCheckedChanged += (_, _) => ChooseCurveCount(TwoCurveRadio, true);
+
+        AppearanceRail.Click += (_, _) => Select(appearance: true);
+        CurvesRail.Click += (_, _) => Select(appearance: false);
+
+        Select(appearance: true);
     }
 
-    private void Choose(RadioButton source, AppTheme theme)
+    private void Select(bool appearance)
+    {
+        AppearancePane.IsVisible = appearance;
+        CurvesPane.IsVisible = !appearance;
+
+        // The tone itself lives in the window's styles, keyed off this class — see the
+        // note there for why it cannot be set from here.
+        AppearanceRail.Classes.Set("selected", appearance);
+        CurvesRail.Classes.Set("selected", !appearance);
+    }
+
+    private void ChooseTheme(RadioButton source, AppTheme theme)
     {
         // A group of radios raises the event twice per change — once for the one being
         // cleared, once for the one being set. Only the latter is a choice.
-        if (_suppressThemeEvents || source.IsChecked != true) return;
+        if (_suppress || source.IsChecked != true) return;
         _theme.Set(theme);
+    }
+
+    private void ChooseCurveCount(RadioButton source, bool useTwo)
+    {
+        if (_suppress || source.IsChecked != true) return;
+        if (_settings.UseTwoCurves == useTwo) return;
+
+        _settings.UseTwoCurves = useTwo;
+        UseTwoCurvesChanged?.Invoke(this, useTwo);
+    }
+
+    /// <summary>Reflects a curve count the owner changed on its own — a preset load, say.</summary>
+    public void SyncCurveCount()
+    {
+        _suppress = true;
+        (_settings.UseTwoCurves ? TwoCurveRadio : OneCurveRadio).IsChecked = true;
+        _suppress = false;
     }
 
     private void Close_Click(object? sender, RoutedEventArgs e) => Close();

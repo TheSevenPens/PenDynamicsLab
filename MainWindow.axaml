@@ -295,16 +295,16 @@
                      of a little space either side of each plot. The alternative, narrowing
                      the chart column, would break the equal columns these were built to. -->
                 <StackPanel Grid.Column="1" Margin="7,12,14,12" Spacing="6">
-                    <Border Background="{DynamicResource Pdl.Surface}" BorderBrush="{DynamicResource Pdl.Divider}" BorderThickness="1"
+                    <Border x:Name="Chart1Card" Background="{DynamicResource Pdl.Surface}" BorderBrush="{DynamicResource Pdl.Divider}" BorderThickness="1"
                             CornerRadius="8" Padding="10,7,10,8">
                         <StackPanel Spacing="5">
-                            <TextBlock Text="Pressure curve 1" FontSize="12" FontWeight="SemiBold"
+                            <TextBlock x:Name="Chart1Title" Text="Pressure curve 1" FontSize="12" FontWeight="SemiBold"
                                        Foreground="{DynamicResource Pdl.Text}" />
                             <controls:PressureChartControl x:Name="PressureChart" MaxWidth="170" HorizontalAlignment="Center" />
                         </StackPanel>
                     </Border>
 
-                    <Border Background="{DynamicResource Pdl.Surface}" BorderBrush="{DynamicResource Pdl.Divider}" BorderThickness="1"
+                    <Border x:Name="Chart2Card" Background="{DynamicResource Pdl.Surface}" BorderBrush="{DynamicResource Pdl.Divider}" BorderThickness="1"
                             CornerRadius="8" Padding="10,7,10,8">
                         <StackPanel Spacing="5">
                             <TextBlock Text="Pressure curve 2" FontSize="12" FontWeight="SemiBold"
@@ -314,7 +314,7 @@
                     </Border>
 
                     <!-- Derived, not edited: accent border and trace, no draggable nodes. -->
-                    <Border Background="{DynamicResource Pdl.Surface}" BorderBrush="{DynamicResource Pdl.Accent}" BorderThickness="1"
+                    <Border x:Name="EffectiveCard" Background="{DynamicResource Pdl.Surface}" BorderBrush="{DynamicResource Pdl.Accent}" BorderThickness="1"
                             CornerRadius="8" Padding="10,7,10,8">
                         <StackPanel Spacing="5">
                             <DockPanel>

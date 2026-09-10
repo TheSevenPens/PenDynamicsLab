@@ -135,6 +135,7 @@ public partial class MainWindow : Window
 
         BrushRibbon.ClearRequested += (_, _) => ClearCanvases();
         InitializeCurveControls();
+        ApplyCurveCount(_uiSettings.UseTwoCurves);
         InitializeResponseSection();
         RebuildUserPresetList();
 
@@ -336,8 +337,9 @@ public partial class MainWindow : Window
 
         // Processing always names the order; the tone says whether the order decides
         // anything, which it only does while both smoothing and the curves alter the signal.
+        string chain = _uiSettings.UseTwoCurves ? "C1 → C2" : "C";
         ProcessingOrderCard.Status =
-            _curveParams.SmoothingOrder == SmoothingOrder.SmoothThenCurve ? "S → C1 → C2" : "C1 → C2 → S";
+            _curveParams.SmoothingOrder == SmoothingOrder.SmoothThenCurve ? $"S → {chain}" : $"{chain} → S";
         ProcessingOrderCard.StatusKind = StageStatus.Processing(_curveParams) == StageState.On
             ? StatusTone.Active
             : StatusTone.Neutral;
@@ -715,7 +717,63 @@ public partial class MainWindow : Window
     /// visibly behind it, which is the whole preview.
     /// </summary>
     private async void Options_Click(object? sender, RoutedEventArgs e)
-        => await new OptionsWindow(_theme).ShowDialog(this);
+    {
+        var dialog = new OptionsWindow(_theme, _uiSettings);
+        dialog.UseTwoCurvesChanged += (_, useTwo) => ApplyCurveCount(useTwo);
+        await dialog.ShowDialog(this);
+    }
+
+    // ── Curve count ─────────────────────────────────────────────
+
+    /// <summary>Curve 2's settings while it is switched off, so switching back restores them.</summary>
+    private CurveSettings _parkedCurve2 = CurveSettings.Default;
+
+    /// <summary>
+    /// Shows or hides the second curve — its card, its chart, and the effective chart.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Switching to one curve sets <c>Curve2</c> to Passthrough rather than merely hiding
+    /// it. A setting that is not on screen but still shapes the output is exactly the bug
+    /// removed from Basic, and the rule the whole pipeline is held to: what you cannot see
+    /// is not applied. Its settings are parked so the way back is lossless.
+    /// </para>
+    /// <para>
+    /// The effective chart goes with it. With one curve the effective curve <em>is</em>
+    /// curve 1 — the same line drawn twice — and the numbering comes off the remaining card
+    /// and chart, because a number with nothing to distinguish it from is noise.
+    /// </para>
+    /// </remarks>
+    private void ApplyCurveCount(bool useTwo)
+    {
+        if (useTwo)
+        {
+            UpdateParams(p => p with { Curve2 = _parkedCurve2 });
+        }
+        else
+        {
+            _parkedCurve2 = _curveParams.Curve2;
+            UpdateParams(p => p with { Curve2 = CurveSettings.Default });
+        }
+
+        Curve2Card.IsVisible = useTwo;
+        Chart2Card.IsVisible = useTwo;
+        EffectiveCard.IsVisible = useTwo;
+
+        Curve1Card.Title = useTwo ? "Curve 1" : "Curve";
+        Chart1Title.Text = useTwo ? "Pressure curve 1" : "Pressure curve";
+
+        // The order labels name the curves, so they change with the count.
+        _suppressCurveControlEvents = true;
+        int order = ProcessingOrderCombo.SelectedIndex;
+        ProcessingOrderCombo.Items.Clear();
+        foreach (var so in Enum.GetValues<SmoothingOrder>())
+            ProcessingOrderCombo.Items.Add(FormatSmoothingOrder(so));
+        ProcessingOrderCombo.SelectedIndex = order;
+        _suppressCurveControlEvents = false;
+
+        SyncCurveControlsFromParams();
+    }
 
     /// <summary>Hide for this session only.</summary>
     private void DriverTipDismiss_Click(object? sender, RoutedEventArgs e)
@@ -748,7 +806,19 @@ public partial class MainWindow : Window
                 if (_presetStore.Get(name) is { } p)
                 {
                     _curveParams = p.Params;
-                    SyncCurveControlsFromParams();
+
+                    // A preset holding a real curve 2 has to switch the second curve on,
+                    // or half of it would apply with nothing on screen to show it.
+                    if (p.Params.Curve2.CurveType != CurveType.Passthrough && !_uiSettings.UseTwoCurves)
+                    {
+                        _uiSettings.UseTwoCurves = true;
+                        _parkedCurve2 = p.Params.Curve2;
+                        ApplyCurveCount(true);
+                    }
+                    else
+                    {
+                        SyncCurveControlsFromParams();
+                    }
                 }
             };
             var renameItem = new MenuItem { Header = "Rename..." };
@@ -796,12 +866,13 @@ public partial class MainWindow : Window
         };
     }
 
-    private static string FormatSmoothingOrder(SmoothingOrder so) => so switch
+    // Plural only when there are two: smoothing runs before or after the PAIR, never
+    // between them. Smoothing between curve 1 and curve 2 would be a third order and is
+    // not offered.
+    private string FormatSmoothingOrder(SmoothingOrder so) => so switch
     {
-        // Plural: smoothing runs before or after the PAIR, not between them. Smoothing
-        // between curve 1 and curve 2 would be a third order and is not offered.
-        SmoothingOrder.SmoothThenCurve => "Smooth then curves",
-        SmoothingOrder.CurveThenSmooth => "Curves then smooth",
+        SmoothingOrder.SmoothThenCurve => _uiSettings.UseTwoCurves ? "Smooth then curves" : "Smooth then curve",
+        SmoothingOrder.CurveThenSmooth => _uiSettings.UseTwoCurves ? "Curves then smooth" : "Curve then smooth",
         _ => so.ToString(),
     };
 

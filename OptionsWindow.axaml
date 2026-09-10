@@ -7,13 +7,50 @@
         Background="{DynamicResource Pdl.Pane}"
         FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13">
 
-    <!-- Category rail on the left, detail pane on the right. The rail carries one entry
-         today; the shape is chosen so a second option group is one more row rather than
-         a taller dialog.
+    <Window.Styles>
+        <!-- Rail rows: flat buttons so they are keyboard-reachable, wearing the same
+             Active pill pair the card headers use when selected.
 
-         There is no OK / Cancel: a theme choice takes effect the moment it is made, the
-         way the Windows settings this mirrors do, which also makes the app behind the
-         dialog the preview. Close is the only button, and it only closes. -->
+             Toned with styles rather than by setting Background in code. Fluent paints a
+             button's fill on the template's ContentPresenter, and its :pointerover setter
+             wins over a locally-set Button.Background — so a code-set selection colour
+             simply vanishes under the cursor. Styles also let the tone come from
+             DynamicResource, which a code-set brush cannot do without re-toning on every
+             theme change. -->
+        <Style Selector="Button.rail">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{DynamicResource Pdl.Text}" />
+        </Style>
+        <Style Selector="Button.rail /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.rail:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Pdl.NeutralFill}" />
+        </Style>
+        <Style Selector="Button.rail.selected">
+            <Setter Property="Foreground" Value="{DynamicResource Pdl.ActiveInk}" />
+        </Style>
+        <Style Selector="Button.rail.selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Pdl.ActiveFill}" />
+        </Style>
+        <Style Selector="Button.rail.selected:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Pdl.ActiveFill}" />
+        </Style>
+    </Window.Styles>
+
+    <!-- Category rail on the left, detail pane on the right, so a further option group is
+         one more row rather than a taller dialog.
+
+         There is no OK / Cancel: a choice takes effect the moment it is made, the way the
+         Windows settings this mirrors do, which also makes the app behind the dialog the
+         preview. Close is the only button, and it only closes. -->
     <DockPanel>
 
         <Border DockPanel.Dock="Bottom" Background="{DynamicResource Pdl.Pane}"
@@ -32,36 +69,55 @@
                 BorderBrush="{DynamicResource Pdl.Divider}" BorderThickness="0,0,1,0"
                 Padding="8,12">
             <StackPanel Spacing="2">
-                <Border Background="{DynamicResource Pdl.ActiveFill}" CornerRadius="4"
-                        Height="32" Padding="12,0">
-                    <TextBlock Text="Appearance" FontSize="13"
-                               Foreground="{DynamicResource Pdl.ActiveInk}"
-                               VerticalAlignment="Center" />
-                </Border>
+                <Button x:Name="AppearanceRail" Classes="rail" Content="Appearance" />
+                <Button x:Name="CurvesRail" Classes="rail" Content="Curves" />
             </StackPanel>
         </Border>
 
-        <Border Background="{DynamicResource Pdl.Surface}" Padding="16" MinHeight="190">
-            <StackPanel Spacing="14">
-                <TextBlock Text="Appearance" FontWeight="SemiBold" FontSize="13"
-                           Foreground="{DynamicResource Pdl.Text}" />
+        <Border Background="{DynamicResource Pdl.Surface}" Padding="16" MinHeight="210">
 
-                <StackPanel Spacing="10">
-                    <TextBlock Text="Theme" FontSize="12"
-                               Foreground="{DynamicResource Pdl.Muted}" />
+            <Panel>
+                <StackPanel x:Name="AppearancePane" Spacing="14">
+                    <TextBlock Text="Appearance" FontWeight="SemiBold" FontSize="13"
+                               Foreground="{DynamicResource Pdl.Text}" />
 
-                    <RadioButton x:Name="LightRadio" GroupName="Theme" Content="Light" />
-                    <RadioButton x:Name="DarkRadio" GroupName="Theme" Content="Dark" />
-                    <RadioButton x:Name="SystemRadio" GroupName="Theme">
-                        <StackPanel Spacing="2">
-                            <TextBlock Text="Follow system" />
-                            <TextBlock Text="Uses the Windows app mode setting, and tracks it while the app is open."
-                                       FontSize="12" TextWrapping="Wrap"
-                                       Foreground="{DynamicResource Pdl.Muted}" />
-                        </StackPanel>
-                    </RadioButton>
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Theme" FontSize="12"
+                                   Foreground="{DynamicResource Pdl.Muted}" />
+
+                        <RadioButton x:Name="LightRadio" GroupName="Theme" Content="Light" />
+                        <RadioButton x:Name="DarkRadio" GroupName="Theme" Content="Dark" />
+                        <RadioButton x:Name="SystemRadio" GroupName="Theme">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Follow system" />
+                                <TextBlock Text="Uses the Windows app mode setting, and tracks it while the app is open."
+                                           FontSize="12" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource Pdl.Muted}" />
+                            </StackPanel>
+                        </RadioButton>
+                    </StackPanel>
                 </StackPanel>
-            </StackPanel>
+
+                <StackPanel x:Name="CurvesPane" Spacing="14" IsVisible="False">
+                    <TextBlock Text="Curves" FontWeight="SemiBold" FontSize="13"
+                               Foreground="{DynamicResource Pdl.Text}" />
+
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Pressure curves" FontSize="12"
+                                   Foreground="{DynamicResource Pdl.Muted}" />
+
+                        <RadioButton x:Name="OneCurveRadio" GroupName="CurveCount" Content="One" />
+                        <RadioButton x:Name="TwoCurveRadio" GroupName="CurveCount">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Two, applied in series" />
+                                <TextBlock Text="Adds a second curve that shapes the first one's output, and a chart showing the pair combined."
+                                           FontSize="12" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource Pdl.Muted}" />
+                            </StackPanel>
+                        </RadioButton>
+                    </StackPanel>
+                </StackPanel>
+            </Panel>
         </Border>
 
     </DockPanel>

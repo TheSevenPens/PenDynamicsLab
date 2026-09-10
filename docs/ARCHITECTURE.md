@@ -194,7 +194,9 @@ Two deliberate exclusions:
 - **`Pdl.CanvasPaper` is identical in both themes.** The drawing surface keeps its paper: strokes default to black, so a dark canvas would swallow them, and a canvas exported from dark would not match one exported from light. Theme is one setting, not two. It needs no border of its own either — the canvas header's divider and the pane splitter already bound it.
 
 ### `OptionsWindow`
-Global app options, opened by the gear at the right end of the telemetry ribbon. A category rail on the left (Appearance today) and a detail pane on the right, so a second option group is one more row rather than a taller dialog.
+Global app options, opened by the gear at the right end of the telemetry ribbon. A category rail on the left (Appearance, Curves) and a detail pane on the right, so a further option group is one more row rather than a taller dialog.
+
+> **Rail rows are toned by a style class, not from code.** Fluent paints a button's fill on the template's `ContentPresenter`, and its `:pointerover` setter beats a locally-set `Button.Background` — so a code-set selection colour vanishes under the cursor. Styles also let the tone come from `{DynamicResource}`, which a code-set brush cannot without re-toning on every theme change.
 
 The gear is declared **before** `DriverTipChip` in the ribbon's `DockPanel`, which fills in child order, so it takes the outermost right slot. The tip chip beside it is dismissible; the other order would slide the gear sideways the moment the tip went away.
 
@@ -206,6 +208,16 @@ The controls for one curve — type combo, the sliders that type uses, the bezie
 It exists so a second curve costs one more instance rather than a second copy of ten named controls and their handlers. It never writes to its own `Curve` property from its event handlers: it raises `CurveChanged` and `MainWindow` writes back, so exactly one place decides what the current parameters are.
 
 > **Radio groups are matched by name across the whole window.** Two instances sharing `GroupName="MinApproach"` would let curve 2's *Cut* clear curve 1's *Clamp*. The constructor gives each instance its own group name.
+
+### Curve count
+
+`UiSettings.UseTwoCurves` (off by default) drives `MainWindow.ApplyCurveCount`, which shows or hides the Curve 2 card, its chart, and the effective chart.
+
+Switching to one curve sets `Curve2` to **Passthrough** rather than merely hiding it. A setting that is off screen but still shapes the output is exactly the bug removed from Basic, and the rule the whole pipeline is held to: what you cannot see is not applied. The old settings are parked in `_parkedCurve2` so the way back is lossless.
+
+Three things follow the count: the effective chart disappears (with one curve it *is* curve 1, the same line drawn twice), the remaining card and chart lose their numbers (a number with nothing to distinguish it from is noise), and the Processing pill and order labels go singular — `S → C` rather than `S → C1 → C2`.
+
+Loading a preset whose `Curve2` is not Passthrough switches the count to two. Otherwise half the preset would apply with nothing on screen to show it.
 
 ### Chart card sizing
 
@@ -423,7 +435,7 @@ Pen events come from `IPenSession` (WinPenKit, referenced as a sibling project �
 ## Key design points
 
 1. **Immutable params record** — `PressureCurveParams` is a `record` with `init` properties. Every change is a `with { ... }` rebuild, which makes change detection and parity-test reasoning straightforward.
-2. **Pure math separation** — `Curves/CurveMath.cs` has no Avalonia or SkiaSharp dependencies. The xUnit project pins behavior with 127 tests against analytically-derived values.
+2. **Pure math separation** — `Curves/CurveMath.cs` has no Avalonia or SkiaSharp dependencies. The xUnit project pins behavior with 131 tests against analytically-derived values.
 3. **Avalonia DrawingContext for charts; SkiaSharp for canvases** — Charts are simple line geometry and benefit from Avalonia's text rendering + transform stack. The drawing canvases need many small antialiased strokes per frame, where SkiaSharp via `SKBitmap`/`WriteableBitmap` interop is faster.
 4. **Single owner of state** — `MainWindow` holds the params and the surfaces; everything else is a leaf control receiving values via StyledProperties or queried for its current value. Even the chart's own edits round-trip through this owner.
 5. **One surface, many views** — `DrawSurface` supports multiple `Image` hosts so the processed canvas is shared between tabs rather than copied. Sizing and hit-testing both key off `IsEffectivelyVisible` to avoid stale inactive-tab layout.

@@ -33,6 +33,12 @@ public sealed class UiSettings
         /// of the desktop rather than announcing an opinion the user never expressed.
         /// </summary>
         public AppTheme Theme { get; init; } = AppTheme.System;
+
+        /// <summary>
+        /// Whether the pipeline shows a second curve. Off by default: one curve is what
+        /// most sessions want, and the second one exists for specific comparisons.
+        /// </summary>
+        public bool UseTwoCurves { get; init; }
     }
 
     // Enums as names, not ordinals: the file is meant to be readable, and adding a theme
@@ -72,6 +78,17 @@ public sealed class UiSettings
         {
             if (_model.Theme == value) return;
             _model = _model with { Theme = value };
+            Save();
+        }
+    }
+
+    public bool UseTwoCurves
+    {
+        get => _model.UseTwoCurves;
+        set
+        {
+            if (_model.UseTwoCurves == value) return;
+            _model = _model with { UseTwoCurves = value };
             Save();
         }
     }

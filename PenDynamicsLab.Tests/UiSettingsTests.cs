@@ -63,6 +63,44 @@ public class UiSettingsTests : IDisposable
         Assert.True(reloaded.DriverTipDismissed);
     }
 
+    // ── Curve count ──────────────────────────────────────────────
+
+    [Fact]
+    public void UseTwoCurves_DefaultsToOff()
+        // One curve is what most sessions want; the second exists for specific comparisons.
+        => Assert.False(new UiSettings(_path).UseTwoCurves);
+
+    [Fact]
+    public void UseTwoCurves_SurvivesAReload()
+    {
+        new UiSettings(_path).UseTwoCurves = true;
+        Assert.True(new UiSettings(_path).UseTwoCurves);
+    }
+
+    [Fact]
+    public void SettingsFileWithoutACurveCount_LoadsAsOne()
+    {
+        // What an install from before this setting has on disk.
+        File.WriteAllText(_path, "{ \"Theme\": \"Dark\" }");
+
+        var settings = new UiSettings(_path);
+        Assert.False(settings.UseTwoCurves);
+        Assert.Equal(AppTheme.Dark, settings.Theme);
+    }
+
+    [Fact]
+    public void TheThreePreferencesDoNotOverwriteEachOther()
+    {
+        var settings = new UiSettings(_path) { Theme = AppTheme.Light };
+        settings.DriverTipDismissed = true;
+        settings.UseTwoCurves = true;
+
+        var reloaded = new UiSettings(_path);
+        Assert.Equal(AppTheme.Light, reloaded.Theme);
+        Assert.True(reloaded.DriverTipDismissed);
+        Assert.True(reloaded.UseTwoCurves);
+    }
+
     [Fact]
     public void AnUnreadableFile_FallsBackToDefaults_RatherThanThrowing()
     {
