@@ -9,7 +9,8 @@ MainWindow
     ├── Left panel (472 px) — two equal-width columns, settings before curve
     │   ├── Settings column
     │   │   ├── ScrollViewer — SectionCard × 3
-    │   │   │   ├── Curve  [Off | On · no effect | On]
+    │   │   │   ├── Curve 1  [Off | On · no effect | On] — CurveEditorView
+    │   │   │   ├── Curve 2  [Off | On · no effect | On] — CurveEditorView
     │   │   │   │   ├── Curve type combo + type-scoped reset
     │   │   │   │   ├── Bezier toolbar (Add / Remove / count / preset combo, Bezier only)
     │   │   │   │   ├── LabeledSlider × N (Curve Amount, in/out range, flat level)
@@ -18,7 +19,9 @@ MainWindow
     │   │   │   └── Processing  [S → C] — smooth-then-curve / curve-then-smooth dropdown
     │   │   └── Presets (pinned to the bottom row) — empty-state text, saved list, "Save current settings"
     │   └── Curve column
-    │       ├── "Pressure curve" card → PressureChartControl (export on its right-click menu)
+    │       ├── "Pressure curve 1" card → PressureChartControl (export on its right-click menu)
+    │       ├── "Pressure curve 2" card → PressureChartControl
+    │       ├── "Effective pressure curve" card [pill] → EffectiveCurveChartControl (read-only)
     │       └── transient status label ("Copied")
     ├── 1px splitter
     └── CanvasArea (DockPanel)
@@ -124,7 +127,7 @@ A `UserControl` toolbar: brush size slider, colour mode and pressure-target drop
 Exactly **one** instance exists, created in the `MainWindow` field initializer and moved between `StrokeBrushSlot` and `CompareBrushSlot` on tab change (`UpdateBrushRibbonHost`). A control can have only one logical parent in Avalonia, so both slots are cleared before assigning to the active one. On the Pressure response tab the ribbon stays detached. This keeps brush settings identical across the stroke tabs with no state syncing.
 
 ### `PressureChartControl`
-Custom `Control` rendering with Avalonia's `DrawingContext`. Handles:
+Editor for **one** `CurveSettings`; two instances are curve 1 and curve 2. Custom `Control` rendering with Avalonia's `DrawingContext`. Handles:
 - Curve trace for all curve types (passthrough / flat / power / inverted / sigmoid / bezier)
 - Standard min/max control nodes (pink/cyan) with optional dashed projection guides — shown only for the types `CurveMath.UsesRangeControls` names, so a node can never appear on a curve that would ignore it
 - Bezier anchors + handles with selection highlight
@@ -161,7 +164,7 @@ _raw       ──► CompareRawView.Image
 `DrawSurface` is also where Avalonia's layout units are reconciled with physical pixels — see [HiDPI](#hidpi-dips-vs-physical-pixels) below, which is required reading before changing anything in this class.
 
 ### `CurveMath` (static)
-Pure math, no Avalonia dependencies — covered directly by the xUnit project. The public surface is `ApplyPressureCurve`, `RawCurveOutput`, `EvaluateCustomCurve`, `NormalizeBezierPoints`, and `UsesRangeControls`, which is the single source of truth for which curve types honour the input/output range fields — the evaluator, the chart's min/max nodes and `StageStatus` all defer to it rather than repeating the list.
+Pure math, no Avalonia dependencies — covered directly by the xUnit project. The public surface is `ApplyCurve` (one curve), `ApplyPressureCurve` (the pair composed: `ApplyCurve(ApplyCurve(x, Curve1), Curve2)`), `RawCurveOutput`, `EvaluateCustomCurve`, `NormalizeBezierPoints`, and `UsesRangeControls`, which is the single source of truth for which curve types honour the input/output range fields — the evaluator, the chart's min/max nodes and `StageStatus` all defer to it rather than repeating the list.
 
 The bezier solver (`BuildCustomSegments`, `CubicAt`, `SolveBezierTForX`) is private: callers go through `EvaluateCustomCurve`. `SigmoidSteepness` (14) and `SigmoidLinearThreshold` (0.01) are exposed as constants so the "no effect" pill can mirror the exact threshold below which the evaluator degenerates to a straight line, instead of guessing at one.
 
@@ -197,6 +200,18 @@ The gear is declared **before** `DriverTipChip` in the ribbon's `DockPanel`, whi
 
 There is no OK / Cancel. `ThemeService.Set` applies and persists in one call, so the window owns no draft state and has nothing to roll back — and with the change already live behind a modal dialog, the app itself is the preview. Close is the only button.
 
+### `CurveEditorView`
+The controls for one curve — type combo, the sliders that type uses, the bezier toolbar, the reset button. Two instances are curve 1 and curve 2.
+
+It exists so a second curve costs one more instance rather than a second copy of ten named controls and their handlers. It never writes to its own `Curve` property from its event handlers: it raises `CurveChanged` and `MainWindow` writes back, so exactly one place decides what the current parameters are.
+
+> **Radio groups are matched by name across the whole window.** Two instances sharing `GroupName="MinApproach"` would let curve 2's *Cut* clear curve 1's *Clamp*. The constructor gives each instance its own group name.
+
+### `EffectiveCurveChartControl`
+Draws the mapping the brush actually obeys — curve 1 with curve 2 applied over its output — sampled per pixel across [0, 1], plus the identity diagonal to read it against.
+
+Deliberately **not** a mode of `PressureChartControl`. That control is an editor: hit-testing, drag dispatch, a bezier context menu, draggable range nodes. None of it applies to a composition, which cannot be dragged — there is no single answer to which of the two curves a moved point should change. Keeping them apart means the read-only chart carries no interaction code that has to be conditionally switched off, which is how a "read-only" mode ends up editable by accident.
+
 ### `StageStatus` (static)
 Resolves each pipeline stage to a `StageState` — `Off` when the stage is set to Passthrough, `NoEffect` when it is running but its settings mean output equals input, `On` otherwise — which `MainWindow.UpdateCardStatuses` renders as the header pills.
 
@@ -210,7 +225,9 @@ The test is **structural, not numerical**. An earlier version sampled the mappin
 Only the fields the current type actually uses are touched, because all six curve types share the one `PressureCurveParams`: a blanket reset would silently discard a Bezier you had shaped while you were sitting in Basic, where none of it is even on screen. Under Passthrough there is nothing on screen to restore, so the button is disabled rather than left as a silent no-op.
 
 ### `PresetStore`
-Loads/saves the user's named curve presets from `%LOCALAPPDATA%\PenDynamicsLab\presets.json`. JSON via `System.Text.Json` with `JsonStringEnumConverter` so enums are readable in the file. Beyond `Save` / `Delete` / `Get` it offers `Rename` (in place, keeping list position) and `NextAvailableName`.
+Loads/saves the user's named curve presets from `%LOCALAPPDATA%\PenDynamicsLab\presets.json`. JSON via `System.Text.Json` with `JsonStringEnumConverter` so enums are readable in the file, and `PressureCurveParamsConverter` so presets saved before curve 2 existed still load.
+
+That converter reads both shapes — the current one with `Curve1`/`Curve2`, and the legacy one with the curve's fields flat on the object — detecting by the presence of `Curve1` rather than a version number, which would have had to exist before it was needed. A legacy preset loads as **curve 1 with curve 2 at Passthrough**, which is the same mapping it always was: a single curve and a curve followed by a bypass are the same function. Writing is always the current shape, so opening a legacy preset and saving migrates it. Beyond `Save` / `Delete` / `Get` it offers `Rename` (in place, keeping list position) and `NextAvailableName`.
 
 Saving takes a generated `Preset N` rather than prompting, so it stays one click; naming moves to Rename, which is when a name is worth thinking about — by then you know what the preset turned out to be. Each row carries a single `···` menu (Load / Rename / Delete) rather than a Load button beside a glyph button, which never lined up and had nowhere to put rename.
 
@@ -325,11 +342,21 @@ Stroke state (last position, smoothed pressure, live indicators) resets when:
 
 ## Data model
 
-`PressureCurveParams` (immutable record in `Curves/`):
+`PressureCurveParams` (immutable record in `Curves/`) holds the pipeline; `CurveSettings` holds one curve, and the pipeline holds two of them:
+
+| Field | Type | Purpose |
+|---|---|---|
+| `Curve1` | `CurveSettings` | Shapes the pen's pressure |
+| `Curve2` | `CurveSettings` | Shapes what curve 1 produced |
+| `SmoothingType` | `SmoothingType` enum | Passthrough, Ema; Passthrough skips smoothing entirely |
+| `EmaSmoothing` | `double` 0-0.99 | Pressure EMA smoothing amount (ignored when Passthrough) |
+| `SmoothingOrder` | `SmoothingOrder` enum | Whether smoothing runs before or after **both** curves |
+
+`CurveSettings`:
 
 | Field | Type | Range | Purpose |
 |---|---|---|---|
-| `CurveType` | `CurveType` enum | Passthrough, Flat, Basic, Extended, Inverted, Sigmoid, Bezier | Active curve algorithm. The declaration order is the dropdown order: the combo is filled by iterating the enum and selected by casting to `int`. |
+| `CurveType` | `CurveType` enum | Passthrough, Flat, Basic, Extended, Inverted, Sigmoid, Bezier | Curve algorithm. The declaration order is the dropdown order: the combo is filled by iterating the enum and selected by casting to `int`. |
 | `Softness` | `double` | -0.9 to 0.9 (Sigmoid: 0 to 0.95) | Power exponent / sigmoid steepness |
 | `InputMinimum` | `double` | 0-1 | Start of input pressure range (Extended / Sigmoid only) |
 | `InputMaximum` | `double` | 0-1 | End of input pressure range (Extended / Sigmoid only) |
@@ -338,15 +365,14 @@ Stroke state (last position, smoothed pressure, live indicators) resets when:
 | `MinApproach` | `MinApproach` enum | Clamp, Cut | Behavior below input minimum (Extended / Sigmoid only) |
 | `FlatLevel` | `double` | 0-1 | Constant output for flat curve |
 | `BezierPoints` | `ImmutableArray<BezierPoint>` | 2-16 points | Bezier control points |
-| `SmoothingType` | `SmoothingType` enum | Passthrough, Ema | Smoothing algorithm; Passthrough skips smoothing entirely |
-| `EmaSmoothing` | `double` | 0-0.99 | Pressure EMA smoothing amount (ignored when Passthrough) |
-| `SmoothingOrder` | `SmoothingOrder` enum | SmoothThenCurve, CurveThenSmooth | Pipeline order |
 
 `BezierPoint`: `(X, Y, InX, InY, OutX, OutY, HandleMode)` — anchor + in handle + out handle + Broken/Mirrored mode.
 
 Every curve type shares this one record, so fields the active type does not use still hold whatever the last type that used them left behind. Two rules follow from that, and both are load-bearing: `CurveMath.UsesRangeControls` gates the five range fields at evaluation time, so Basic cannot silently apply values it never shows; and `CurveDefaults` scopes reset to the active type, so resetting one type cannot discard another's work.
 
-`Default` has both `CurveType` and `SmoothingType` at `Passthrough`, so a fresh session applies nothing and what you draw is the pen's raw behaviour. Changing a default is not a local edit: a preset whose JSON predates a field takes that field's initializer here, so flipping one silently rewrites how already-saved presets behave.
+`Default` has both curves and `SmoothingType` at `Passthrough`, so a fresh session applies nothing and what you draw is the pen's raw behaviour. Changing a default is not a local edit: a preset whose JSON predates a field takes that field's initializer here, so flipping one silently rewrites how already-saved presets behave.
+
+> **`CurveSettings` is a record, so `==` looks like value equality — but `ImmutableArray<T>` compares by reference.** Two settings with identical bezier points, one of them just deserialized, are *not* equal. Compare the points with `SequenceEqual` when it matters.
 
 Brush settings (`ColorMode`, `PressureControl`, brush size, draw-at-zero) are deliberately **not** part of this record — they're view state on `BrushRibbon` and aren't saved with user presets.
 
@@ -381,7 +407,7 @@ Pen events come from `IPenSession` (WinPenKit, referenced as a sibling project �
 ## Key design points
 
 1. **Immutable params record** — `PressureCurveParams` is a `record` with `init` properties. Every change is a `with { ... }` rebuild, which makes change detection and parity-test reasoning straightforward.
-2. **Pure math separation** — `Curves/CurveMath.cs` has no Avalonia or SkiaSharp dependencies. The xUnit project pins behavior with 92 tests against analytically-derived values.
+2. **Pure math separation** — `Curves/CurveMath.cs` has no Avalonia or SkiaSharp dependencies. The xUnit project pins behavior with 127 tests against analytically-derived values.
 3. **Avalonia DrawingContext for charts; SkiaSharp for canvases** — Charts are simple line geometry and benefit from Avalonia's text rendering + transform stack. The drawing canvases need many small antialiased strokes per frame, where SkiaSharp via `SKBitmap`/`WriteableBitmap` interop is faster.
 4. **Single owner of state** — `MainWindow` holds the params and the surfaces; everything else is a leaf control receiving values via StyledProperties or queried for its current value. Even the chart's own edits round-trip through this owner.
 5. **One surface, many views** — `DrawSurface` supports multiple `Image` hosts so the processed canvas is shared between tabs rather than copied. Sizing and hit-testing both key off `IsEffectivelyVisible` to avoid stale inactive-tab layout.

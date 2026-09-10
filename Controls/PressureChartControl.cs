@@ -9,7 +9,9 @@ using System.Collections.Immutable;
 namespace PenDynamicsLab.Controls;
 
 /// <summary>
-/// Visualization + editor for a <see cref="PressureCurveParams"/>. Mirrors
+/// Visualization + editor for ONE <see cref="CurveSettings"/>. Two instances run in
+/// series (curve 1 and curve 2); their composition is drawn by EffectiveCurveChartControl,
+/// which is read-only. Mirrors
 /// WebPressureExplorer's PressureChart.svelte: read-only curve trace plus draggable
 /// min/max control nodes (power/sigmoid/extended) or full bezier anchor/handle editing.
 /// </summary>
@@ -51,14 +53,14 @@ public sealed class PressureChartControl : Control
     private IPen BezierHandleStemPen = new Pen(new SolidColorBrush(Color.FromArgb(0x38, 0, 0, 0)), 1);
     private IPen BezierHandleOutlinePen = new Pen(new SolidColorBrush(Color.FromRgb(0x22, 0x55, 0xCC)), 1.3);
 
-    public static readonly StyledProperty<PressureCurveParams> ParamsProperty =
-        AvaloniaProperty.Register<PressureChartControl, PressureCurveParams>(
-            nameof(Params), defaultValue: PressureCurveParams.Default);
+    public static readonly StyledProperty<CurveSettings> CurveProperty =
+        AvaloniaProperty.Register<PressureChartControl, CurveSettings>(
+            nameof(Curve), defaultValue: CurveSettings.Default);
 
-    public PressureCurveParams Params
+    public CurveSettings Curve
     {
-        get => GetValue(ParamsProperty);
-        set => SetValue(ParamsProperty, value);
+        get => GetValue(CurveProperty);
+        set => SetValue(CurveProperty, value);
     }
 
     public static readonly StyledProperty<double?> LiveRawPressureProperty =
@@ -85,7 +87,7 @@ public sealed class PressureChartControl : Control
 
     static PressureChartControl()
     {
-        AffectsRender<PressureChartControl>(ParamsProperty, LiveRawPressureProperty, LivePressureProperty);
+        AffectsRender<PressureChartControl>(CurveProperty, LiveRawPressureProperty, LivePressureProperty);
         FocusableProperty.OverrideDefaultValue<PressureChartControl>(true);
     }
 
@@ -209,7 +211,7 @@ public sealed class PressureChartControl : Control
 
     private void DrawCurve(DrawingContext context, double plotW, double plotH)
     {
-        var curveType = Params.CurveType;
+        var curveType = Curve.CurveType;
 
         if (curveType == CurveType.Passthrough)
         {
@@ -218,7 +220,7 @@ public sealed class PressureChartControl : Control
         }
         if (curveType == CurveType.Flat)
         {
-            double fy = Pad + plotH - Params.FlatLevel * plotH;
+            double fy = Pad + plotH - Curve.FlatLevel * plotH;
             context.DrawLine(CurvePen, new Point(Pad, fy), new Point(Pad + plotW, fy));
             return;
         }
@@ -234,12 +236,12 @@ public sealed class PressureChartControl : Control
         }
 
         // Power-law / sigmoid: flat lead-in, sampled curve, flat lead-out, then control nodes.
-        double inMin = Params.InputMinimum;
-        double inMax = Params.InputMaximum;
-        double outMin = Params.Minimum;
-        double outMax = Params.Maximum;
+        double inMin = Curve.InputMinimum;
+        double inMax = Curve.InputMaximum;
+        double outMin = Curve.Minimum;
+        double outMax = Curve.Maximum;
 
-        if (Params.MinApproach == MinApproach.Cut)
+        if (Curve.MinApproach == MinApproach.Cut)
         {
             var cutFigure = new PathFigure
             {
@@ -268,7 +270,7 @@ public sealed class PressureChartControl : Control
             for (int px = pxStart; px <= pxEnd; px++)
             {
                 double xNorm = px / plotW;
-                double y = CurveMath.ApplyPressureCurve(xNorm, Params);
+                double y = CurveMath.ApplyCurve(xNorm, Curve);
                 var pt = new Point(Pad + px, Pad + plotH - y * plotH);
                 if (px == pxStart) figure.StartPoint = pt;
                 else figure.Segments.Add(new LineSegment { Point = pt });
@@ -304,7 +306,7 @@ public sealed class PressureChartControl : Control
 
     private void DrawBezier(DrawingContext context, double plotW, double plotH)
     {
-        var pts = CurveMath.NormalizeBezierPoints(Params.BezierPoints);
+        var pts = CurveMath.NormalizeBezierPoints(Curve.BezierPoints);
         if (pts.Length == 0) return;
 
         // Curve trace.
@@ -367,12 +369,12 @@ public sealed class PressureChartControl : Control
     {
         if (LiveRawPressure is { } raw)
         {
-            double mapped = CurveMath.ApplyPressureCurve(raw, Params);
+            double mapped = CurveMath.ApplyCurve(raw, Curve);
             DrawIndicator(context, plotW, plotH, raw, mapped, RawDotBrush, RawGuidePen);
         }
         if (LivePressure is { } eff)
         {
-            double mapped = CurveMath.ApplyPressureCurve(eff, Params);
+            double mapped = CurveMath.ApplyCurve(eff, Curve);
             DrawIndicator(context, plotW, plotH, eff, mapped, EffectiveDotBrush, EffectiveGuidePen);
         }
     }
@@ -437,9 +439,9 @@ public sealed class PressureChartControl : Control
     private DragKind HitTestStandardNode(Point p)
     {
         var (plotW, plotH) = Layout();
-        if (Distance(p, Pad + Params.InputMinimum * plotW, Pad + plotH - Params.Minimum * plotH) <= NodeRadius)
+        if (Distance(p, Pad + Curve.InputMinimum * plotW, Pad + plotH - Curve.Minimum * plotH) <= NodeRadius)
             return DragKind.MinNode;
-        if (Distance(p, Pad + Params.InputMaximum * plotW, Pad + plotH - Params.Maximum * plotH) <= NodeRadius)
+        if (Distance(p, Pad + Curve.InputMaximum * plotW, Pad + plotH - Curve.Maximum * plotH) <= NodeRadius)
             return DragKind.MaxNode;
         return DragKind.None;
     }
@@ -459,10 +461,10 @@ public sealed class PressureChartControl : Control
         }
         if (!props.IsLeftButtonPressed) return;
 
-        var ct = Params.CurveType;
+        var ct = Curve.CurveType;
         if (ct == CurveType.Bezier)
         {
-            var pts = CurveMath.NormalizeBezierPoints(Params.BezierPoints);
+            var pts = CurveMath.NormalizeBezierPoints(Curve.BezierPoints);
             if (HitTestBezierHandle(pos, pts) is { } h)
             {
                 SelectedBezierPoint = h.index;
@@ -538,10 +540,10 @@ public sealed class PressureChartControl : Control
 
     private Cursor ResolveCursor(Point pos)
     {
-        var ct = Params.CurveType;
+        var ct = Curve.CurveType;
         if (ct == CurveType.Bezier)
         {
-            var pts = CurveMath.NormalizeBezierPoints(Params.BezierPoints);
+            var pts = CurveMath.NormalizeBezierPoints(Curve.BezierPoints);
             if (HitTestBezierHandle(pos, pts) is not null) return new Cursor(StandardCursorType.Cross);
             if (HitTestBezierAnchor(pos, pts) is not null) return new Cursor(StandardCursorType.SizeAll);
             return Cursor.Default;
@@ -563,21 +565,21 @@ public sealed class PressureChartControl : Control
 
         if (_dragging == DragKind.MinNode)
         {
-            inVal = Math.Min(inVal, Params.InputMaximum - 0.01);
-            outVal = Math.Min(outVal, Params.Maximum);
-            Params = Params with { InputMinimum = Clamp01(inVal), Minimum = Clamp01(outVal) };
+            inVal = Math.Min(inVal, Curve.InputMaximum - 0.01);
+            outVal = Math.Min(outVal, Curve.Maximum);
+            Curve = Curve with { InputMinimum = Clamp01(inVal), Minimum = Clamp01(outVal) };
         }
         else
         {
-            inVal = Math.Max(inVal, Params.InputMinimum + 0.01);
-            outVal = Math.Max(outVal, Params.Minimum);
-            Params = Params with { InputMaximum = Clamp01(inVal), Maximum = Clamp01(outVal) };
+            inVal = Math.Max(inVal, Curve.InputMinimum + 0.01);
+            outVal = Math.Max(outVal, Curve.Minimum);
+            Curve = Curve with { InputMaximum = Clamp01(inVal), Maximum = Clamp01(outVal) };
         }
     }
 
     private void DragBezierAnchor(Point pos)
     {
-        var pts = CurveMath.NormalizeBezierPoints(Params.BezierPoints);
+        var pts = CurveMath.NormalizeBezierPoints(Curve.BezierPoints);
         int idx = _dragBezierIndex;
         if (idx < 0 || idx >= pts.Length) return;
 
@@ -605,12 +607,12 @@ public sealed class PressureChartControl : Control
         };
 
         var arr = pts.SetItem(idx, updated);
-        Params = Params with { BezierPoints = CurveMath.NormalizeBezierPoints(arr) };
+        Curve = Curve with { BezierPoints = CurveMath.NormalizeBezierPoints(arr) };
     }
 
     private void DragBezierHandle(Point pos)
     {
-        var pts = CurveMath.NormalizeBezierPoints(Params.BezierPoints);
+        var pts = CurveMath.NormalizeBezierPoints(Curve.BezierPoints);
         int idx = _dragBezierIndex;
         if (idx < 0 || idx >= pts.Length) return;
         var pt = pts[idx];
@@ -653,7 +655,7 @@ public sealed class PressureChartControl : Control
         }
 
         var arr = pts.SetItem(idx, updated);
-        Params = Params with { BezierPoints = CurveMath.NormalizeBezierPoints(arr) };
+        Curve = Curve with { BezierPoints = CurveMath.NormalizeBezierPoints(arr) };
     }
 
     // ── Right-click context menu ────────────────────────────────
@@ -672,9 +674,9 @@ public sealed class PressureChartControl : Control
 
         // Bezier editing entries come first, and only when the click is somewhere they
         // apply. Other curve types get the export entries alone.
-        if (Params.CurveType == CurveType.Bezier)
+        if (Curve.CurveType == CurveType.Bezier)
         {
-            var pts = CurveMath.NormalizeBezierPoints(Params.BezierPoints);
+            var pts = CurveMath.NormalizeBezierPoints(Curve.BezierPoints);
             int? hitIndex = HitTestBezierAnchor(pos, pts);
             bool canAdd = pts.Length < 16 && IsInsidePlotArea(pos) && hitIndex == null;
             bool canRemoveAtHit = hitIndex is { } hi && hi > 0 && hi < pts.Length - 1;
@@ -731,18 +733,18 @@ public sealed class PressureChartControl : Control
     private bool _openingMenuManually;
 
     public bool CanAddBezierPoint
-        => Params.CurveType == CurveType.Bezier
-           && CurveMath.NormalizeBezierPoints(Params.BezierPoints).Length < 16;
+        => Curve.CurveType == CurveType.Bezier
+           && CurveMath.NormalizeBezierPoints(Curve.BezierPoints).Length < 16;
 
     public bool CanRemoveBezierPoint
-        => Params.CurveType == CurveType.Bezier
-           && CurveMath.NormalizeBezierPoints(Params.BezierPoints).Length > 2;
+        => Curve.CurveType == CurveType.Bezier
+           && CurveMath.NormalizeBezierPoints(Curve.BezierPoints).Length > 2;
 
     /// <summary>Insert a point at the midpoint of the largest existing X-gap (toolbar Add button).</summary>
     public void AddBezierPointAtLargestGap()
     {
         if (!CanAddBezierPoint) return;
-        var pts = CurveMath.NormalizeBezierPoints(Params.BezierPoints);
+        var pts = CurveMath.NormalizeBezierPoints(Curve.BezierPoints);
         int target = 0;
         double maxGap = -1;
         for (int i = 0; i < pts.Length - 1; i++)
@@ -762,7 +764,7 @@ public sealed class PressureChartControl : Control
             HandleMode: HandleMode.Broken);
         var list = pts.ToList();
         list.Insert(target + 1, newPt);
-        Params = Params with { BezierPoints = CurveMath.NormalizeBezierPoints(list) };
+        Curve = Curve with { BezierPoints = CurveMath.NormalizeBezierPoints(list) };
         SelectedBezierPoint = target + 1;
     }
 
@@ -770,7 +772,7 @@ public sealed class PressureChartControl : Control
     public void RemoveSelectedBezierPoint()
     {
         if (!CanRemoveBezierPoint) return;
-        var pts = CurveMath.NormalizeBezierPoints(Params.BezierPoints);
+        var pts = CurveMath.NormalizeBezierPoints(Curve.BezierPoints);
         int removeIdx = SelectedBezierPoint is { } s && s > 0 && s < pts.Length - 1
             ? s : pts.Length - 2;
         RemoveBezierPoint(removeIdx);
@@ -779,7 +781,7 @@ public sealed class PressureChartControl : Control
     private void InsertBezierPointAt(double rawX, double rawY)
     {
         if (!CanAddBezierPoint) return;
-        var pts = CurveMath.NormalizeBezierPoints(Params.BezierPoints);
+        var pts = CurveMath.NormalizeBezierPoints(Curve.BezierPoints);
 
         int insertIdx = 0;
         for (int i = 0; i < pts.Length; i++) { if (pts[i].X > rawX) { insertIdx = i; break; } }
@@ -803,26 +805,26 @@ public sealed class PressureChartControl : Control
             HandleMode: HandleMode.Broken);
         var list = pts.ToList();
         list.Insert(insertIdx, newPt);
-        Params = Params with { BezierPoints = CurveMath.NormalizeBezierPoints(list) };
+        Curve = Curve with { BezierPoints = CurveMath.NormalizeBezierPoints(list) };
         SelectedBezierPoint = insertIdx;
     }
 
     private void RemoveBezierPoint(int index)
     {
-        var pts = CurveMath.NormalizeBezierPoints(Params.BezierPoints);
+        var pts = CurveMath.NormalizeBezierPoints(Curve.BezierPoints);
         if (index <= 0 || index >= pts.Length - 1) return;
         var list = pts.ToList();
         list.RemoveAt(index);
-        Params = Params with { BezierPoints = CurveMath.NormalizeBezierPoints(list) };
+        Curve = Curve with { BezierPoints = CurveMath.NormalizeBezierPoints(list) };
         SelectedBezierPoint = null;
         SelectedBezierHandle = null;
     }
 
     private void SetHandleMode(int index, HandleMode mode)
     {
-        var pts = CurveMath.NormalizeBezierPoints(Params.BezierPoints);
+        var pts = CurveMath.NormalizeBezierPoints(Curve.BezierPoints);
         if (index <= 0 || index >= pts.Length - 1) return;
         var list = pts.SetItem(index, pts[index] with { HandleMode = mode });
-        Params = Params with { BezierPoints = CurveMath.NormalizeBezierPoints(list) };
+        Curve = Curve with { BezierPoints = CurveMath.NormalizeBezierPoints(list) };
     }
 }

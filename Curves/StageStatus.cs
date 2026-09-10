@@ -39,10 +39,34 @@ public static class StageStatus
     /// Order matters: Passthrough is also neutral, so it has to be answered first or the
     /// Off state would be unreachable.
     /// </remarks>
-    public static StageState Curve(PressureCurveParams p)
+    public static StageState Curve(CurveSettings c)
     {
-        if (p.CurveType == CurveType.Passthrough) return StageState.Off;
-        return CurveIsNeutral(p) ? StageState.NoEffect : StageState.On;
+        if (c.CurveType == CurveType.Passthrough) return StageState.Off;
+        return CurveIsNeutral(c) ? StageState.NoEffect : StageState.On;
+    }
+
+    /// <summary>The pair taken together, for the effective chart's pill.</summary>
+    /// <remarks>
+    /// <para>
+    /// Off only when both curves are bypassed; On as soon as either one shapes the signal;
+    /// otherwise the composition is running and changing nothing.
+    /// </para>
+    /// <para>
+    /// This carries the same honesty as the per-stage rule, and the same known consequence
+    /// in a new place: two curves can cancel without either being configured as identity —
+    /// Inverted followed by Inverted is exactly the diagonal — and this reports
+    /// <see cref="StageState.On"/> for that. Two stages really are shaping the signal; that
+    /// they happen to undo one another is what the effective chart is there to show you.
+    /// </para>
+    /// </remarks>
+    public static StageState Effective(PressureCurveParams p)
+    {
+        var a = Curve(p.Curve1);
+        var b = Curve(p.Curve2);
+
+        if (a == StageState.Off && b == StageState.Off) return StageState.Off;
+        if (a == StageState.On || b == StageState.On) return StageState.On;
+        return StageState.NoEffect;
     }
 
     public static StageState Smoothing(PressureCurveParams p)
@@ -52,15 +76,15 @@ public static class StageStatus
     }
 
     /// <summary>
-    /// The order only decides anything when both stages actually alter the signal; with
-    /// either one idle, smooth-then-curve and curve-then-smooth produce the same result.
+    /// The order only decides anything when smoothing and the curves both alter the
+    /// signal; with either side idle, smooth-first and curve-first produce the same result.
     /// </summary>
     public static StageState Processing(PressureCurveParams p)
-        => Curve(p) == StageState.On && Smoothing(p) == StageState.On
+        => Effective(p) == StageState.On && Smoothing(p) == StageState.On
             ? StageState.On
             : StageState.NoEffect;
 
-    private static bool CurveIsNeutral(PressureCurveParams p)
+    private static bool CurveIsNeutral(CurveSettings p)
     {
         // A constant output always changes something, and so does a reflection. Neither
         // has a setting that could dial it back to identity.

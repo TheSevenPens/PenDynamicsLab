@@ -1,4 +1,4 @@
-using PenDynamicsLab.Curves;
+﻿using PenDynamicsLab.Curves;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -17,7 +17,9 @@ public sealed class PresetStore
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
-        Converters = { new JsonStringEnumConverter() },
+        // The params converter reads presets saved before curve 2 existed, mapping their
+        // flat curve fields onto Curve1. See PressureCurveParamsConverter.
+        Converters = { new JsonStringEnumConverter(), new PressureCurveParamsConverter() },
         DefaultIgnoreCondition = JsonIgnoreCondition.Never,
     };
 

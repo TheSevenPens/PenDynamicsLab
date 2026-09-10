@@ -1,4 +1,4 @@
-﻿namespace PenDynamicsLab.Curves;
+namespace PenDynamicsLab.Curves;
 
 /// <summary>
 /// Restores one pipeline stage to the starting values for the type it is currently set to,
@@ -12,8 +12,8 @@
 /// undo a tweak without also leaving the curve you were working on.
 /// </para>
 /// <para>
-/// The values come from <see cref="PressureCurveParams.Default"/>, so "the initial Basic
-/// curve" means exactly what a fresh session gives you after picking Basic.
+/// The values come from <see cref="CurveSettings.Default"/>, so "the initial Basic curve"
+/// means exactly what a fresh session gives you after picking Basic.
 /// </para>
 /// <para>
 /// Only the fields the current type actually uses are touched. Every curve type shares the
@@ -32,25 +32,25 @@ public static class CurveDefaults
         => type is not (CurveType.Passthrough or CurveType.Inverted);
 
     /// <summary>
-    /// The curve settings for <paramref name="p"/>'s current type, restored to their
-    /// defaults. A type with no settings of its own comes back unchanged.
+    /// The settings for <paramref name="c"/>'s current type, restored to their defaults.
+    /// A type with no settings of its own comes back unchanged.
     /// </summary>
-    public static PressureCurveParams ResetCurve(PressureCurveParams p)
+    public static CurveSettings ResetCurve(CurveSettings c)
     {
-        var d = PressureCurveParams.Default;
+        var d = CurveSettings.Default;
 
-        var reset = p.CurveType switch
+        var reset = c.CurveType switch
         {
             CurveType.Basic or CurveType.Extended or CurveType.Sigmoid
-                => p with { Softness = d.Softness },
-            CurveType.Flat => p with { FlatLevel = d.FlatLevel },
-            CurveType.Bezier => p with { BezierPoints = d.BezierPoints },
-            _ => p,   // Passthrough, Inverted — nothing of their own to restore
+                => c with { Softness = d.Softness },
+            CurveType.Flat => c with { FlatLevel = d.FlatLevel },
+            CurveType.Bezier => c with { BezierPoints = d.BezierPoints },
+            _ => c,   // Passthrough, Inverted — nothing of their own to restore
         };
 
         // The range fields are shared, but only the types CurveMath.UsesRangeControls names
         // show or honour them — so for the others they are somebody else's settings.
-        return CurveMath.UsesRangeControls(p.CurveType)
+        return CurveMath.UsesRangeControls(c.CurveType)
             ? reset with
             {
                 InputMinimum = d.InputMinimum,

@@ -12,7 +12,7 @@ public class StageStatusTests
     private const double Eps = 1e-9;
 
     /// <summary>Range values a user could leave behind by using Extended, or load in a preset.</summary>
-    private static PressureCurveParams WithStaleRanges(CurveType type) => new()
+    private static CurveSettings WithStaleRanges(CurveType type) => new()
     {
         CurveType = type,
         Softness = 0,
@@ -34,7 +34,7 @@ public class StageStatusTests
     public void Basic_IgnoresRangeFields_SoStaysIdentity(double x)
     {
         var p = WithStaleRanges(CurveType.Basic);
-        Assert.Equal(x, CurveMath.ApplyPressureCurve(x, p), Eps);
+        Assert.Equal(x, CurveMath.ApplyCurve(x, p), Eps);
     }
 
     [Fact]
@@ -43,8 +43,8 @@ public class StageStatusTests
         var p = WithStaleRanges(CurveType.Extended);
         // Cut below the input minimum, and remapped above it — i.e. the fields Basic ignores
         // are doing real work here.
-        Assert.Equal(0.0, CurveMath.ApplyPressureCurve(0.1, p), Eps);
-        Assert.NotEqual(0.5, CurveMath.ApplyPressureCurve(0.5, p), 3);
+        Assert.Equal(0.0, CurveMath.ApplyCurve(0.1, p), Eps);
+        Assert.NotEqual(0.5, CurveMath.ApplyCurve(0.5, p), 3);
     }
 
     // ── Curve state ──────────────────────────────────────────────
@@ -52,12 +52,12 @@ public class StageStatusTests
     [Fact]
     public void Curve_Passthrough_IsOff()
         => Assert.Equal(StageState.Off,
-            StageStatus.Curve(new PressureCurveParams { CurveType = CurveType.Passthrough }));
+            StageStatus.Curve(new CurveSettings { CurveType = CurveType.Passthrough }));
 
     [Fact]
     public void Curve_BasicAtDefaultAmount_IsOnWithNoEffect()
         => Assert.Equal(StageState.NoEffect,
-            StageStatus.Curve(new PressureCurveParams { CurveType = CurveType.Basic, Softness = 0 }));
+            StageStatus.Curve(new CurveSettings { CurveType = CurveType.Basic, Softness = 0 }));
 
     [Fact]
     public void Curve_BasicWithStaleRanges_IsStillOnWithNoEffect()
@@ -66,11 +66,11 @@ public class StageStatusTests
     [Fact]
     public void Curve_BasicWithAmount_IsOn()
         => Assert.Equal(StageState.On,
-            StageStatus.Curve(new PressureCurveParams { CurveType = CurveType.Basic, Softness = 0.5 }));
+            StageStatus.Curve(new CurveSettings { CurveType = CurveType.Basic, Softness = 0.5 }));
 
     [Fact]
     public void Curve_ExtendedAcrossFullRange_IsOnWithNoEffect()
-        => Assert.Equal(StageState.NoEffect, StageStatus.Curve(new PressureCurveParams
+        => Assert.Equal(StageState.NoEffect, StageStatus.Curve(new CurveSettings
         {
             CurveType = CurveType.Extended,
             Softness = 0,
@@ -91,7 +91,7 @@ public class StageStatusTests
         // pill mirrors that threshold rather than testing for exactly zero.
         double justUnder = 0.0005;
         Assert.True(System.Math.Abs(justUnder * CurveMath.SigmoidSteepness) < CurveMath.SigmoidLinearThreshold);
-        Assert.Equal(StageState.NoEffect, StageStatus.Curve(new PressureCurveParams
+        Assert.Equal(StageState.NoEffect, StageStatus.Curve(new CurveSettings
         {
             CurveType = CurveType.Sigmoid,
             Softness = justUnder,
@@ -104,7 +104,7 @@ public class StageStatusTests
 
     [Fact]
     public void Curve_SigmoidWithSteepness_IsOn()
-        => Assert.Equal(StageState.On, StageStatus.Curve(new PressureCurveParams
+        => Assert.Equal(StageState.On, StageStatus.Curve(new CurveSettings
         {
             CurveType = CurveType.Sigmoid,
             Softness = 0.5,
@@ -114,15 +114,15 @@ public class StageStatusTests
     public void Curve_Flat_IsAlwaysOn()
     {
         // A constant always changes something, including a constant of zero.
-        Assert.Equal(StageState.On, StageStatus.Curve(new PressureCurveParams
+        Assert.Equal(StageState.On, StageStatus.Curve(new CurveSettings
         { CurveType = CurveType.Flat, FlatLevel = 0.5 }));
-        Assert.Equal(StageState.On, StageStatus.Curve(new PressureCurveParams
+        Assert.Equal(StageState.On, StageStatus.Curve(new CurveSettings
         { CurveType = CurveType.Flat, FlatLevel = 0 }));
     }
 
     [Fact]
     public void Curve_LinearBezierPreset_IsOnWithNoEffect()
-        => Assert.Equal(StageState.NoEffect, StageStatus.Curve(new PressureCurveParams
+        => Assert.Equal(StageState.NoEffect, StageStatus.Curve(new CurveSettings
         {
             CurveType = CurveType.Bezier,
             BezierPoints = BezierPresets.All[0].Points,
@@ -132,7 +132,7 @@ public class StageStatusTests
     public void Curve_DefaultBezierPoints_IsOn()
         // The default points are an ease-in-out S: handles at (0.33, 0) and (0.67, 1) are
         // off the diagonal, so the curve genuinely shapes the signal.
-        => Assert.Equal(StageState.On, StageStatus.Curve(new PressureCurveParams
+        => Assert.Equal(StageState.On, StageStatus.Curve(new CurveSettings
         {
             CurveType = CurveType.Bezier,
             BezierPoints = PressureCurveParams.DefaultBezierPoints,
@@ -157,21 +157,33 @@ public class StageStatusTests
 
     // ── Processing state ─────────────────────────────────────────
 
+    private static readonly CurveSettings ShapedBasic =
+        new() { CurveType = CurveType.Basic, Softness = 0.5 };
+
     [Fact]
-    public void Processing_IsOn_OnlyWhenBothStagesAlterTheSignal()
+    public void Processing_IsOn_OnlyWhenSmoothingAndTheCurvesBothAlterTheSignal()
         => Assert.Equal(StageState.On, StageStatus.Processing(new PressureCurveParams
         {
-            CurveType = CurveType.Basic,
-            Softness = 0.5,
+            Curve1 = ShapedBasic,
             SmoothingType = SmoothingType.Ema,
             EmaSmoothing = 0.5,
         }));
 
     [Fact]
-    public void Processing_IsMoot_WhenTheCurveIsOff()
+    public void Processing_IsMoot_WhenBothCurvesAreOff()
         => Assert.Equal(StageState.NoEffect, StageStatus.Processing(new PressureCurveParams
         {
-            CurveType = CurveType.Passthrough,
+            SmoothingType = SmoothingType.Ema,
+            EmaSmoothing = 0.5,
+        }));
+
+    [Fact]
+    public void Processing_IsOn_WhenOnlyCurve2Shapes()
+        // The order still matters with curve 1 bypassed: smoothing before or after the
+        // pair is a real difference.
+        => Assert.Equal(StageState.On, StageStatus.Processing(new PressureCurveParams
+        {
+            Curve2 = ShapedBasic,
             SmoothingType = SmoothingType.Ema,
             EmaSmoothing = 0.5,
         }));
@@ -180,8 +192,7 @@ public class StageStatusTests
     public void Processing_IsMoot_WhenSmoothingHasNoEffect()
         => Assert.Equal(StageState.NoEffect, StageStatus.Processing(new PressureCurveParams
         {
-            CurveType = CurveType.Basic,
-            Softness = 0.5,
+            Curve1 = ShapedBasic,
             SmoothingType = SmoothingType.Ema,
             EmaSmoothing = 0,
         }));

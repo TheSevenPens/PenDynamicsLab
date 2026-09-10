@@ -10,7 +10,7 @@ public class InvertedCurveTests
 {
     private const double Eps = 1e-9;
 
-    private static PressureCurveParams Inverted => new() { CurveType = CurveType.Inverted };
+    private static CurveSettings Inverted => new() { CurveType = CurveType.Inverted };
 
     [Theory]
     [InlineData(0.0, 1.0)]
@@ -19,20 +19,20 @@ public class InvertedCurveTests
     [InlineData(0.75, 0.25)]
     [InlineData(1.0, 0.0)]
     public void Inverts(double x, double expected)
-        => Assert.Equal(expected, CurveMath.ApplyPressureCurve(x, Inverted), Eps);
+        => Assert.Equal(expected, CurveMath.ApplyCurve(x, Inverted), Eps);
 
     [Theory]
     [InlineData(-0.5, 1.0)]
     [InlineData(1.5, 0.0)]
     public void ClampsInputBeforeInverting(double x, double expected)
-        => Assert.Equal(expected, CurveMath.ApplyPressureCurve(x, Inverted), Eps);
+        => Assert.Equal(expected, CurveMath.ApplyCurve(x, Inverted), Eps);
 
     [Fact]
     public void IgnoresEveryOtherCurveField()
     {
         // Softness, the ranges, min approach and the flat level all belong to other types.
         // Inverted shares the record with them and must not pick any of them up.
-        var loaded = new PressureCurveParams
+        var loaded = new CurveSettings
         {
             CurveType = CurveType.Inverted,
             Softness = 0.7,
@@ -44,7 +44,7 @@ public class InvertedCurveTests
             FlatLevel = 0.25,
         };
         for (double x = 0; x <= 1.0; x += 0.1)
-            Assert.Equal(1 - x, CurveMath.ApplyPressureCurve(x, loaded), Eps);
+            Assert.Equal(1 - x, CurveMath.ApplyCurve(x, loaded), Eps);
     }
 
     [Fact]

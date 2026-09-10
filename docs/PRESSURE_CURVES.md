@@ -10,7 +10,11 @@ A pressure curve is a function `f(x) → y` where:
 
 The output drives brush size, opacity, or other pressure-dependent parameters. Different curve shapes give different drawing "feels" — a concave curve makes light strokes more sensitive, while a convex curve requires more force for the same effect.
 
-In code, the entry point is `CurveMath.ApplyPressureCurve(double x, PressureCurveParams p)`. Passthrough, Flat, Inverted and Bezier return from it directly; only the parametric family (Basic, Extended, Sigmoid) goes on to `RawCurveOutput`.
+In code, one curve is `CurveMath.ApplyCurve(double x, CurveSettings c)`. Passthrough, Flat, Inverted and Bezier return from it directly; only the parametric family (Basic, Extended, Sigmoid) goes on to `RawCurveOutput`.
+
+**Two curves run in series.** `CurveMath.ApplyPressureCurve(double x, PressureCurveParams p)` is the pair composed — `ApplyCurve(ApplyCurve(x, p.Curve1), p.Curve2)` — and that composition is what the brush obeys and what the effective chart draws. The numbering is the order, and the order matters: Basic then Inverted is not Inverted then Basic.
+
+Two consequences worth knowing. A **Flat** curve in position 1 hands curve 2 a constant, so curve 2 cannot show through at all. And **Inverted** followed by **Inverted** is exactly the identity — the pair cancels, even though each half is genuinely shaping the signal, which is why the effective card's pill still reads `On` there. The chart is what shows you they cancelled.
 
 ## Common settings
 

@@ -8,7 +8,7 @@ The current build re-implements the feature set of [WebPressureExplorer](https:/
 
 The window is split into a fixed left panel and a tabbed right panel:
 
-- **Pressure curve editor** (left, 472 px) — Two equal columns. On the left, collapsible cards: **Curve** (type, amount, range and bezier controls), **Smoothing** (algorithm and amount), **Processing**, and **Presets** pinned to the bottom. On the right, the **Pressure curve** chart, whose right-click menu carries the export actions. That order makes the row read configure → mapping → stroke, and puts the curve against the canvas it drives. Each card header carries a pill showing its state — `Off` while a stage is bypassed, `On · no effect` while it is running but configured to change nothing, `On` while it is shaping the signal, and `S → C` for the processing order — so the pipeline is legible at a glance, and while collapsed.
+- **Pressure curve editor** (left, 472 px) — Two equal columns. On the left, collapsible cards: **Curve 1** and **Curve 2** (each with type, amount, range and bezier controls), **Smoothing** (algorithm and amount), **Processing**, and **Presets** pinned to the bottom. On the right, three stacked charts: **Pressure curve 1**, **Pressure curve 2**, and the read-only **Effective pressure curve**. The two editable ones carry the export actions on their right-click menus. That order makes the row read configure → mapping → stroke, and puts the curve against the canvas it drives. Each card header carries a pill showing its state — `Off` while a stage is bypassed, `On · no effect` while it is running but configured to change nothing, `On` while it is shaping the signal, and `S → C` for the processing order — so the pipeline is legible at a glance, and while collapsed.
 
 - **Right-hand tabs** — Three workflows, each in its own tab:
   - **Stroke** — A single drawing canvas with the full pressure pipeline applied (smoothing + curve).
@@ -19,6 +19,7 @@ A shared brush ribbon (size, colour, pressure target, draw-at-zero, Clear) sits 
 
 ## Key features
 
+- **Two curves in series** — curve 1 shapes the pen's pressure, curve 2 shapes what curve 1 produced, and the **effective pressure curve** chart shows the pair collapsed into the one mapping the brush obeys. Either can be set to Passthrough, so one curve is just the pair with the other bypassed.
 - **Seven curve types** — passthrough (identity, the default), flat (constant), basic (power law across the full [0, 1] range), extended (the same power law, plus input/output range controls), inverted (`1 - x`), sigmoid (S-curve), and bezier (custom cubic bezier with up to 16 points)
 - **Bezier presets** — built-in shapes (Linear, Soft, Firm, S-Curve, Light Touch, Heavy, Step) for quick setup
 - **Draggable control nodes** — pink/cyan min/max nodes on extended/sigmoid curves; full bezier anchor/handle dragging with broken vs mirrored handle modes; right-click context menu in the plot to add/remove points or change handle mode

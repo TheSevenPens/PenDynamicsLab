@@ -32,9 +32,13 @@ The desktop port unlocks input the web app can't reach. The "Pen Dynamics" in th
 - **Stroke smoothing comparison** — Side-by-side EMA vs Catmull-Rom vs predictive smoothing on the same input stream.
 - **Replay from session capture** — Capture a pen stream to disk, replay it through different settings (related to web-side "pressure recording and playback").
 
+## Open questions
+
+- **Smoothing between the curves** — Processing offers smooth-then-curves and curves-then-smooth. With a pair, `C1 → S → C2` is also meaningful and is not offered; it would make the order a three-way choice rather than a toggle.
+
 ## Technical improvements
 
-- **Test the bezier solver edge cases** — The suite is 92 tests, and `EvaluateCustomCurve` is currently exercised mostly on the linear preset and endpoints. Add tests for very-narrow segments (`span ≤ 1e-6` early return) and Step-preset shapes.
+- **Test the bezier solver edge cases** — The suite is 127 tests, and `EvaluateCustomCurve` is currently exercised mostly on the linear preset and endpoints. Add tests for very-narrow segments (`span ≤ 1e-6` early return) and Step-preset shapes.
 - **Decompose `PressureChartControl`** — At ~825 lines, hit-testing, drag dispatch, and the bezier context menu could split out into a separate interaction layer.
 - **Tab-aware surface sizing is subtle** — Both `EnsureSurfaces` and `ResolveActiveCanvas` depend on `IsEffectivelyVisible` to avoid stale inactive-tab layout, and the raw surface only gets allocated once the compare tab has been shown. A small abstraction owning "the surfaces of the active tab" would make this less easy to break.
 - **Avalonia source generator quirk** — `Controls/LabeledSlider.axaml.cs` discovered the hard way that defining your own `InitializeComponent()` shadows the generator's, leaving named fields null. Worth a comment-block or a doc note for future controls.

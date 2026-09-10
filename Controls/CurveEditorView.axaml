@@ -1,0 +1,52 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:PenDynamicsLab.Controls"
+             x:Class="PenDynamicsLab.Controls.CurveEditorView">
+    <StackPanel Spacing="10">
+        <DockPanel>
+            <Button x:Name="ResetButton" DockPanel.Dock="Right"
+                    Content="&#x21BB;" Width="32" Height="32" Padding="0"
+                    Margin="6,0,0,0"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center"
+                    ToolTip.Tip="Reset this curve's settings to their defaults" />
+            <ComboBox x:Name="TypeCombo" Height="32" HorizontalAlignment="Stretch" />
+        </DockPanel>
+
+        <!-- Bezier toolbar (visible only for the Bezier curve type) -->
+        <StackPanel x:Name="BezierToolbar" Spacing="4" IsVisible="False">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <Button x:Name="BezierAddButton" Content="Add point" />
+                <Button x:Name="BezierRemoveButton" Content="Remove point" />
+                <TextBlock x:Name="BezierCountLabel" VerticalAlignment="Center"
+                           Foreground="{DynamicResource Pdl.Muted}" />
+            </StackPanel>
+            <TextBlock Text="Right-click in plot to add or remove."
+                       Foreground="{DynamicResource Pdl.Hint}" TextWrapping="Wrap" />
+            <ComboBox x:Name="BezierPresetCombo" HorizontalAlignment="Stretch"
+                      PlaceholderText="Choose preset..." />
+        </StackPanel>
+
+        <controls:LabeledSlider x:Name="SoftnessSlider" Label="Curve Amount"
+                                Minimum="-0.9" Maximum="0.9" Value="0" DefaultValue="0" />
+        <controls:LabeledSlider x:Name="InputMinSlider" Label="Input min"
+                                Minimum="0" Maximum="1" Value="0" DefaultValue="0" />
+        <controls:LabeledSlider x:Name="InputMaxSlider" Label="Input max"
+                                Minimum="0" Maximum="1" Value="1" DefaultValue="1" />
+        <controls:LabeledSlider x:Name="OutputMinSlider" Label="Output min"
+                                Minimum="0" Maximum="1" Value="0" DefaultValue="0" />
+        <controls:LabeledSlider x:Name="OutputMaxSlider" Label="Output max"
+                                Minimum="0" Maximum="1" Value="1" DefaultValue="1" />
+
+        <StackPanel x:Name="MinApproachPanel" Spacing="4">
+            <TextBlock Text="Min approach" Foreground="{DynamicResource Pdl.Text}" />
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <RadioButton x:Name="MinApproachClampRadio" Content="Clamp" IsChecked="True" />
+                <RadioButton x:Name="MinApproachCutRadio" Content="Cut" />
+            </StackPanel>
+        </StackPanel>
+
+        <controls:LabeledSlider x:Name="FlatLevelSlider" Label="Flat level"
+                                Minimum="0" Maximum="1" Value="0.5" DefaultValue="0.5" />
+    </StackPanel>
+</UserControl>

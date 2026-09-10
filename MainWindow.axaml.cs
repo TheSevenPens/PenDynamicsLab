@@ -135,7 +135,6 @@ public partial class MainWindow : Window
 
         BrushRibbon.ClearRequested += (_, _) => ClearCanvases();
         InitializeCurveControls();
-        InitializeBezierPresets();
         InitializeResponseSection();
         RebuildUserPresetList();
 
@@ -233,9 +232,6 @@ public partial class MainWindow : Window
 
     private void InitializeCurveControls()
     {
-        foreach (var ct in Enum.GetValues<CurveType>())
-            CurveTypeCombo.Items.Add(ct.ToString());
-
         foreach (var st in Enum.GetValues<SmoothingType>())
             SmoothingTypeCombo.Items.Add(FormatSmoothingType(st));
 
@@ -243,25 +239,11 @@ public partial class MainWindow : Window
             ProcessingOrderCombo.Items.Add(FormatSmoothingOrder(so));
 
         _suppressCurveControlEvents = true;
-        CurveTypeCombo.SelectedIndex = (int)_curveParams.CurveType;
         SmoothingTypeCombo.SelectedIndex = (int)_curveParams.SmoothingType;
         ProcessingOrderCombo.SelectedIndex = (int)_curveParams.SmoothingOrder;
-        SoftnessSlider.Value = _curveParams.Softness;
-        InputMinSlider.Value = _curveParams.InputMinimum;
-        InputMaxSlider.Value = _curveParams.InputMaximum;
-        OutputMinSlider.Value = _curveParams.Minimum;
-        OutputMaxSlider.Value = _curveParams.Maximum;
-        FlatLevelSlider.Value = _curveParams.FlatLevel;
         PressureEmaSlider.Value = _curveParams.EmaSmoothing;
-        MinApproachClampRadio.IsChecked = _curveParams.MinApproach == MinApproach.Clamp;
-        MinApproachCutRadio.IsChecked = _curveParams.MinApproach == MinApproach.Cut;
         _suppressCurveControlEvents = false;
 
-        CurveTypeCombo.SelectionChanged += (_, _) =>
-        {
-            if (_suppressCurveControlEvents || CurveTypeCombo.SelectedIndex < 0) return;
-            UpdateParams(p => p with { CurveType = (CurveType)CurveTypeCombo.SelectedIndex });
-        };
         SmoothingTypeCombo.SelectionChanged += (_, _) =>
         {
             if (_suppressCurveControlEvents || SmoothingTypeCombo.SelectedIndex < 0) return;
@@ -273,131 +255,62 @@ public partial class MainWindow : Window
             UpdateParams(p => p with { SmoothingOrder = (SmoothingOrder)ProcessingOrderCombo.SelectedIndex });
         };
 
-        WireSlider(SoftnessSlider, v => p => p with { Softness = v });
-        WireSlider(InputMinSlider, v => p => p with { InputMinimum = v });
-        WireSlider(InputMaxSlider, v => p => p with { InputMaximum = v });
-        WireSlider(OutputMinSlider, v => p => p with { Minimum = v });
-        WireSlider(OutputMaxSlider, v => p => p with { Maximum = v });
-        WireSlider(FlatLevelSlider, v => p => p with { FlatLevel = v });
         WireSlider(PressureEmaSlider, v => p => p with { EmaSmoothing = v });
 
-        MinApproachClampRadio.IsCheckedChanged += (_, _) =>
-        {
-            if (_suppressCurveControlEvents) return;
-            if (MinApproachClampRadio.IsChecked == true)
-                UpdateParams(p => p with { MinApproach = MinApproach.Clamp });
-        };
-        MinApproachCutRadio.IsCheckedChanged += (_, _) =>
-        {
-            if (_suppressCurveControlEvents) return;
-            if (MinApproachCutRadio.IsChecked == true)
-                UpdateParams(p => p with { MinApproach = MinApproach.Cut });
-        };
+        // The two curve editors and the two editable charts are two views of the same
+        // curve each. Both write back here, and this is the only place that decides what
+        // the current parameters are.
+        Curve1Editor.CurveChanged += (_, c) => UpdateParams(p => p with { Curve1 = c });
+        Curve2Editor.CurveChanged += (_, c) => UpdateParams(p => p with { Curve2 = c });
+        Curve1Editor.BezierAddRequested += (_, _) => PressureChart.AddBezierPointAtLargestGap();
+        Curve1Editor.BezierRemoveRequested += (_, _) => PressureChart.RemoveSelectedBezierPoint();
+        Curve2Editor.BezierAddRequested += (_, _) => PressureChart2.AddBezierPointAtLargestGap();
+        Curve2Editor.BezierRemoveRequested += (_, _) => PressureChart2.RemoveSelectedBezierPoint();
 
-        UpdateBezierToolbar();
-        UpdateCardStatuses();
-        PressureChart.Params = _curveParams;
+        WireChart(PressureChart, c => p => p with { Curve1 = c });
+        WireChart(PressureChart2, c => p => p with { Curve2 = c });
 
-        // The chart writes back to Params when the user drags nodes / handles or uses the
-        // right-click context menu. Mirror those changes back into the controls UI.
-        PressureChart.PropertyChanged += (_, e) =>
+        SyncCurveControlsFromParams();
+    }
+
+    /// <summary>
+    /// Mirrors a chart's own edits — dragging nodes, handles, or its context menu — back
+    /// into the owning parameters and then into the controls.
+    /// </summary>
+    private void WireChart(PressureChartControl chart, Func<CurveSettings, Func<PressureCurveParams, PressureCurveParams>> patch)
+        => chart.PropertyChanged += (_, e) =>
         {
-            if (e.Property != PressureChartControl.ParamsProperty) return;
-            if (e.NewValue is not PressureCurveParams newParams) return;
-            if (ReferenceEquals(newParams, _curveParams)) return;
-            _curveParams = newParams;
-            ResponseChart.Params = _curveParams;
+            if (e.Property != PressureChartControl.CurveProperty) return;
+            if (e.NewValue is not CurveSettings edited) return;
+            if (_suppressCurveControlEvents) return;
+
+            UpdateParams(patch(edited));
             SyncCurveControlsFromParams();
         };
-    }
 
     private void SyncCurveControlsFromParams()
     {
         _suppressCurveControlEvents = true;
-        CurveTypeCombo.SelectedIndex = (int)_curveParams.CurveType;
+
         SmoothingTypeCombo.SelectedIndex = (int)_curveParams.SmoothingType;
         ProcessingOrderCombo.SelectedIndex = (int)_curveParams.SmoothingOrder;
-        SoftnessSlider.Value = _curveParams.Softness;
-        InputMinSlider.Value = _curveParams.InputMinimum;
-        InputMaxSlider.Value = _curveParams.InputMaximum;
-        OutputMinSlider.Value = _curveParams.Minimum;
-        OutputMaxSlider.Value = _curveParams.Maximum;
-        FlatLevelSlider.Value = _curveParams.FlatLevel;
         PressureEmaSlider.Value = _curveParams.EmaSmoothing;
-        MinApproachClampRadio.IsChecked = _curveParams.MinApproach == MinApproach.Clamp;
-        MinApproachCutRadio.IsChecked = _curveParams.MinApproach == MinApproach.Cut;
-        _suppressCurveControlEvents = false;
 
-        UpdateBezierToolbar();
-        UpdateCardStatuses();
-    }
-
-    private void UpdateBezierToolbar()
-    {
-        var ct = _curveParams.CurveType;
-
-        // Visibility per curve type. Smoothing / response / presets sections live below
-        // and are independent of the curve type.
-        bool hasSoftness = ct is CurveType.Basic or CurveType.Extended or CurveType.Sigmoid;
-        bool hasRangeControls = ct is CurveType.Extended or CurveType.Sigmoid;
-        bool isBezier = ct == CurveType.Bezier;
-        bool isFlat = ct == CurveType.Flat;
-
-        // Sigmoid only makes sense with positive steepness (k = softness * 14), and the
-        // top of the range gets numerically unstable near ±1 — clamp to [0, 0.95].
-        if (ct == CurveType.Sigmoid)
-        {
-            SoftnessSlider.Minimum = 0;
-            SoftnessSlider.Maximum = 0.95;
-        }
-        else
-        {
-            SoftnessSlider.Minimum = -0.9;
-            SoftnessSlider.Maximum = 0.9;
-        }
-        if (_curveParams.Softness < SoftnessSlider.Minimum || _curveParams.Softness > SoftnessSlider.Maximum)
-        {
-            double clamped = Math.Clamp(_curveParams.Softness, SoftnessSlider.Minimum, SoftnessSlider.Maximum);
-            _curveParams = _curveParams with { Softness = clamped };
-            PressureChart.Params = _curveParams;
-            ResponseChart.Params = _curveParams;
-            _suppressCurveControlEvents = true;
-            SoftnessSlider.Value = clamped;
-            _suppressCurveControlEvents = false;
-        }
-
-        SoftnessSlider.IsVisible = hasSoftness;
-        InputMinSlider.IsVisible = hasRangeControls;
-        InputMaxSlider.IsVisible = hasRangeControls;
-        OutputMinSlider.IsVisible = hasRangeControls;
-        OutputMaxSlider.IsVisible = hasRangeControls;
-        MinApproachPanel.IsVisible = hasRangeControls;
-        FlatLevelSlider.IsVisible = isFlat;
-        BezierToolbar.IsVisible = isBezier;
-
-        // Reset is type-scoped, so for a type with no settings of its own it has nothing
-        // to restore — grey it out rather than leave a button that silently does nothing.
-        CurveResetButton.IsEnabled = CurveDefaults.CurveHasSettings(ct);
+        Curve1Editor.Curve = _curveParams.Curve1;
+        Curve2Editor.Curve = _curveParams.Curve2;
+        PressureChart.Curve = _curveParams.Curve1;
+        PressureChart2.Curve = _curveParams.Curve2;
+        EffectiveChart.Params = _curveParams;
+        ResponseChart.Params = _curveParams;
 
         // Passthrough smoothing ignores the amount, so hide it — same convention as the
-        // curve card, where Passthrough hides softness and the range controls.
+        // curve cards, where Passthrough hides softness and the range controls.
         PressureEmaSlider.IsVisible = _curveParams.SmoothingType != SmoothingType.Passthrough;
         SmoothingResetButton.IsEnabled = _curveParams.SmoothingType != SmoothingType.Passthrough;
 
-        // Range values are driven by dragging the pink/cyan nodes on the chart, so the
-        // slider track would be redundant — show only label + value.
-        InputMinSlider.ShowSlider = false;
-        InputMaxSlider.ShowSlider = false;
-        OutputMinSlider.ShowSlider = false;
-        OutputMaxSlider.ShowSlider = false;
+        _suppressCurveControlEvents = false;
 
-        if (isBezier)
-        {
-            int count = CurveMath.NormalizeBezierPoints(_curveParams.BezierPoints).Length;
-            BezierCountLabel.Text = $"{count}/16";
-            BezierAddButton.IsEnabled = count < 16;
-            BezierRemoveButton.IsEnabled = count > 2;
-        }
+        UpdateCardStatuses();
     }
 
     // ── Card headers ────────────────────────────────────────────
@@ -410,27 +323,51 @@ public partial class MainWindow : Window
     /// </summary>
     private void UpdateCardStatuses()
     {
-        ApplyStageStatus(CurveCard, StageStatus.Curve(_curveParams));
+        ApplyStageStatus(Curve1Card, StageStatus.Curve(_curveParams.Curve1));
+        ApplyStageStatus(Curve2Card, StageStatus.Curve(_curveParams.Curve2));
         ApplyStageStatus(SmoothingCard, StageStatus.Smoothing(_curveParams));
 
+        // The effective chart carries a pill too, because "both curves are on" and "the
+        // pair does something" are not the same claim. See StageStatus.Effective.
+        var (effText, effTone) = StatusText(StageStatus.Effective(_curveParams));
+        EffectivePillText.Text = effText;
+        EffectivePillText.Foreground = ToneInk(effTone);
+        EffectivePill.Background = ToneFill(effTone);
+
         // Processing always names the order; the tone says whether the order decides
-        // anything, which it only does while both stages are altering the signal.
+        // anything, which it only does while both smoothing and the curves alter the signal.
         ProcessingOrderCard.Status =
-            _curveParams.SmoothingOrder == SmoothingOrder.SmoothThenCurve ? "S → C" : "C → S";
+            _curveParams.SmoothingOrder == SmoothingOrder.SmoothThenCurve ? "S → C1 → C2" : "C1 → C2 → S";
         ProcessingOrderCard.StatusKind = StageStatus.Processing(_curveParams) == StageState.On
             ? StatusTone.Active
             : StatusTone.Neutral;
     }
 
-    private static void ApplyStageStatus(SectionCard card, StageState state)
+    private static (string, StatusTone) StatusText(StageState state) => state switch
     {
-        (card.Status, card.StatusKind) = state switch
-        {
-            StageState.Off => ("Off", StatusTone.Neutral),
-            StageState.NoEffect => ("On · no effect", StatusTone.Advisory),
-            _ => ("On", StatusTone.Active),
-        };
-    }
+        StageState.Off => ("Off", StatusTone.Neutral),
+        StageState.NoEffect => ("On · no effect", StatusTone.Advisory),
+        _ => ("On", StatusTone.Active),
+    };
+
+    private static void ApplyStageStatus(SectionCard card, StageState state)
+        => (card.Status, card.StatusKind) = StatusText(state);
+
+    // The effective chart is not a SectionCard, so it paints its own pill from the same
+    // tones rather than inventing a second palette for the same three states.
+    private static IBrush ToneFill(StatusTone tone) => tone switch
+    {
+        StatusTone.Active => new SolidColorBrush(Color.FromRgb(0xEF, 0xF6, 0xFC)),
+        StatusTone.Advisory => new SolidColorBrush(Color.FromRgb(0xFF, 0xF9, 0xF0)),
+        _ => new SolidColorBrush(Color.FromRgb(0xF0, 0xF0, 0xF0)),
+    };
+
+    private static IBrush ToneInk(StatusTone tone) => tone switch
+    {
+        StatusTone.Active => new SolidColorBrush(Color.FromRgb(0x11, 0x5E, 0xA3)),
+        StatusTone.Advisory => new SolidColorBrush(Color.FromRgb(0x7A, 0x5A, 0x16)),
+        _ => new SolidColorBrush(Color.FromRgb(0x61, 0x61, 0x61)),
+    };
 
     // ── Section resets ──────────────────────────────────────────
 
@@ -438,36 +375,10 @@ public partial class MainWindow : Window
     // defaults and leave the type alone. Switching to Passthrough is the dropdown's job.
     // See CurveDefaults for why reset does not touch the fields other types own.
 
-    private void CurveReset_Click(object? sender, RoutedEventArgs e)
-    {
-        UpdateParams(CurveDefaults.ResetCurve);
-        SyncCurveControlsFromParams();
-    }
-
     private void SmoothingReset_Click(object? sender, RoutedEventArgs e)
     {
         UpdateParams(CurveDefaults.ResetSmoothing);
         SyncCurveControlsFromParams();
-    }
-
-    private void BezierAdd_Click(object? sender, RoutedEventArgs e) => PressureChart.AddBezierPointAtLargestGap();
-    private void BezierRemove_Click(object? sender, RoutedEventArgs e) => PressureChart.RemoveSelectedBezierPoint();
-
-    // ── Bezier presets ──────────────────────────────────────────
-
-    private void InitializeBezierPresets()
-    {
-        foreach (var preset in BezierPresets.All)
-            BezierPresetCombo.Items.Add(preset.Name);
-
-        BezierPresetCombo.SelectionChanged += (_, _) =>
-        {
-            if (BezierPresetCombo.SelectedIndex < 0) return;
-            var preset = BezierPresets.All[BezierPresetCombo.SelectedIndex];
-            UpdateParams(p => p with { BezierPoints = preset.Points });
-            // Reset selection so the same preset can be re-applied later.
-            BezierPresetCombo.SelectedIndex = -1;
-        };
     }
 
     // ── User presets ────────────────────────────────────────────
@@ -806,7 +717,6 @@ public partial class MainWindow : Window
                 if (_presetStore.Get(name) is { } p)
                 {
                     _curveParams = p.Params;
-                    PressureChart.Params = _curveParams;
                     SyncCurveControlsFromParams();
                 }
             };
@@ -857,8 +767,10 @@ public partial class MainWindow : Window
 
     private static string FormatSmoothingOrder(SmoothingOrder so) => so switch
     {
-        SmoothingOrder.SmoothThenCurve => "Smooth then curve",
-        SmoothingOrder.CurveThenSmooth => "Curve then smooth",
+        // Plural: smoothing runs before or after the PAIR, not between them. Smoothing
+        // between curve 1 and curve 2 would be a third order and is not offered.
+        SmoothingOrder.SmoothThenCurve => "Smooth then curves",
+        SmoothingOrder.CurveThenSmooth => "Curves then smooth",
         _ => so.ToString(),
     };
 
@@ -869,12 +781,20 @@ public partial class MainWindow : Window
         _ => st.ToString(),
     };
 
+    /// <summary>
+    /// The single place the current parameters change. Every editor, chart and preset load
+    /// funnels through here, which is what keeps two curve editors and three charts from
+    /// disagreeing about what the pipeline currently is.
+    /// </summary>
     private void UpdateParams(Func<PressureCurveParams, PressureCurveParams> patch)
     {
         _curveParams = patch(_curveParams);
-        PressureChart.Params = _curveParams;
+
+        PressureChart.Curve = _curveParams.Curve1;
+        PressureChart2.Curve = _curveParams.Curve2;
+        EffectiveChart.Params = _curveParams;
         ResponseChart.Params = _curveParams;
-        UpdateBezierToolbar();
+
         UpdateCardStatuses();
     }
 
@@ -920,6 +840,10 @@ public partial class MainWindow : Window
         _smoothedPressure = null;
         PressureChart.LiveRawPressure = null;
         PressureChart.LivePressure = null;
+        PressureChart2.LiveRawPressure = null;
+        PressureChart2.LivePressure = null;
+        EffectiveChart.LiveRawPressure = null;
+        EffectiveChart.LivePressure = null;
         ResponseChart.LiveRawPressure = null;
         ResponseChart.LivePressure = null;
     }
@@ -1021,8 +945,19 @@ public partial class MainWindow : Window
             var pipeline = ProcessPressure(rawPressure);
 
             UpdateTelemetry(pt, clientPt, over == ActiveCanvas.None ? null : (Point?)localPt, maxP, pipeline.Output);
+            // Each chart's x axis is a different quantity, so the indicators cannot all
+            // carry the same number. Curve 1 and the effective chart are both read against
+            // pen pressure; curve 2's axis is curve 1's OUTPUT, so it gets that instead —
+            // and no raw dot at all, because raw pen pressure does not live on that axis.
             PressureChart.LiveRawPressure = pipeline.Raw;
             PressureChart.LivePressure = pipeline.PreCurve;
+
+            PressureChart2.LiveRawPressure = null;
+            PressureChart2.LivePressure = CurveMath.ApplyCurve(pipeline.PreCurve, _curveParams.Curve1);
+
+            EffectiveChart.LiveRawPressure = pipeline.Raw;
+            EffectiveChart.LivePressure = pipeline.PreCurve;
+
             ResponseChart.LiveRawPressure = pipeline.Raw;
             ResponseChart.LivePressure = pipeline.PreCurve;
 

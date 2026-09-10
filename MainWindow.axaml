@@ -207,58 +207,18 @@
                                   VerticalScrollBarVisibility="Auto">
                         <StackPanel>
 
-                        <controls:SectionCard x:Name="CurveCard" Title="Curve">
+                        <!-- Curve 1 shapes the pen's pressure; curve 2 shapes what curve 1
+                             produced. The numbering is the order, and the effective chart
+                             below shows the pair collapsed into one mapping. -->
+                        <controls:SectionCard x:Name="Curve1Card" Title="Curve 1">
                             <controls:SectionCard.CardContent>
-                            <StackPanel Spacing="10">
-                                <DockPanel>
-                                    <Button x:Name="CurveResetButton" DockPanel.Dock="Right"
-                                            Content="&#x21BB;" Width="32" Height="32" Padding="0"
-                                            Margin="6,0,0,0"
-                                            HorizontalContentAlignment="Center"
-                                            VerticalContentAlignment="Center"
-                                            ToolTip.Tip="Reset this curve's settings to their defaults"
-                                            Click="CurveReset_Click" />
-                                    <ComboBox x:Name="CurveTypeCombo" Height="32" HorizontalAlignment="Stretch" />
-                                </DockPanel>
+                                <controls:CurveEditorView x:Name="Curve1Editor" />
+                            </controls:SectionCard.CardContent>
+                        </controls:SectionCard>
 
-                                <!-- Bezier toolbar (visible only for the Bezier curve type) -->
-                                <StackPanel x:Name="BezierToolbar" Spacing="4" IsVisible="False">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <Button x:Name="BezierAddButton" Content="Add point" Click="BezierAdd_Click" />
-                                        <Button x:Name="BezierRemoveButton" Content="Remove point" Click="BezierRemove_Click" />
-                                        <TextBlock x:Name="BezierCountLabel" VerticalAlignment="Center"
-                                                   Foreground="{DynamicResource Pdl.Muted}" />
-                                    </StackPanel>
-                                    <TextBlock Text="Right-click in plot to add or remove."
-                                               Foreground="{DynamicResource Pdl.Hint}" TextWrapping="Wrap" />
-                                    <ComboBox x:Name="BezierPresetCombo" HorizontalAlignment="Stretch"
-                                              PlaceholderText="Choose preset..." />
-                                </StackPanel>
-
-                                <controls:LabeledSlider x:Name="SoftnessSlider" Label="Curve Amount"
-                                                        Minimum="-0.9" Maximum="0.9" Value="0" DefaultValue="0" />
-                                <controls:LabeledSlider x:Name="InputMinSlider" Label="Input min"
-                                                        Minimum="0" Maximum="1" Value="0" DefaultValue="0" />
-                                <controls:LabeledSlider x:Name="InputMaxSlider" Label="Input max"
-                                                        Minimum="0" Maximum="1" Value="1" DefaultValue="1" />
-                                <controls:LabeledSlider x:Name="OutputMinSlider" Label="Output min"
-                                                        Minimum="0" Maximum="1" Value="0" DefaultValue="0" />
-                                <controls:LabeledSlider x:Name="OutputMaxSlider" Label="Output max"
-                                                        Minimum="0" Maximum="1" Value="1" DefaultValue="1" />
-
-                                <StackPanel x:Name="MinApproachPanel" Spacing="4">
-                                    <TextBlock Text="Min approach" Foreground="{DynamicResource Pdl.Text}" />
-                                    <StackPanel Orientation="Horizontal" Spacing="12">
-                                        <RadioButton x:Name="MinApproachClampRadio" GroupName="MinApproach"
-                                                     Content="Clamp" IsChecked="True" />
-                                        <RadioButton x:Name="MinApproachCutRadio" GroupName="MinApproach"
-                                                     Content="Cut" />
-                                    </StackPanel>
-                                </StackPanel>
-
-                                <controls:LabeledSlider x:Name="FlatLevelSlider" Label="Flat level"
-                                                        Minimum="0" Maximum="1" Value="0.5" DefaultValue="0.5" />
-                            </StackPanel>
+                        <controls:SectionCard x:Name="Curve2Card" Title="Curve 2">
+                            <controls:SectionCard.CardContent>
+                                <controls:CurveEditorView x:Name="Curve2Editor" />
                             </controls:SectionCard.CardContent>
                         </controls:SectionCard>
 
@@ -316,14 +276,44 @@
                     </controls:SectionCard>
                 </Grid>
 
-                <!-- Column 2: the curve, sitting against the canvas it drives. -->
-                <StackPanel Grid.Column="1" Margin="7,12,14,12">
+                <!-- Column 2: the curves, sitting against the canvas they drive.
+
+                     Three charts of 191px plus their headers is 751px of content in 784px
+                     of pane at the default window size, so it fits — and scrolls below
+                     roughly 880px tall rather than shrinking the plots, because these are
+                     drag targets for bezier handles, not pictures. -->
+                <StackPanel Grid.Column="1" Margin="7,12,14,12" Spacing="8">
                     <Border Background="{DynamicResource Pdl.Surface}" BorderBrush="{DynamicResource Pdl.Divider}" BorderThickness="1"
                             CornerRadius="8" Padding="12,10,12,12">
                         <StackPanel Spacing="8">
-                            <TextBlock Text="Pressure curve" FontSize="13" FontWeight="SemiBold"
+                            <TextBlock Text="Pressure curve 1" FontSize="13" FontWeight="SemiBold"
                                        Foreground="{DynamicResource Pdl.Text}" />
                             <controls:PressureChartControl x:Name="PressureChart" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Background="{DynamicResource Pdl.Surface}" BorderBrush="{DynamicResource Pdl.Divider}" BorderThickness="1"
+                            CornerRadius="8" Padding="12,10,12,12">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Pressure curve 2" FontSize="13" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource Pdl.Text}" />
+                            <controls:PressureChartControl x:Name="PressureChart2" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Derived, not edited: accent border and trace, no draggable nodes. -->
+                    <Border Background="{DynamicResource Pdl.Surface}" BorderBrush="{DynamicResource Pdl.Accent}" BorderThickness="1"
+                            CornerRadius="8" Padding="12,10,12,12">
+                        <StackPanel Spacing="8">
+                            <DockPanel>
+                                <Border x:Name="EffectivePill" DockPanel.Dock="Right"
+                                        CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="EffectivePillText" FontSize="11" />
+                                </Border>
+                                <TextBlock Text="Effective pressure curve" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource Pdl.Text}" VerticalAlignment="Center" />
+                            </DockPanel>
+                            <controls:EffectiveCurveChartControl x:Name="EffectiveChart" />
                         </StackPanel>
                     </Border>
                     <!-- Transient feedback only ("Copied"); empty the rest of the time, so

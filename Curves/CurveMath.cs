@@ -22,7 +22,7 @@ public static class CurveMath
     public static bool UsesRangeControls(CurveType type)
         => type is CurveType.Extended or CurveType.Sigmoid;
 
-    public static double RawCurveOutput(double xNorm, PressureCurveParams p)
+    public static double RawCurveOutput(double xNorm, CurveSettings p)
     {
         double curved;
 
@@ -225,7 +225,18 @@ public static class CurveMath
         return lastPoint.Y;
     }
 
+    /// <summary>
+    /// The mapping the brush actually obeys: curve 1, then curve 2 over its output.
+    /// </summary>
+    /// <remarks>
+    /// This is what the effective chart draws. Composition is the whole feature — the two
+    /// charts above it each show a half, and neither on its own says what the pen will do.
+    /// </remarks>
     public static double ApplyPressureCurve(double x, PressureCurveParams p)
+        => ApplyCurve(ApplyCurve(x, p.Curve1), p.Curve2);
+
+    /// <summary>Applies one curve. The unit both stages are built from.</summary>
+    public static double ApplyCurve(double x, CurveSettings p)
     {
         if (p.CurveType == CurveType.Passthrough) return x;
         if (p.CurveType == CurveType.Flat) return p.FlatLevel;

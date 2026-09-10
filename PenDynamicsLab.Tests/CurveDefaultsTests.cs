@@ -11,7 +11,7 @@ namespace PenDynamicsLab.Tests;
 public class CurveDefaultsTests
 {
     /// <summary>Every curve field moved off its default, so any reset is visible.</summary>
-    private static PressureCurveParams Tweaked(CurveType type) => new()
+    private static CurveSettings Tweaked(CurveType type) => new()
     {
         CurveType = type,
         Softness = 0.6,
@@ -50,7 +50,7 @@ public class CurveDefaultsTests
         var reset = CurveDefaults.ResetCurve(Tweaked(CurveType.Basic));
         Assert.Equal(0, reset.Softness);
         // Which is to say: the identity mapping you get on first picking Basic.
-        Assert.Equal(0.37, CurveMath.ApplyPressureCurve(0.37, reset), 1e-9);
+        Assert.Equal(0.37, CurveMath.ApplyCurve(0.37, reset), 1e-9);
     }
 
     [Fact]
@@ -67,7 +67,7 @@ public class CurveDefaultsTests
 
     [Fact]
     public void ResetCurve_Flat_RestoresTheLevel()
-        => Assert.Equal(PressureCurveParams.Default.FlatLevel,
+        => Assert.Equal(CurveSettings.Default.FlatLevel,
                         CurveDefaults.ResetCurve(Tweaked(CurveType.Flat)).FlatLevel);
 
     [Fact]
@@ -118,21 +118,20 @@ public class CurveDefaultsTests
     }
 
     [Fact]
-    public void ResetCurve_LeavesSmoothingAlone()
+    public void ResetSmoothing_LeavesBothCurvesAlone()
     {
-        var p = Tweaked(CurveType.Basic) with { SmoothingType = SmoothingType.Ema, EmaSmoothing = 0.7 };
-        var reset = CurveDefaults.ResetCurve(p);
-        Assert.Equal(SmoothingType.Ema, reset.SmoothingType);
-        Assert.Equal(0.7, reset.EmaSmoothing);
-    }
+        var p = new PressureCurveParams
+        {
+            Curve1 = Tweaked(CurveType.Basic),
+            Curve2 = Tweaked(CurveType.Sigmoid),
+            SmoothingType = SmoothingType.Ema,
+            EmaSmoothing = 0.7,
+        };
 
-    [Fact]
-    public void ResetSmoothing_LeavesTheCurveAlone()
-    {
-        var p = Tweaked(CurveType.Basic) with { SmoothingType = SmoothingType.Ema, EmaSmoothing = 0.7 };
         var reset = CurveDefaults.ResetSmoothing(p);
-        Assert.Equal(CurveType.Basic, reset.CurveType);
-        Assert.Equal(0.6, reset.Softness);
+        Assert.Equal(0.0, reset.EmaSmoothing);
+        Assert.Equal(p.Curve1, reset.Curve1);
+        Assert.Equal(p.Curve2, reset.Curve2);
     }
 
     // ── Passthrough has nothing to restore ───────────────────────

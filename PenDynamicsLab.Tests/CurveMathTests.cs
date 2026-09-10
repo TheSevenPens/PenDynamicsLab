@@ -15,7 +15,7 @@ public class CurveMathTests
     [InlineData(-0.5, 0.5, 0.25)] // softness -0.5 → exp 2 → 0.5^2
     public void RawCurveOutput_Basic_PowerLaw(double softness, double x, double expected)
     {
-        var p = PressureCurveParams.Default with { CurveType = CurveType.Basic, Softness = softness };
+        var p = CurveSettings.Default with { CurveType = CurveType.Basic, Softness = softness };
         Assert.Equal(expected, CurveMath.RawCurveOutput(x, p), Eps);
     }
 
@@ -26,7 +26,7 @@ public class CurveMathTests
         // midpoint: 0.5 is invariant under a symmetric remap, so a midpoint test would
         // pass whether or not the range was applied at all.
         // softness 0, x=0.25, output range [0.2, 0.8] → 0.2 + 0.25*0.6 = 0.35
-        var p = PressureCurveParams.Default with
+        var p = CurveSettings.Default with
         {
             CurveType = CurveType.Extended,
             Softness = 0,
@@ -42,7 +42,7 @@ public class CurveMathTests
     public void RawCurveOutput_Sigmoid_NearZeroSoftness_IsIdentity()
     {
         // |k| = 0 < 0.01 → curved = xNorm
-        var p = PressureCurveParams.Default with { CurveType = CurveType.Sigmoid, Softness = 0 };
+        var p = CurveSettings.Default with { CurveType = CurveType.Sigmoid, Softness = 0 };
         Assert.Equal(0.7, CurveMath.RawCurveOutput(0.7, p), Eps);
     }
 
@@ -50,7 +50,7 @@ public class CurveMathTests
     public void RawCurveOutput_Sigmoid_SymmetricAtMidpoint()
     {
         // Sigmoid is point-symmetric about (0.5, 0.5) → output at 0.5 is 0.5
-        var p = PressureCurveParams.Default with { CurveType = CurveType.Sigmoid, Softness = 0.5 };
+        var p = CurveSettings.Default with { CurveType = CurveType.Sigmoid, Softness = 0.5 };
         Assert.Equal(0.5, CurveMath.RawCurveOutput(0.5, p), 1e-12);
     }
 
@@ -62,8 +62,8 @@ public class CurveMathTests
     [InlineData(1)]
     public void Apply_Passthrough_ReturnsInput(double x)
     {
-        var p = PressureCurveParams.Default with { CurveType = CurveType.Passthrough };
-        Assert.Equal(x, CurveMath.ApplyPressureCurve(x, p), Eps);
+        var p = CurveSettings.Default with { CurveType = CurveType.Passthrough };
+        Assert.Equal(x, CurveMath.ApplyCurve(x, p), Eps);
     }
 
     [Theory]
@@ -72,8 +72,8 @@ public class CurveMathTests
     [InlineData(1)]
     public void Apply_Flat_ReturnsFlatLevel(double x)
     {
-        var p = PressureCurveParams.Default with { CurveType = CurveType.Flat, FlatLevel = 0.42 };
-        Assert.Equal(0.42, CurveMath.ApplyPressureCurve(x, p), Eps);
+        var p = CurveSettings.Default with { CurveType = CurveType.Flat, FlatLevel = 0.42 };
+        Assert.Equal(0.42, CurveMath.ApplyCurve(x, p), Eps);
     }
 
     // ── ApplyPressureCurve: input range remapping ────────────────
@@ -84,14 +84,14 @@ public class CurveMathTests
         // Extended, because only it honours the input range. x=0.35 rather than the
         // midpoint, which would remap to itself and so prove nothing.
         // x=0.35 with input range [0.2, 0.8] → xNorm = 0.15/0.6 = 0.25; softness 0 → 0.25
-        var p = PressureCurveParams.Default with
+        var p = CurveSettings.Default with
         {
             CurveType = CurveType.Extended,
             Softness = 0,
             InputMinimum = 0.2,
             InputMaximum = 0.8,
         };
-        Assert.Equal(0.25, CurveMath.ApplyPressureCurve(0.35, p), Eps);
+        Assert.Equal(0.25, CurveMath.ApplyCurve(0.35, p), Eps);
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public class CurveMathTests
         // Extended, not Basic: min approach and the range are only exposed — and only
         // honoured — there. Minimum is 0.15 rather than 0.1 so the expected value differs
         // from the input, and the test cannot pass by coincidence if the range is ignored.
-        var p = PressureCurveParams.Default with
+        var p = CurveSettings.Default with
         {
             CurveType = CurveType.Extended,
             InputMinimum = 0.2,
@@ -108,20 +108,20 @@ public class CurveMathTests
             MinApproach = MinApproach.Clamp,
         };
         // x < inputMin → xNorm clamped to 0 → softness 0 → 0^1 = 0 → 0.15 + 0*(1-0.15) = 0.15
-        Assert.Equal(0.15, CurveMath.ApplyPressureCurve(0.1, p), Eps);
+        Assert.Equal(0.15, CurveMath.ApplyCurve(0.1, p), Eps);
     }
 
     [Fact]
     public void Apply_MinApproachCut_BelowInputMin_OutputsZero()
     {
-        var p = PressureCurveParams.Default with
+        var p = CurveSettings.Default with
         {
             CurveType = CurveType.Extended,
             InputMinimum = 0.2,
             Minimum = 0.1,
             MinApproach = MinApproach.Cut,
         };
-        Assert.Equal(0.0, CurveMath.ApplyPressureCurve(0.1, p), Eps);
+        Assert.Equal(0.0, CurveMath.ApplyCurve(0.1, p), Eps);
     }
 
     // ── Bezier ────────────────────────────────────────────────────
@@ -130,43 +130,43 @@ public class CurveMathTests
     public void Apply_BezierLinearPreset_IsApproximatelyIdentity()
     {
         var linear = BezierPresets.All.First(p => p.Name == "Linear");
-        var p = PressureCurveParams.Default with
+        var p = CurveSettings.Default with
         {
             CurveType = CurveType.Bezier,
             BezierPoints = linear.Points,
         };
         // Linear preset has handles colinear with the line → identity (within solver precision)
         for (double x = 0; x <= 1.0; x += 0.05)
-            Assert.Equal(x, CurveMath.ApplyPressureCurve(x, p), 1e-7);
+            Assert.Equal(x, CurveMath.ApplyCurve(x, p), 1e-7);
     }
 
     [Fact]
     public void Apply_Bezier_AtEndpoints_ReturnsEndpointY()
     {
         var heavy = BezierPresets.All.First(p => p.Name == "Heavy");
-        var p = PressureCurveParams.Default with
+        var p = CurveSettings.Default with
         {
             CurveType = CurveType.Bezier,
             BezierPoints = heavy.Points,
         };
-        Assert.Equal(0.0, CurveMath.ApplyPressureCurve(0, p), Eps);
-        Assert.Equal(1.0, CurveMath.ApplyPressureCurve(1, p), Eps);
+        Assert.Equal(0.0, CurveMath.ApplyCurve(0, p), Eps);
+        Assert.Equal(1.0, CurveMath.ApplyCurve(1, p), Eps);
     }
 
     [Fact]
     public void Apply_Bezier_ClampsInputBelowZero()
     {
         var linear = BezierPresets.All.First(p => p.Name == "Linear");
-        var p = PressureCurveParams.Default with { CurveType = CurveType.Bezier, BezierPoints = linear.Points };
-        Assert.Equal(0.0, CurveMath.ApplyPressureCurve(-0.5, p), Eps);
+        var p = CurveSettings.Default with { CurveType = CurveType.Bezier, BezierPoints = linear.Points };
+        Assert.Equal(0.0, CurveMath.ApplyCurve(-0.5, p), Eps);
     }
 
     [Fact]
     public void Apply_Bezier_ClampsInputAboveOne()
     {
         var linear = BezierPresets.All.First(p => p.Name == "Linear");
-        var p = PressureCurveParams.Default with { CurveType = CurveType.Bezier, BezierPoints = linear.Points };
-        Assert.Equal(1.0, CurveMath.ApplyPressureCurve(1.5, p), Eps);
+        var p = CurveSettings.Default with { CurveType = CurveType.Bezier, BezierPoints = linear.Points };
+        Assert.Equal(1.0, CurveMath.ApplyCurve(1.5, p), Eps);
     }
 
     // ── NormalizeBezierPoints ────────────────────────────────────
@@ -217,9 +217,9 @@ public class CurveMathTests
     {
         foreach (var preset in BezierPresets.All)
         {
-            var p = PressureCurveParams.Default with { CurveType = CurveType.Bezier, BezierPoints = preset.Points };
-            Assert.Equal(0.0, CurveMath.ApplyPressureCurve(0, p), Eps);
-            Assert.Equal(1.0, CurveMath.ApplyPressureCurve(1, p), Eps);
+            var p = CurveSettings.Default with { CurveType = CurveType.Bezier, BezierPoints = preset.Points };
+            Assert.Equal(0.0, CurveMath.ApplyCurve(0, p), Eps);
+            Assert.Equal(1.0, CurveMath.ApplyCurve(1, p), Eps);
         }
     }
 }
