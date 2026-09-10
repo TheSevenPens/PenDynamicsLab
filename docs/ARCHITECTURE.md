@@ -55,6 +55,8 @@ Brush state is *not* stored on `MainWindow` — it's read on demand from `BrushR
 ### `StrokeCanvasView`
 A `UserControl` bundling a header label, a "Save..." button, and an `Image`. It does **not** own pixel data — it exposes `Image` (register with a `DrawSurface`), `Host` (the `Border` whose bounds drive surface size), a `Header` styled property, and a `SaveRequested` event. The `Image` sits inside a `Canvas` pinned at (0, 0) so an oversized shared bitmap doesn't get re-laid-out when it's larger than the current host.
 
+The `Image` uses `Stretch="Fill"` with no size set in the markup: `DrawSurface` assigns its `Width`/`Height` at allocation time. See the HiDPI section below for why.
+
 Three instances exist: `StrokeView`, `CompareProcessedView`, `CompareRawView`.
 
 ### `BrushRibbon`
@@ -83,7 +85,7 @@ Lives on its own tab. `MainWindow` auto-selects the first bundled sample at star
 UserControl wrapping a label, click-to-edit value display (Enter commits, Esc cancels), and a `Slider` whose context menu offers `Min (x.xx)` / `Max (x.xx)` / `Reset (x.xx)`. Exposes a `ValueChanged` event for direct subscription, and a `ShowSlider` flag — the four input/output range sliders set it to `false`, showing label + value only, because those values are meant to be driven by dragging the chart's pink/cyan nodes.
 
 ### `DrawSurface`
-Bundles an `SKBitmap`, `SKCanvas`, and Avalonia `WriteableBitmap` for **one or more** `Image` hosts. `AddHost(image)` registers an additional host; `EnsureSize(w, h)` (re)allocates on resize and preserves existing pixels; `Present()` blits the SkiaSharp pixels into the WriteableBitmap and invalidates every host; `SavePng(stream)` encodes the current bitmap to PNG.
+Bundles an `SKBitmap`, `SKCanvas`, and Avalonia `WriteableBitmap` for **one or more** `Image` hosts. `AddHost(image)` registers an additional host; `EnsureSize(dipWidth, dipHeight, scale)` (re)allocates when the DIP size *or* the render scaling changed, preserving existing pixels; `Present()` blits the SkiaSharp pixels into the WriteableBitmap and invalidates every host; `SavePng(stream)` encodes the current bitmap to PNG at full physical resolution.
 
 Multi-host support is what lets the processed surface appear in both the Stroke tab and the Stroke compare tab as literally the same pixels:
 
@@ -95,6 +97,8 @@ _raw       ──► CompareRawView.Image
 
 `EnsureSurfaces()` sizes a surface from whichever host is *effectively visible* — that is, the active tab's. Checking `IsEffectivelyVisible` rather than `Bounds` avoids picking up stale cached layout from an inactive tab, which otherwise shows up as an X/Y displacement on the wrong canvas.
 
+`DrawSurface` is also where Avalonia's layout units are reconciled with physical pixels — see [HiDPI](#hidpi-dips-vs-physical-pixels) below, which is required reading before changing anything in this class.
+
 ### `CurveMath` (static)
 Pure math: `ApplyPressureCurve`, `RawCurveOutput`, `RawCurveSlope`, `CubicHermite`, `EvaluateCustomCurve`, `NormalizeBezierPoints`. No Avalonia dependencies — covered directly by the xUnit project.
 
@@ -103,6 +107,41 @@ Loads/saves the user's named curve presets from `%LOCALAPPDATA%\PenDynamicsLab\p
 
 ### `PressureResponseLoader`
 Reads pen hardware response JSON. Includes a custom `JsonConverter<ResponseRecord>` so each record can be a 2-element `[gf, logPct]` array. Bundles three WACOM KP-504E sample files as embedded resources.
+
+## HiDPI: DIPs vs physical pixels
+
+Avalonia lays out in **device-independent units** (DIPs); a display at 225% scaling paints each DIP across 2.25 physical pixels. Only two places in the app are aware of that: `DrawSurface` (below) and `SaveControlAsPngAsync` (at the end of this section). Everything else — the pressure pipeline, hit-testing, brush sizing — works in DIPs and stays oblivious.
+
+`DrawSurface` gets three things right at once:
+
+| Concern | How |
+|---|---|
+| Backing store resolution | `SKBitmap` is allocated at `dip * scale` **physical pixels**, so strokes are stored at the display's true resolution |
+| Drawing coordinates | The `SKCanvas` carries a `Scale(scale)` transform, so all caller code — positions, brush widths — stays in **DIP space** and needs no changes |
+| On-screen mapping | Each host `Image` gets an explicit `Width`/`Height` in DIPs (`ApplyToHost`), which with `Stretch="Fill"` maps the backing store 1:1 |
+
+`Width` / `Height` on the surface are physical pixels; `DipWidth` / `DipHeight` are the DIP equivalents, derived from the *rounded* pixel count so that `DipWidth * Scale == Width` exactly and the mapping stays 1:1 rather than drifting by a rounding error. Because the DIP size is always `pixels / scale`, `Stretch="Fill"` resolves to an identity transform, not a resample.
+
+> **The `new Vector(96, 96)` DPI tag is deliberate — do not "fix" it.**
+>
+> It is tempting to tag the `WriteableBitmap` with its true density (`96 * scale`), since that is what the bitmap genuinely is. Doing so breaks rendering. The tag makes `Bitmap.Size` report **DIPs** rather than pixels, and Avalonia derives the **source rectangle** from `Bitmap.Size` while treating it as pixels — so only the top-left `pixels / scale` corner of the bitmap is sampled and then stretched over the whole host. Visually: strokes drift further from the pen tip the further the pen is from the canvas origin, displaced by exactly the scaling factor.
+>
+> Leaving the tag at 96 keeps `Bitmap.Size == PixelSize`, so the whole bitmap is the source. The DIP size is carried by the host's explicit `Width`/`Height` instead, which avoids depending on those semantics at all.
+
+Two further details:
+
+- **Scaling changes.** Dragging the window to a monitor with different DPI keeps it the same size in DIPs, so no `Bounds` change fires. `MainWindow` subscribes to `ScalingChanged` and re-runs `EnsureSurfaces`, and the allocation cache compares `Scale` as well as size. On such a reallocation the preserve-pixels blit resamples by the scale ratio, so existing content keeps its apparent size instead of jumping.
+- **Blit ordering.** That preserve-pixels blit runs *before* the `Scale` transform is applied to the new canvas, so it works in device space and resized content isn't double-scaled.
+
+A calibration pattern (a full-extent border plus ticks every 100 DIP, measured against a screenshot in physical pixels) is the quickest way to check this end to end if it is ever touched again: at 225% the ticks must land exactly 225 physical pixels apart, and both border edges must be visible.
+
+### Image export
+
+`SaveControlAsPngAsync` (used by "Save chart...") has the same DIP-vs-pixel problem: a `RenderTargetBitmap` built from `Bounds` at 96 DPI produces a file at `1/scale` of the on-screen resolution. It sizes the target in physical pixels and tags it `96 * scale`.
+
+That is the **opposite** of the canvas rule above, and deliberately so. `RenderTargetBitmap` is a render *target*, not a source bitmap: the tag tells Avalonia how to rasterize the visual into it, so scaling it up is exactly what's wanted. The canvas path passes its bitmap as a *source*, where the same tag instead changes how the source rectangle is derived. Same parameter, two different roles.
+
+The stroke canvases need no equivalent handling on save — `DrawSurface.SavePng` encodes the `SKBitmap` directly, which is already at physical resolution.
 
 ## State flow
 
@@ -157,6 +196,8 @@ Two ordering details matter here:
 2. **`ResolveActiveCanvas` only probes canvases in the visible tab**, for the same stale-layout reason as `EnsureSurfaces`. It translates the desktop point into each host's local frame and returns the first host containing it.
 
 Both surfaces are drawn on every segment when their canvases exist — the processed one with the pipeline output, the raw one with unprocessed pressure. `_raw`'s canvas is only allocated once the compare tab has been visible, so on a fresh launch into the Stroke tab the raw draw is a no-op until the user visits Stroke compare.
+
+Every coordinate in this pipeline — `clientPt`, the host-local point, the smoothed position, and the stroke widths from `SizeFor` — is in **DIPs**. Nothing here is aware of the display scaling; `DrawSurface`'s canvas transform converts to physical pixels at the point of drawing. See [HiDPI](#hidpi-dips-vs-physical-pixels).
 
 Pressure → stroke parameters (`SizeFor` / `OpacityFor`, both reading `BrushRibbon` live):
 - `PressureControl.Size`: stroke width = `max(1, pressure * brushSize)`, opacity = 1
@@ -226,5 +267,6 @@ Pen events come from `IPenSession` (WinPenKit, referenced as a sibling project �
 3. **Avalonia DrawingContext for charts; SkiaSharp for canvases** — Charts are simple line geometry and benefit from Avalonia's text rendering + transform stack. The drawing canvases need many small antialiased strokes per frame, where SkiaSharp via `SKBitmap`/`WriteableBitmap` interop is faster.
 4. **Single owner of state** — `MainWindow` holds the params and the surfaces; everything else is a leaf control receiving values via StyledProperties or queried for its current value. Even the chart's own edits round-trip through this owner.
 5. **One surface, many views** — `DrawSurface` supports multiple `Image` hosts so the processed canvas is shared between tabs rather than copied. Sizing and hit-testing both key off `IsEffectivelyVisible` to avoid stale inactive-tab layout.
-6. **One ribbon, reparented** — rather than duplicating brush UI per tab and syncing it, a single `BrushRibbon` moves between tab slots.
-7. **Stroke-local smoothing reset** — EMA state resets on every pen lift, canvas switch, and tab switch, so smoothing tails don't bleed across strokes or between canvases.
+6. **DIPs in, pixels out** — callers draw entirely in device-independent units; `DrawSurface` alone knows the render scaling, allocating at physical resolution and carrying a matching canvas transform. Keeping that conversion in one class is what lets the pressure pipeline, brush sizing, and hit-testing all ignore DPI. See [HiDPI](#hidpi-dips-vs-physical-pixels).
+7. **One ribbon, reparented** — rather than duplicating brush UI per tab and syncing it, a single `BrushRibbon` moves between tab slots.
+8. **Stroke-local smoothing reset** — EMA state resets on every pen lift, canvas switch, and tab switch, so smoothing tails don't bleed across strokes or between canvases.
