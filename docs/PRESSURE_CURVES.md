@@ -27,6 +27,8 @@ These settings apply to **basic**, **extended**, and **sigmoid** curve types:
 
 Note: PenDynamicsLab shows the min/max nodes for **Sigmoid** and **Extended** curves only. **Basic** intentionally hides them — same convention as WebPressureExplorer — so Basic effectively uses the full [0, 1] input/output range.
 
+The four range values (input min/max, output min/max) appear in the left panel as label + number only, with no slider track. They're meant to be set by dragging the pink and cyan nodes on the chart; the readout is click-to-edit if you need an exact value.
+
 ### Min approach modes
 
 Controls the curve segment from `x = 0` to `x = InputMinimum`:
@@ -174,7 +176,7 @@ The 28-iteration binary search gives roughly 3.7 × 10⁻⁹ precision. This is 
 
 ## Pressure processing pipeline
 
-The full pipeline from raw pen input to final stroke parameter (per pen point inside `MainWindow.RenderTimer_Tick`):
+The full pipeline from raw pen input to final stroke parameter (per pen point inside `MainWindow.RenderTimer_Tick`). This runs for every pen point regardless of whether the pen is over a drawing canvas, which is what keeps the charts' live indicators moving on the Pressure response tab:
 
 ```
 Raw pen pressure (pt.Pressure / pt.MaxPressure  → 0..1)

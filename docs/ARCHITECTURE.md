@@ -7,38 +7,60 @@ MainWindow
 ├── DriverWarningBanner (dismissible)
 ├── Top ribbon (API selector + pen telemetry)
 └── Body Grid
-    ├── Left panel (480 px)
-    │   ├── PressureChartControl (320 px tall)  + "Save chart..." button
+    ├── Left panel (360 px)
+    │   ├── PressureChartControl + "Save chart..." button
     │   └── ScrollViewer
     │       ├── Curve type combo
-    │       ├── Bezier toolbar (Add / Remove / preset combo, visible only for Bezier)
-    │       ├── LabeledSlider × N  (softness, in/out range, transition width, flat level)
+    │       ├── Bezier toolbar (Add / Remove / count / preset combo, visible only for Bezier)
+    │       ├── LabeledSlider × N  (softness, in/out range, flat level)
     │       ├── Min approach radios
     │       ├── SMOOTHING section (pressure EMA, position EMA, smoothing order)
-    │       ├── PRESSURE RESPONSE section
-    │       │   ├── Data combo (none / 3 samples / Upload JSON...)
-    │       │   ├── "Show effect of curve" checkbox + info label
-    │       │   └── PressureResponseChartControl
     │       └── USER PRESETS section (name input + Save + dynamic list)
     ├── 1px splitter
-    └── Right panel
-        ├── Brush ribbon (size, color, pressure target, draw-zero, clear)
-        └── Split canvas Grid (header + ProcessedImage + divider + header + RawImage)
+    └── CanvasArea (DockPanel)
+        └── RightTabs (TabControl)
+            ├── "Stroke"
+            │   ├── StrokeBrushSlot (ContentControl — hosts the shared BrushRibbon)
+            │   └── StrokeView : StrokeCanvasView
+            ├── "Stroke compare"
+            │   ├── CompareBrushSlot (ContentControl — hosts the shared BrushRibbon)
+            │   └── Grid
+            │       ├── CompareProcessedView : StrokeCanvasView  ("Pressure processing: ON")
+            │       ├── 1px divider
+            │       └── CompareRawView : StrokeCanvasView        ("Pressure processing: OFF")
+            └── "Pressure response"
+                ├── Data combo + Clear button
+                ├── "Show effect of curve" checkbox + info label
+                └── PressureResponseChartControl
 ```
 
 `MainWindow.axaml.cs` owns essentially all state and behavior; controls communicate via events and StyledProperties.
+
+`CanvasArea` (the whole right-hand DockPanel) is also the Avalonia element passed to `AvaloniaPointerSession`, so the Avalonia-pointer input path receives events across every tab.
 
 ## Component roles
 
 ### `MainWindow`
 Single source of truth. Owns:
 - `_curveParams` — immutable `PressureCurveParams` record
-- Two `DrawSurface` instances (`_processed`, `_raw`) for the split canvas bitmaps
-- Brush state (`_brushSize`, `_colorMode`, `_pressureControl`, `_drawZeroPressure`, `_strokeColor`)
+- Two `DrawSurface` instances (`_processed`, `_raw`) for the stroke bitmaps
+- The single shared `BrushRibbon` instance, reparented between tab slots
 - Stroke-local smoothing state (`_smoothedPressure`, `_smoothedPos`, `_lastDrawPos`, `_activeCanvas`)
 - The `PresetStore` and the live `IPenSession`
 
-The render timer (16 ms tick) drains pen points from the session, runs them through the pressure pipeline, draws line segments to both canvases, and updates the live indicators on both charts.
+The render timer (16 ms tick) drains pen points from the session, runs them through the pressure pipeline, draws line segments to the surfaces, and updates the live indicators on both charts.
+
+Brush state is *not* stored on `MainWindow` — it's read on demand from `BrushRibbon`'s properties (`BrushSize`, `ColorMode`, `PressureControl`, `DrawZeroPressure`) at draw time. Only `_strokeColor` (the currently-picked random palette entry) lives on the window.
+
+### `StrokeCanvasView`
+A `UserControl` bundling a header label, a "Save..." button, and an `Image`. It does **not** own pixel data — it exposes `Image` (register with a `DrawSurface`), `Host` (the `Border` whose bounds drive surface size), a `Header` styled property, and a `SaveRequested` event. The `Image` sits inside a `Canvas` pinned at (0, 0) so an oversized shared bitmap doesn't get re-laid-out when it's larger than the current host.
+
+Three instances exist: `StrokeView`, `CompareProcessedView`, `CompareRawView`.
+
+### `BrushRibbon`
+A `UserControl` toolbar: brush size slider, color mode radios, pressure-target radios, draw-at-zero checkbox, and Clear. Exposes current values as plain read-only properties plus a `ClearRequested` event.
+
+Exactly **one** instance exists, created in the `MainWindow` field initializer and moved between `StrokeBrushSlot` and `CompareBrushSlot` on tab change (`UpdateBrushRibbonHost`). A control can have only one logical parent in Avalonia, so both slots are cleared before assigning to the active one. On the Pressure response tab the ribbon stays detached. This keeps brush settings identical across the stroke tabs with no state syncing.
 
 ### `PressureChartControl`
 Custom `Control` rendering with Avalonia's `DrawingContext`. Handles:
@@ -55,11 +77,23 @@ When the user manipulates the chart, it writes a new `PressureCurveParams` back 
 ### `PressureResponseChartControl`
 Renders the loaded `PressureResponseData` as gf-vs-percent. When `ShowCurveEffect` is true and `Params` is set, it transforms the Y axis through the active curve and relabels it. Live raw/effective pressure indicators are projected onto the response trace by interpolating the grams-force value at the indicator's Y.
 
+Lives on its own tab. `MainWindow` auto-selects the first bundled sample at startup (combo index 1; index 0 is "(none)") so the chart isn't blank on first open.
+
 ### `LabeledSlider`
-UserControl wrapping a label, click-to-edit value display (Enter commits, Esc cancels), and a `Slider` whose context menu offers `Min (x.xx)` / `Max (x.xx)` / `Reset (x.xx)`. Exposes a `ValueChanged` event for direct subscription.
+UserControl wrapping a label, click-to-edit value display (Enter commits, Esc cancels), and a `Slider` whose context menu offers `Min (x.xx)` / `Max (x.xx)` / `Reset (x.xx)`. Exposes a `ValueChanged` event for direct subscription, and a `ShowSlider` flag — the four input/output range sliders set it to `false`, showing label + value only, because those values are meant to be driven by dragging the chart's pink/cyan nodes.
 
 ### `DrawSurface`
-Bundles an `SKBitmap`, `SKCanvas`, and Avalonia `WriteableBitmap` for one image host. `EnsureSize(w, h)` (re)allocates on resize and preserves existing pixels. `Present()` blits the SkiaSharp pixels into the WriteableBitmap and invalidates the host. `SavePng(stream)` encodes the current bitmap to PNG.
+Bundles an `SKBitmap`, `SKCanvas`, and Avalonia `WriteableBitmap` for **one or more** `Image` hosts. `AddHost(image)` registers an additional host; `EnsureSize(w, h)` (re)allocates on resize and preserves existing pixels; `Present()` blits the SkiaSharp pixels into the WriteableBitmap and invalidates every host; `SavePng(stream)` encodes the current bitmap to PNG.
+
+Multi-host support is what lets the processed surface appear in both the Stroke tab and the Stroke compare tab as literally the same pixels:
+
+```
+_processed ──► StrokeView.Image
+           └─► CompareProcessedView.Image
+_raw       ──► CompareRawView.Image
+```
+
+`EnsureSurfaces()` sizes a surface from whichever host is *effectively visible* — that is, the active tab's. Checking `IsEffectivelyVisible` rather than `Bounds` avoids picking up stale cached layout from an inactive tab, which otherwise shows up as an X/Y displacement on the wrong canvas.
 
 ### `CurveMath` (static)
 Pure math: `ApplyPressureCurve`, `RawCurveOutput`, `RawCurveSlope`, `CubicHermite`, `EvaluateCustomCurve`, `NormalizeBezierPoints`. No Avalonia dependencies — covered directly by the xUnit project.
@@ -87,16 +121,12 @@ MainWindow._curveParams (PressureCurveParams)
 
 Every control change funnels through `UpdateParams(Func<PressureCurveParams, PressureCurveParams>)` which rebuilds the immutable record with `with { ... }` and pushes it to both charts. Chart-driven changes round-trip through the same property and are mirrored back into the controls.
 
+`UpdateBezierToolbar()` runs on every params change and drives per-curve-type control visibility. It also clamps `Softness` into the active range — Sigmoid restricts the slider to `[0, 0.95]` (steepness is `softness * 14`, and the top of the range is numerically unstable), everything else uses `[-0.9, 0.9]`.
+
 ## Pressure processing pipeline
 
 ```
 PenSession point (pt.Pressure / pt.MaxPressure → 0..1 raw)
-  │
-  ▼
-ResolveActiveCanvas → which sub-canvas the pen is over (Processed / Raw / None)
-  │  (canvas switch resets _smoothedPressure, _smoothedPos, _lastDrawPos)
-  ▼
-SmoothPosition (EMA on canvas-local x,y)
   │
   ▼
 ProcessPressure:
@@ -106,23 +136,37 @@ ProcessPressure:
      output   = curved                     output   = smoothed
      preCurve = smoothed                   preCurve = raw
   │
+  ├──► Telemetry labels
+  ├──► PressureChart.LiveRawPressure = raw,  LivePressure = preCurve
+  └──► ResponseChart same
+  │
+  ▼
+ResolveActiveCanvas → which canvas the pen is over (Processed / Raw / None)
+  │  (None → skip drawing; canvas switch resets _smoothedPos, _lastDrawPos)
+  ▼
+SmoothPosition (EMA on canvas-local x,y)
+  │
   ▼
 Draw segment on _processed using Output pressure
 Draw segment on _raw       using Raw pressure
-  │
-  ▼
-PressureChart.LiveRawPressure = raw,  LivePressure = preCurve
-ResponseChart same
 ```
 
-Pressure → stroke parameters (`SizeFor` / `OpacityFor`):
+Two ordering details matter here:
+
+1. **The pressure pipeline and the live indicators run for every pen point, whether or not the pen is over a canvas.** That's what keeps the charts live on the Pressure response tab, which has no drawing surface. Only the drawing steps are gated on canvas hit-testing.
+2. **`ResolveActiveCanvas` only probes canvases in the visible tab**, for the same stale-layout reason as `EnsureSurfaces`. It translates the desktop point into each host's local frame and returns the first host containing it.
+
+Both surfaces are drawn on every segment when their canvases exist — the processed one with the pipeline output, the raw one with unprocessed pressure. `_raw`'s canvas is only allocated once the compare tab has been visible, so on a fresh launch into the Stroke tab the raw draw is a no-op until the user visits Stroke compare.
+
+Pressure → stroke parameters (`SizeFor` / `OpacityFor`, both reading `BrushRibbon` live):
 - `PressureControl.Size`: stroke width = `max(1, pressure * brushSize)`, opacity = 1
 - `PressureControl.Opacity`: stroke width = `brushSize`, opacity = `max(0.02, pressure)`
 
-Stroke state (last position, smoothed position, smoothed pressure) resets when:
+Stroke state (last position, smoothed position, smoothed pressure, live indicators) resets when:
 - The pen lifts (no pressure for >200 ms or no points drained)
-- The pen crosses between the processed and raw sub-canvases (so a stroke doesn't "snap" across the divider)
-- The user clicks Clear
+- The pen crosses between canvases (so a stroke doesn't "snap" across the divider)
+- The user switches tabs
+- The user clicks Clear, or presses Delete / Backspace with no `TextBox` focused
 
 ## Data model
 
@@ -131,7 +175,7 @@ Stroke state (last position, smoothed position, smoothed pressure) resets when:
 | Field | Type | Range | Purpose |
 |---|---|---|---|
 | `CurveType` | `CurveType` enum | Passthrough, Flat, Basic, Extended, Sigmoid, Bezier | Active curve algorithm |
-| `Softness` | `double` | -0.9 to 0.9 | Power exponent / sigmoid steepness |
+| `Softness` | `double` | -0.9 to 0.9 (Sigmoid: 0 to 0.95) | Power exponent / sigmoid steepness |
 | `InputMinimum` | `double` | 0-1 | Start of input pressure range |
 | `InputMaximum` | `double` | 0-1 | End of input pressure range |
 | `Minimum` | `double` | 0-1 | Start of output pressure range |
@@ -145,6 +189,8 @@ Stroke state (last position, smoothed position, smoothed pressure) resets when:
 
 `BezierPoint`: `(X, Y, InX, InY, OutX, OutY, HandleMode)` — anchor + in handle + out handle + Broken/Mirrored mode.
 
+Brush settings (`ColorMode`, `PressureControl`, brush size, draw-at-zero) are deliberately **not** part of this record — they're view state on `BrushRibbon` and aren't saved with user presets.
+
 ## Pressure response data schema
 
 Bundled samples and uploaded JSON files match WebPressureExplorer's format:
@@ -157,8 +203,7 @@ Bundled samples and uploaded JSON files match WebPressureExplorer's format:
   "date": "2025-11-10",
   "tablet": "PTH-870",
   "records": [
-    [82.0, 51.41],
-    ...
+    [82.0, 51.41]
   ]
 }
 ```
@@ -167,17 +212,19 @@ Each record is `[gramForce, logicalPressurePercent]`. The custom `ResponseRecord
 
 ## Pen input
 
-Pen events come from `IPenSession` (WinPenSession). `MainWindow` lets the user pick between:
-- Wintab system-cursor session
-- Wintab high-resolution digitizer session
-- Avalonia pointer events (subclasses `CanvasArea` to receive Avalonia's pen pointer stream)
+Pen events come from `IPenSession` (WinPenKit, referenced as a sibling project — see OVERVIEW). `MainWindow` lets the user pick between:
+- `InputApi.WintabSystem` — Wintab system context, screen-pixel output, pen drives the cursor
+- `InputApi.WintabDigitizer` — Wintab digitizer context, tablet-native output scaled to desktop coords, preserving sub-pixel precision
+- `InputApi.AvaloniaPointer` — Avalonia pointer events (`AvaloniaPointerSession` wrapping `CanvasArea`)
 
-WM_POINTER subclassing is excluded because Avalonia consumes those messages itself and the subclass never sees them. Each session exposes `DrainPoints()` returning a batch of `PenPoint` records with desktop coords, raw coords, pressure, azimuth, altitude, twist, and cursor type.
+`InputApi.WmPointer` is filtered out of the list: Avalonia consumes those messages itself, so the window subclass never sees them. Each session exposes `DrainPoints()` returning a batch of `PenPoint` records with desktop coords, raw coords, pressure, azimuth, altitude, twist, and cursor type. Changing the combo tears down the old session and starts a new one; a start failure is surfaced in the window title.
 
 ## Key design points
 
 1. **Immutable params record** — `PressureCurveParams` is a `record` with `init` properties. Every change is a `with { ... }` rebuild, which makes change detection and parity-test reasoning straightforward.
-2. **Pure math separation** — `Curves/CurveMath.cs` has no Avalonia or SkiaSharp dependencies. The xUnit project pins behavior with 27 tests against analytically-derived values.
+2. **Pure math separation** — `Curves/CurveMath.cs` has no Avalonia or SkiaSharp dependencies. The xUnit project pins behavior with 23 tests against analytically-derived values.
 3. **Avalonia DrawingContext for charts; SkiaSharp for canvases** — Charts are simple line geometry and benefit from Avalonia's text rendering + transform stack. The drawing canvases need many small antialiased strokes per frame, where SkiaSharp via `SKBitmap`/`WriteableBitmap` interop is faster.
-4. **Single owner of state** — `MainWindow` holds the params and the surfaces; everything else is a leaf control receiving values via StyledProperties. Even the chart's own edits round-trip through this owner.
-5. **Stroke-local smoothing reset** — EMA state resets on every pen lift and on canvas switch, so smoothing tails don't bleed across strokes or between the processed/raw sub-canvases.
+4. **Single owner of state** — `MainWindow` holds the params and the surfaces; everything else is a leaf control receiving values via StyledProperties or queried for its current value. Even the chart's own edits round-trip through this owner.
+5. **One surface, many views** — `DrawSurface` supports multiple `Image` hosts so the processed canvas is shared between tabs rather than copied. Sizing and hit-testing both key off `IsEffectivelyVisible` to avoid stale inactive-tab layout.
+6. **One ribbon, reparented** — rather than duplicating brush UI per tab and syncing it, a single `BrushRibbon` moves between tab slots.
+7. **Stroke-local smoothing reset** — EMA state resets on every pen lift, canvas switch, and tab switch, so smoothing tails don't bleed across strokes or between canvases.
