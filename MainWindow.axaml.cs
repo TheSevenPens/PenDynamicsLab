@@ -491,9 +491,18 @@ public partial class MainWindow : Window
         });
         if (file is null) return;
 
+        // Same DIP-vs-pixel issue as the stroke surfaces: Bounds are DIPs, so rendering
+        // at 96 DPI produces an image at 1/RenderScaling of the on-screen resolution.
+        // Sizing the target in physical pixels and tagging it 96 * scale makes
+        // RenderTargetBitmap.Render scale the visual to match.
+        double scale = RenderScaling;
+        if (scale <= 0 || double.IsNaN(scale)) scale = 1;
+
         var rtb = new global::Avalonia.Media.Imaging.RenderTargetBitmap(
-            new PixelSize((int)control.Bounds.Width, (int)control.Bounds.Height),
-            new Vector(96, 96));
+            new PixelSize(
+                (int)Math.Round(control.Bounds.Width * scale),
+                (int)Math.Round(control.Bounds.Height * scale)),
+            new Vector(96 * scale, 96 * scale));
         rtb.Render(control);
         await using var stream = await file.OpenWriteAsync();
         rtb.Save(stream);
