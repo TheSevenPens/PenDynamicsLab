@@ -292,7 +292,7 @@
                     <Border Background="#FFFFFF" BorderBrush="#E5E5E5" BorderThickness="1"
                             CornerRadius="8" Padding="12,10,12,12">
                         <StackPanel Spacing="8">
-                            <TextBlock Text="Response curve" FontSize="13" FontWeight="SemiBold"
+                            <TextBlock Text="Pressure curve" FontSize="13" FontWeight="SemiBold"
                                        Foreground="#242424" />
                             <controls:PressureChartControl x:Name="PressureChart" />
                         </StackPanel>
