@@ -110,19 +110,13 @@
                 <!-- Chart, with the Export menu directly beneath it -->
                 <StackPanel Grid.Column="0" Margin="14,12,8,12">
                     <controls:PressureChartControl x:Name="PressureChart" />
+                    <!-- Export lives on the chart's right-click menu, so the hint carries
+                         the affordance the button used to. Same convention as the bezier
+                         toolbar's "Right-click in plot to add or remove." -->
                     <StackPanel Orientation="Horizontal"
-                                Spacing="10" Margin="0,12,0,0">
-                        <Button x:Name="ExportButton" Content="Export  ▾" Padding="12,4">
-                            <Button.Flyout>
-                                <MenuFlyout>
-                                    <MenuItem Header="Copy full chart" Click="CopyFullChart_Click" />
-                                    <MenuItem Header="Copy plot area only" Click="CopyPlotArea_Click" />
-                                    <Separator />
-                                    <MenuItem Header="Save full chart as PNG..." Click="SaveFullChart_Click" />
-                                    <MenuItem Header="Save plot area as PNG..." Click="SavePlotArea_Click" />
-                                </MenuFlyout>
-                            </Button.Flyout>
-                        </Button>
+                                Spacing="10" Margin="0,10,0,0">
+                        <TextBlock Text="Right-click the chart to export."
+                                   Foreground="#888888" VerticalAlignment="Center" />
                         <TextBlock x:Name="ChartStatusLabel" VerticalAlignment="Center"
                                    Foreground="#4C8C4A" />
                     </StackPanel>
@@ -204,12 +198,7 @@
 
                         <controls:SectionCard x:Name="ProcessingOrderCard" Title="PROCESSING">
                             <controls:SectionCard.CardContent>
-                            <StackPanel Spacing="4">
-                                <RadioButton x:Name="SmoothThenCurveRadio" GroupName="SmoothingOrder"
-                                             Content="Smooth then curve" IsChecked="True" />
-                                <RadioButton x:Name="CurveThenSmoothRadio" GroupName="SmoothingOrder"
-                                             Content="Curve then smooth" />
-                            </StackPanel>
+                            <ComboBox x:Name="ProcessingOrderCombo" HorizontalAlignment="Stretch" />
                             </controls:SectionCard.CardContent>
                         </controls:SectionCard>
 

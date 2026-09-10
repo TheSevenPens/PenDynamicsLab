@@ -105,6 +105,8 @@ public partial class MainWindow : Window
         CompareProcessedView.CopyRequested += async (_, _) => await CopySurfaceAsync(_processed);
         CompareRawView.CopyRequested += async (_, _) => await CopySurfaceAsync(_raw);
 
+        PressureChart.BuildExportMenuItems = BuildChartExportMenuItems;
+
         BrushRibbon.ClearRequested += (_, _) => ClearCanvases();
         InitializeCurveControls();
         InitializeBezierPresets();
@@ -206,11 +208,13 @@ public partial class MainWindow : Window
         foreach (var st in Enum.GetValues<SmoothingType>())
             SmoothingTypeCombo.Items.Add(FormatSmoothingType(st));
 
+        foreach (var so in Enum.GetValues<SmoothingOrder>())
+            ProcessingOrderCombo.Items.Add(FormatSmoothingOrder(so));
+
         _suppressCurveControlEvents = true;
         CurveTypeCombo.SelectedIndex = (int)_curveParams.CurveType;
         SmoothingTypeCombo.SelectedIndex = (int)_curveParams.SmoothingType;
-        SmoothThenCurveRadio.IsChecked = _curveParams.SmoothingOrder == SmoothingOrder.SmoothThenCurve;
-        CurveThenSmoothRadio.IsChecked = _curveParams.SmoothingOrder == SmoothingOrder.CurveThenSmooth;
+        ProcessingOrderCombo.SelectedIndex = (int)_curveParams.SmoothingOrder;
         SoftnessSlider.Value = _curveParams.Softness;
         InputMinSlider.Value = _curveParams.InputMinimum;
         InputMaxSlider.Value = _curveParams.InputMaximum;
@@ -232,17 +236,10 @@ public partial class MainWindow : Window
             if (_suppressCurveControlEvents || SmoothingTypeCombo.SelectedIndex < 0) return;
             UpdateParams(p => p with { SmoothingType = (SmoothingType)SmoothingTypeCombo.SelectedIndex });
         };
-        SmoothThenCurveRadio.IsCheckedChanged += (_, _) =>
+        ProcessingOrderCombo.SelectionChanged += (_, _) =>
         {
-            if (_suppressCurveControlEvents) return;
-            if (SmoothThenCurveRadio.IsChecked == true)
-                UpdateParams(p => p with { SmoothingOrder = SmoothingOrder.SmoothThenCurve });
-        };
-        CurveThenSmoothRadio.IsCheckedChanged += (_, _) =>
-        {
-            if (_suppressCurveControlEvents) return;
-            if (CurveThenSmoothRadio.IsChecked == true)
-                UpdateParams(p => p with { SmoothingOrder = SmoothingOrder.CurveThenSmooth });
+            if (_suppressCurveControlEvents || ProcessingOrderCombo.SelectedIndex < 0) return;
+            UpdateParams(p => p with { SmoothingOrder = (SmoothingOrder)ProcessingOrderCombo.SelectedIndex });
         };
 
         WireSlider(SoftnessSlider, v => p => p with { Softness = v });
@@ -288,8 +285,7 @@ public partial class MainWindow : Window
         _suppressCurveControlEvents = true;
         CurveTypeCombo.SelectedIndex = (int)_curveParams.CurveType;
         SmoothingTypeCombo.SelectedIndex = (int)_curveParams.SmoothingType;
-        SmoothThenCurveRadio.IsChecked = _curveParams.SmoothingOrder == SmoothingOrder.SmoothThenCurve;
-        CurveThenSmoothRadio.IsChecked = _curveParams.SmoothingOrder == SmoothingOrder.CurveThenSmooth;
+        ProcessingOrderCombo.SelectedIndex = (int)_curveParams.SmoothingOrder;
         SoftnessSlider.Value = _curveParams.Softness;
         InputMinSlider.Value = _curveParams.InputMinimum;
         InputMaxSlider.Value = _curveParams.InputMaximum;
@@ -561,17 +557,26 @@ public partial class MainWindow : Window
 
     // ── Image export ────────────────────────────────────────────
 
-    private async void SaveFullChart_Click(object? sender, RoutedEventArgs e)
-        => await SaveChartPngAsync(cropToPlot: false, "pressure-curve.png");
+    /// <summary>
+    /// Build the chart's export entries. Called fresh on every right-click, because a menu
+    /// item can belong to only one parent and the chart rebuilds its ContextMenu each time.
+    /// </summary>
+    private IEnumerable<Control> BuildChartExportMenuItems()
+    {
+        var copyFull = new MenuItem { Header = "Copy full chart" };
+        copyFull.Click += async (_, _) => await CopyChartPngAsync(cropToPlot: false);
 
-    private async void SavePlotArea_Click(object? sender, RoutedEventArgs e)
-        => await SaveChartPngAsync(cropToPlot: true, "pressure-curve-plot.png");
+        var copyPlot = new MenuItem { Header = "Copy plot area only" };
+        copyPlot.Click += async (_, _) => await CopyChartPngAsync(cropToPlot: true);
 
-    private async void CopyFullChart_Click(object? sender, RoutedEventArgs e)
-        => await CopyChartPngAsync(cropToPlot: false);
+        var saveFull = new MenuItem { Header = "Save full chart as PNG..." };
+        saveFull.Click += async (_, _) => await SaveChartPngAsync(cropToPlot: false, "pressure-curve.png");
 
-    private async void CopyPlotArea_Click(object? sender, RoutedEventArgs e)
-        => await CopyChartPngAsync(cropToPlot: true);
+        var savePlot = new MenuItem { Header = "Save plot area as PNG..." };
+        savePlot.Click += async (_, _) => await SaveChartPngAsync(cropToPlot: true, "pressure-curve-plot.png");
+
+        return [copyFull, copyPlot, new Separator(), saveFull, savePlot];
+    }
 
     /// <summary>
     /// Render the curve chart to PNG bytes at full display resolution, optionally
@@ -755,6 +760,13 @@ public partial class MainWindow : Window
             UpdateParams(patch(v));
         };
     }
+
+    private static string FormatSmoothingOrder(SmoothingOrder so) => so switch
+    {
+        SmoothingOrder.SmoothThenCurve => "Smooth then curve",
+        SmoothingOrder.CurveThenSmooth => "Curve then smooth",
+        _ => so.ToString(),
+    };
 
     private static string FormatSmoothingType(SmoothingType st) => st switch
     {

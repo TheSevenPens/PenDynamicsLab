@@ -10,7 +10,7 @@ MainWindow
     ├── Left panel (472 px) — two equal-width columns
     │   ├── Chart column
     │   │   ├── PressureChartControl
-    │   │   └── "Export ▾" (copy / save × full chart | plot area only) + status label
+    │   │   └── hint text + transient status label (export lives on the chart's right-click menu)
     │   └── Card column (scrolls) — SectionCard × 4
     │       ├── CURVE (OFF)
     │       │   ├── Curve type combo + reset
@@ -18,7 +18,7 @@ MainWindow
     │       │   ├── LabeledSlider × N (Curve Amount, in/out range, flat level)
     │       │   └── Min approach radios
     │       ├── SMOOTHING (OFF) — algorithm combo (Passthrough / EMA) + reset, Smoothing Amount
-    │       ├── PROCESSING (S → C) — smooth-then-curve / curve-then-smooth radios
+    │       ├── PROCESSING (S → C) — smooth-then-curve / curve-then-smooth dropdown
     │       └── PRESETS — empty-state text, saved list, "Save settings"
     ├── 1px splitter
     └── CanvasArea (DockPanel)
@@ -95,7 +95,7 @@ Custom `Control` rendering with Avalonia's `DrawingContext`. Handles:
 - Standard min/max control nodes (pink/cyan) with optional dashed projection guides — shown for Sigmoid and Extended (Basic intentionally hides them)
 - Bezier anchors + handles with selection highlight
 - Hit-tested left-button drag of standard nodes, bezier anchors, and bezier handles
-- Right-click context menu in the plot for `Add point at (x, y)` / `Remove point #i` / `Handles: Broken | Mirrored`
+- Right-click context menu in the plot: the bezier entries (`Add point at (x, y)` / `Remove point #i` / `Handles: Broken | Mirrored`) when they apply, then the owner-supplied export entries
 - Toolbar-callable `AddBezierPointAtLargestGap()` and `RemoveSelectedBezierPoint()`
 - Live raw (purple) and effective (green) pressure indicators with dashed crosshair guides
 
@@ -162,11 +162,13 @@ A calibration pattern (a full-extent border plus ticks every 100 DIP, measured a
 
 ### Image export
 
-`SaveControlAsPngAsync` (used by "Save chart...") has the same DIP-vs-pixel problem: a `RenderTargetBitmap` built from `Bounds` at 96 DPI produces a file at `1/scale` of the on-screen resolution. It sizes the target in physical pixels and tags it `96 * scale`.
+`RenderChartPng`, behind the chart's export entries, has the same DIP-vs-pixel problem: a `RenderTargetBitmap` built from `Bounds` at 96 DPI produces an image at `1/scale` of the on-screen resolution. It sizes the target in physical pixels and tags it `96 * scale`.
 
 That is the **opposite** of the canvas rule above, and deliberately so. `RenderTargetBitmap` is a render *target*, not a source bitmap: the tag tells Avalonia how to rasterize the visual into it, so scaling it up is exactly what's wanted. The canvas path passes its bitmap as a *source*, where the same tag instead changes how the source rectangle is derived. Same parameter, two different roles.
 
-The stroke canvases need no equivalent handling on save — `DrawSurface.SavePng` encodes the `SKBitmap` directly, which is already at physical resolution.
+The stroke canvases need no equivalent handling for either save or copy — `DrawSurface.SavePng` encodes the `SKBitmap` directly, which is already at physical resolution.
+
+Both paths end in `CopyPngToClipboardAsync` when copying. Avalonia has no set-image clipboard API, so the PNG bytes go on under the `"PNG"` format name; apps that read only `CF_DIB` may not see them.
 
 ## State flow
 

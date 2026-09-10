@@ -654,46 +654,77 @@ public sealed class PressureChartControl : Control
 
     // ── Right-click context menu ────────────────────────────────
 
+    /// <summary>
+    /// Supplies the export entries appended to the chart's right-click menu. The owner
+    /// provides them so this control stays free of clipboard and file-picker concerns.
+    /// Must return freshly built controls each call — a menu item can only have one parent,
+    /// and a new <see cref="ContextMenu"/> is constructed per right-click.
+    /// </summary>
+    public Func<IEnumerable<Control>>? BuildExportMenuItems { get; set; }
+
     private void HandleRightClick(PointerPressedEventArgs e, Point pos)
     {
-        if (Params.CurveType != CurveType.Bezier) return;
-        var pts = CurveMath.NormalizeBezierPoints(Params.BezierPoints);
-
-        int? hitIndex = HitTestBezierAnchor(pos, pts);
-        bool insidePlot = IsInsidePlotArea(pos);
-        bool canAdd = pts.Length < 16 && insidePlot && hitIndex == null;
-        bool canRemoveAtHit = hitIndex is { } hi && hi > 0 && hi < pts.Length - 1;
-
-        if (!canAdd && !canRemoveAtHit) return;
-
         var menu = new ContextMenu();
-        if (canAdd)
-        {
-            double rx = XValueFromCanvas(pos.X);
-            double ry = YValueFromCanvas(pos.Y);
-            var addItem = new MenuItem { Header = $"Add point at ({rx:0.00}, {ry:0.00})" };
-            addItem.Click += (_, _) => InsertBezierPointAt(rx, ry);
-            menu.Items.Add(addItem);
-        }
-        if (canRemoveAtHit)
-        {
-            int target = hitIndex!.Value;
-            SelectedBezierPoint = target;
-            var removeItem = new MenuItem { Header = $"Remove point #{target}" };
-            removeItem.Click += (_, _) => RemoveBezierPoint(target);
-            menu.Items.Add(removeItem);
 
-            var brokenItem = new MenuItem { Header = "Handles: Broken" };
-            brokenItem.Click += (_, _) => SetHandleMode(target, HandleMode.Broken);
-            menu.Items.Add(brokenItem);
-            var mirroredItem = new MenuItem { Header = "Handles: Mirrored" };
-            mirroredItem.Click += (_, _) => SetHandleMode(target, HandleMode.Mirrored);
-            menu.Items.Add(mirroredItem);
+        // Bezier editing entries come first, and only when the click is somewhere they
+        // apply. Other curve types get the export entries alone.
+        if (Params.CurveType == CurveType.Bezier)
+        {
+            var pts = CurveMath.NormalizeBezierPoints(Params.BezierPoints);
+            int? hitIndex = HitTestBezierAnchor(pos, pts);
+            bool canAdd = pts.Length < 16 && IsInsidePlotArea(pos) && hitIndex == null;
+            bool canRemoveAtHit = hitIndex is { } hi && hi > 0 && hi < pts.Length - 1;
+
+            if (canAdd)
+            {
+                double rx = XValueFromCanvas(pos.X);
+                double ry = YValueFromCanvas(pos.Y);
+                var addItem = new MenuItem { Header = $"Add point at ({rx:0.00}, {ry:0.00})" };
+                addItem.Click += (_, _) => InsertBezierPointAt(rx, ry);
+                menu.Items.Add(addItem);
+            }
+            if (canRemoveAtHit)
+            {
+                int target = hitIndex!.Value;
+                SelectedBezierPoint = target;
+                var removeItem = new MenuItem { Header = $"Remove point #{target}" };
+                removeItem.Click += (_, _) => RemoveBezierPoint(target);
+                menu.Items.Add(removeItem);
+
+                var brokenItem = new MenuItem { Header = "Handles: Broken" };
+                brokenItem.Click += (_, _) => SetHandleMode(target, HandleMode.Broken);
+                menu.Items.Add(brokenItem);
+                var mirroredItem = new MenuItem { Header = "Handles: Mirrored" };
+                mirroredItem.Click += (_, _) => SetHandleMode(target, HandleMode.Mirrored);
+                menu.Items.Add(mirroredItem);
+            }
         }
+
+        if (BuildExportMenuItems?.Invoke() is { } exportItems)
+        {
+            bool needsSeparator = menu.Items.Count > 0;
+            foreach (var item in exportItems)
+            {
+                if (needsSeparator) { menu.Items.Add(new Separator()); needsSeparator = false; }
+                menu.Items.Add(item);
+            }
+        }
+
+        if (menu.Items.Count == 0) return;
+
+        // Every menu we install carries the same guard as the initial one: Avalonia opens
+        // a control's ContextMenu automatically on right-click, and that would fire at the
+        // wrong moment (and, once this menu is the installed one, alongside our own open).
+        // The flag lets our deliberate Open through and cancels everything else.
+        menu.Opening += (_, ev) => { if (!_openingMenuManually) ev.Cancel = true; };
 
         ContextMenu = menu;
-        menu.Open(this);
+        _openingMenuManually = true;
+        try { menu.Open(this); }
+        finally { _openingMenuManually = false; }
     }
+
+    private bool _openingMenuManually;
 
     public bool CanAddBezierPoint
         => Params.CurveType == CurveType.Bezier

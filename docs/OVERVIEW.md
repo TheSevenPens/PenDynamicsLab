@@ -8,7 +8,7 @@ The current build re-implements the feature set of [WebPressureExplorer](https:/
 
 The window is split into a fixed left panel and a tabbed right panel:
 
-- **Pressure curve editor** (left, 472 px) — Split into two columns. On the left, an interactive chart showing the pressure mapping function in real time, with an Export menu beneath it. On the right, a column of collapsible cards: **Curve** (type, amount, range and bezier controls), **Smoothing** (algorithm and amount), **Processing order**, and **Presets**. The Curve and Smoothing headers show `(OFF)` whenever that stage currently does nothing, so you can tell at a glance whether the pipeline is actually altering anything.
+- **Pressure curve editor** (left, 472 px) — Split into two columns. On the left, an interactive chart showing the pressure mapping function in real time, whose right-click menu carries the export actions. On the right, a column of collapsible cards: **Curve** (type, amount, range and bezier controls), **Smoothing** (algorithm and amount), **Processing order**, and **Presets**. The Curve and Smoothing headers show `(OFF)` whenever that stage currently does nothing, so you can tell at a glance whether the pipeline is actually altering anything.
 
 - **Right-hand tabs** — Three workflows, each in its own tab:
   - **Stroke** — A single drawing canvas with the full pressure pipeline applied (smoothing + curve).
@@ -26,7 +26,7 @@ A shared brush ribbon (size, color, pressure target, draw-at-zero, Clear) sits a
 - **Min approach modes** (clamp vs cut) controlling how the curve behaves below the input minimum
 - **Live pressure indicators** on the chart showing raw (purple) and effective (green) pressure positions in real time, plus matching indicators projected onto the response chart. These stay live on every tab, including Pressure response, which has no canvas of its own.
 - **Pressure response data** — load pen hardware measurement data from bundled WACOM samples or uploaded JSON files, with optional curve-effect overlay. The first bundled sample auto-loads at startup so the tab shows something immediately.
-- **Image export** — an Export menu on the curve chart (copy or save, full chart or plot area alone) and on every stroke canvas (copy to clipboard or save as PNG)
+- **Image export** — right-click the curve chart to copy or save it (full chart or plot area alone); every stroke canvas has an Export menu (copy to clipboard or save as PNG)
 - **Brush controls** — adjustable brush size (1-200 px), stroke colour mode dropdown (black or random palette), pressure-target dropdown (size or opacity), draw-at-zero-pressure toggle, Clear. One `BrushRibbon` instance is reparented between the stroke tabs, so settings stay in sync.
 - **Clear via keyboard** — Delete or Backspace clears both canvases, unless a text box has focus
 - **User presets** — save (via "Save settings" and an inline name box), load, and delete named parameter configurations (curve type + sliders + smoothing + bezier points), persisted to `%LOCALAPPDATA%\PenDynamicsLab\presets.json`
