@@ -10,7 +10,6 @@ Ideas, known issues, and potential directions for PenDynamicsLab.
 
 ## Feature suggestions (carryover from WebPressureExplorer)
 
-- **Max approach mode** — Analogous to the min approach (clamp/cut), add configurable behavior for the segment above the max control node.
 - **Undo/redo** — Track param changes and allow stepping back through history, especially useful during bezier editing.
 - **Bezier import/export** — Copy/paste bezier point data as JSON for sharing or backup.
 - **Pressure response overlay on the main chart** — Show the response data curve overlaid directly on the pressure curve chart (currently they're separate plots).
