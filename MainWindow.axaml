@@ -93,7 +93,7 @@
         <!-- Body: left = curve chart + control cards, right = drawing canvases -->
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="652" />
+                <ColumnDefinition Width="592" />
                 <ColumnDefinition Width="1" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
@@ -101,7 +101,7 @@
             <!-- LeftPanel: chart on the left, collapsible control cards on the right -->
             <Grid x:Name="LeftPanel" Grid.Column="0" Background="#FAFAFA">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" MinWidth="300" />
+                    <ColumnDefinition Width="*" MinWidth="240" />
                     <ColumnDefinition Width="330" />
                 </Grid.ColumnDefinitions>
 

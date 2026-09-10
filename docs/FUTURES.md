@@ -5,7 +5,6 @@ Ideas, known issues, and potential directions for PenDynamicsLab.
 ## Known issues
 
 - **Response JSON format drift** — The upload-JSON code path is wired but the upstream pen-measurement tooling has changed format since the bundled WACOM samples were captured. `PressureResponseLoader.RawJson` will likely need to be revised against fresh data; the embedded samples may need refreshing too.
-- **No image clipboard copy** — Save-to-PNG via the file picker is implemented for the curve chart and both drawing canvases, but clipboard "Copy as PNG" is not. Avalonia clipboard image support varies by platform.
 - **`Tmds.DBus.Protocol` security advisory** — Transitive Avalonia dependency flagged with NU1903. Awaiting an Avalonia upstream bump.
 
 ## Feature suggestions (carryover from WebPressureExplorer)

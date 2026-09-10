@@ -8,7 +8,7 @@ The current build re-implements the feature set of [WebPressureExplorer](https:/
 
 The window is split into a fixed left panel and a tabbed right panel:
 
-- **Pressure curve editor** (left, 652 px) — Split into two columns. On the left, an interactive chart showing the pressure mapping function in real time, with Copy and Save buttons beneath it. On the right, a column of collapsible cards: **Curve** (type, amount, range and bezier controls), **Smoothing** (algorithm and amount), **Processing order**, and **Presets**. The Curve and Smoothing headers show `(OFF)` whenever that stage currently does nothing, so you can tell at a glance whether the pipeline is actually altering anything.
+- **Pressure curve editor** (left, 592 px) — Split into two columns. On the left, an interactive chart showing the pressure mapping function in real time, with Copy and Save buttons beneath it. On the right, a column of collapsible cards: **Curve** (type, amount, range and bezier controls), **Smoothing** (algorithm and amount), **Processing order**, and **Presets**. The Curve and Smoothing headers show `(OFF)` whenever that stage currently does nothing, so you can tell at a glance whether the pipeline is actually altering anything.
 
 - **Right-hand tabs** — Three workflows, each in its own tab:
   - **Stroke** — A single drawing canvas with the full pressure pipeline applied (smoothing + curve).
