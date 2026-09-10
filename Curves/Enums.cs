@@ -22,6 +22,17 @@ public enum HandleMode
     Broken,
 }
 
+/// <summary>
+/// Smoothing algorithm. <see cref="Passthrough"/> is the counterpart of
+/// <see cref="CurveType.Passthrough"/>: input passes through untouched, whatever the
+/// smoothing amount says.
+/// </summary>
+public enum SmoothingType
+{
+    Passthrough,
+    Ema,
+}
+
 public enum SmoothingOrder
 {
     SmoothThenCurve,

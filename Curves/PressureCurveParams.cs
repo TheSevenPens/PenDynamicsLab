@@ -4,6 +4,10 @@ namespace PenDynamicsLab.Curves;
 
 public sealed record PressureCurveParams
 {
+    // Defaults to Ema, not Passthrough: an amount of 0 is already a no-op, and presets
+    // saved before this field existed deserialize to the default — picking Passthrough
+    // would silently disable smoothing on any of them that had an amount set.
+    public SmoothingType SmoothingType { get; init; } = SmoothingType.Ema;
     public double EmaSmoothing { get; init; } = 0;
     public SmoothingOrder SmoothingOrder { get; init; } = SmoothingOrder.SmoothThenCurve;
     public double Softness { get; init; } = 0.0;

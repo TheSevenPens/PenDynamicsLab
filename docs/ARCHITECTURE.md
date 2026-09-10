@@ -17,7 +17,7 @@ MainWindow
     │       │   ├── Bezier toolbar (Add / Remove / count / preset combo, Bezier only)
     │       │   ├── LabeledSlider × N (Curve Amount, in/out range, flat level)
     │       │   └── Min approach radios
-    │       ├── SMOOTHING (OFF) — algorithm combo + reset, Smoothing Amount
+    │       ├── SMOOTHING (OFF) — algorithm combo (Passthrough / EMA) + reset, Smoothing Amount
     │       ├── PROCESSING ORDER — smooth-then-curve / curve-then-smooth radios
     │       └── PRESETS — empty-state text, saved list, "Save settings"
     ├── 1px splitter
@@ -249,7 +249,8 @@ Stroke state (last position, smoothed pressure, live indicators) resets when:
 | `MinApproach` | `MinApproach` enum | Clamp, Cut | Behavior below input minimum |
 | `FlatLevel` | `double` | 0-1 | Constant output for flat curve |
 | `BezierPoints` | `ImmutableArray<BezierPoint>` | 2-16 points | Bezier control points |
-| `EmaSmoothing` | `double` | 0-0.99 | Pressure EMA smoothing amount |
+| `SmoothingType` | `SmoothingType` enum | Passthrough, Ema | Smoothing algorithm; Passthrough skips smoothing entirely |
+| `EmaSmoothing` | `double` | 0-0.99 | Pressure EMA smoothing amount (ignored when Passthrough) |
 | `SmoothingOrder` | `SmoothingOrder` enum | SmoothThenCurve, CurveThenSmooth | Pipeline order |
 
 `BezierPoint`: `(X, Y, InX, InY, OutX, OutY, HandleMode)` — anchor + in handle + out handle + Broken/Mirrored mode.

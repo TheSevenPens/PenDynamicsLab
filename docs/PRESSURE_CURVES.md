@@ -202,6 +202,8 @@ alpha    = 1 - emaSmoothing
 
 When `EmaSmoothing = 0`, alpha = 1, so output = input (no smoothing). As it approaches 0.99, output becomes increasingly smoothed/lagged. Only pressure is smoothed — cursor position is drawn unmodified.
 
+Setting `SmoothingType` to **Passthrough** skips smoothing regardless of the amount, mirroring `CurveType.Passthrough` on the curve side. It resolves to the same code path as an amount of 0, and the EMA state keeps tracking the input while bypassed, so switching back mid-stroke resumes from the current pressure rather than a stale one. The amount slider is hidden while Passthrough is selected, and the Smoothing card header reads `(OFF)`.
+
 The "live" indicators on the curve and response charts use:
 - **Raw** (purple) = the unprocessed `pt.Pressure / pt.MaxPressure`
 - **Effective** (green) = the value entering `ApplyPressureCurve` (smoothed in `SmoothThenCurve` mode, raw in `CurveThenSmooth` mode)

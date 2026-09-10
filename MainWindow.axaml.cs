@@ -200,14 +200,12 @@ public partial class MainWindow : Window
         foreach (var ct in Enum.GetValues<CurveType>())
             CurveTypeCombo.Items.Add(ct.ToString());
 
-        // Only one smoothing algorithm exists today. The combo is here because the
-        // design calls for it and more are planned; it stays a single-item list until
-        // a second algorithm lands, at which point it gets backed by a params field.
-        SmoothingTypeCombo.Items.Add("EMA");
-        SmoothingTypeCombo.SelectedIndex = 0;
+        foreach (var st in Enum.GetValues<SmoothingType>())
+            SmoothingTypeCombo.Items.Add(FormatSmoothingType(st));
 
         _suppressCurveControlEvents = true;
         CurveTypeCombo.SelectedIndex = (int)_curveParams.CurveType;
+        SmoothingTypeCombo.SelectedIndex = (int)_curveParams.SmoothingType;
         SmoothThenCurveRadio.IsChecked = _curveParams.SmoothingOrder == SmoothingOrder.SmoothThenCurve;
         CurveThenSmoothRadio.IsChecked = _curveParams.SmoothingOrder == SmoothingOrder.CurveThenSmooth;
         SoftnessSlider.Value = _curveParams.Softness;
@@ -225,6 +223,11 @@ public partial class MainWindow : Window
         {
             if (_suppressCurveControlEvents || CurveTypeCombo.SelectedIndex < 0) return;
             UpdateParams(p => p with { CurveType = (CurveType)CurveTypeCombo.SelectedIndex });
+        };
+        SmoothingTypeCombo.SelectionChanged += (_, _) =>
+        {
+            if (_suppressCurveControlEvents || SmoothingTypeCombo.SelectedIndex < 0) return;
+            UpdateParams(p => p with { SmoothingType = (SmoothingType)SmoothingTypeCombo.SelectedIndex });
         };
         SmoothThenCurveRadio.IsCheckedChanged += (_, _) =>
         {
@@ -281,6 +284,7 @@ public partial class MainWindow : Window
     {
         _suppressCurveControlEvents = true;
         CurveTypeCombo.SelectedIndex = (int)_curveParams.CurveType;
+        SmoothingTypeCombo.SelectedIndex = (int)_curveParams.SmoothingType;
         SmoothThenCurveRadio.IsChecked = _curveParams.SmoothingOrder == SmoothingOrder.SmoothThenCurve;
         CurveThenSmoothRadio.IsChecked = _curveParams.SmoothingOrder == SmoothingOrder.CurveThenSmooth;
         SoftnessSlider.Value = _curveParams.Softness;
@@ -341,6 +345,10 @@ public partial class MainWindow : Window
         FlatLevelSlider.IsVisible = isFlat;
         BezierToolbar.IsVisible = isBezier;
 
+        // Passthrough smoothing ignores the amount, so hide it — same convention as the
+        // curve card, where Passthrough hides softness and the range controls.
+        PressureEmaSlider.IsVisible = _curveParams.SmoothingType != SmoothingType.Passthrough;
+
         // Range values are driven by dragging the pink/cyan nodes on the chart, so the
         // slider track would be redundant — show only label + value.
         InputMinSlider.ShowSlider = false;
@@ -367,7 +375,10 @@ public partial class MainWindow : Window
     private void UpdateCardStatuses()
     {
         CurveCard.Status = CurveMath.IsIdentity(_curveParams) ? "(OFF)" : "";
-        SmoothingCard.Status = _curveParams.EmaSmoothing > 0 ? "" : "(OFF)";
+
+        bool smoothingActive = _curveParams.SmoothingType != SmoothingType.Passthrough
+                            && _curveParams.EmaSmoothing > 0;
+        SmoothingCard.Status = smoothingActive ? "" : "(OFF)";
     }
 
     // ── Section resets ──────────────────────────────────────────
@@ -392,7 +403,8 @@ public partial class MainWindow : Window
 
     private void SmoothingReset_Click(object? sender, RoutedEventArgs e)
     {
-        UpdateParams(p => p with { EmaSmoothing = PressureCurveParams.Default.EmaSmoothing });
+        var d = PressureCurveParams.Default;
+        UpdateParams(p => p with { SmoothingType = d.SmoothingType, EmaSmoothing = d.EmaSmoothing });
         SyncCurveControlsFromParams();
     }
 
@@ -724,6 +736,13 @@ public partial class MainWindow : Window
         };
     }
 
+    private static string FormatSmoothingType(SmoothingType st) => st switch
+    {
+        SmoothingType.Passthrough => "Passthrough",
+        SmoothingType.Ema => "EMA",
+        _ => st.ToString(),
+    };
+
     private void UpdateParams(Func<PressureCurveParams, PressureCurveParams> patch)
     {
         _curveParams = patch(_curveParams);
@@ -786,7 +805,12 @@ public partial class MainWindow : Window
 
     private PressurePipelineResult ProcessPressure(double raw)
     {
-        double smoothing = Math.Clamp(_curveParams.EmaSmoothing, 0, EmaConstants.Max);
+        // Passthrough short-circuits to the same path as an amount of 0: no smoothing,
+        // and the EMA state still tracks the input so switching back mid-stroke doesn't
+        // jump from a stale value.
+        double smoothing = _curveParams.SmoothingType == SmoothingType.Passthrough
+            ? 0
+            : Math.Clamp(_curveParams.EmaSmoothing, 0, EmaConstants.Max);
         double Smooth(double v)
         {
             if (smoothing <= 0) { _smoothedPressure = v; return v; }
