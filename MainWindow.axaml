@@ -44,9 +44,9 @@
         <Border DockPanel.Dock="Top" Background="#F5F5F5"
                 BorderBrush="#CCCCCC" BorderThickness="0,0,0,1" Padding="8,6">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="16">
-                <!-- APP -->
+                <!-- PEN API -->
                 <StackPanel>
-                    <TextBlock Text="APP" FontWeight="Bold"                               Foreground="#555555" Margin="0,0,0,4" />
+                    <TextBlock Text="PEN API" FontWeight="Bold"                               Foreground="#555555" Margin="0,0,0,4" />
                     <ComboBox x:Name="ApiCombo" Width="120" Height="28" />
                 </StackPanel>
                 <Rectangle Width="1" Fill="#DDDDDD" />
