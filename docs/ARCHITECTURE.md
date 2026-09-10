@@ -4,7 +4,7 @@
 
 ```
 MainWindow
-├── Top ribbon (92 px) — Pen API combo + pen telemetry (fixed-width readout columns), DriverTipChip then the Options gear at the right edge
+├── Top ribbon (92 px, collapsible to 36) — Pen API combo + pen telemetry (fixed-width readout columns), DriverTipChip, the collapse chevron, then the Options gear at the right edge
 └── Body Grid
     ├── Left panel (472 px) — two equal-width columns, settings before curve
     │   ├── Settings column
@@ -206,6 +206,22 @@ The controls for one curve — type combo, the sliders that type uses, the bezie
 It exists so a second curve costs one more instance rather than a second copy of ten named controls and their handlers. It never writes to its own `Curve` property from its event handlers: it raises `CurveChanged` and `MainWindow` writes back, so exactly one place decides what the current parameters are.
 
 > **Radio groups are matched by name across the whole window.** Two instances sharing `GroupName="MinApproach"` would let curve 2's *Cut* clear curve 1's *Clamp*. The constructor gives each instance its own group name.
+
+### Chart card sizing
+
+Both chart controls draw a **square** plot sized off the available width, so a card's height follows its width: `plotSide = width - 2*Pad`, `height = plotSide + 2*Pad`, which comes back to the width whatever `Pad` is.
+
+That has a consequence worth knowing before trying to make these cards shorter. Shrinking `Pad` (16 → 8) grows the plot inside the same box — it buys a bigger graph and a thinner margin, but not one pixel of height. The only lever on height is the width, which is why the three charts carry `MaxWidth="170"`: about 25px per card, 75px across the three, paid for with a little space either side of each plot.
+
+The alternative — narrowing the chart column — would buy the same height with no side space, but the two columns are equal-width by construction and were made that way deliberately.
+
+`Pad` itself is now only large enough to keep a node centred on the plot boundary from clipping: `NodeDrawRadius` is 6 and its outline adds ~0.75, so 8 is the floor.
+
+### Ribbon collapse
+
+`RibbonToggle_Click` folds the telemetry down to a 36px strip and back, hiding `RibbonBody` and the driver tip and leaving the gear reachable. It is for demonstrating the curve pipeline, where the telemetry is the least interesting band on screen and the tallest thing between the audience and the charts — 56px straight to the chart column.
+
+Session state on purpose: it is a presenting mode, not a preference, so it does not go in `UiSettings`.
 
 ### `EffectiveCurveChartControl`
 Draws the mapping the brush actually obeys — curve 1 with curve 2 applied over its output — sampled per pixel across [0, 1], plus the identity diagonal to read it against.

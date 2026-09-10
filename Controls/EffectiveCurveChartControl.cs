@@ -1,4 +1,4 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using PenDynamicsLab.Curves;
@@ -29,7 +29,7 @@ public sealed class EffectiveCurveChartControl : Control
 {
     // Matches PressureChartControl exactly: the two sit in the same column and any
     // difference in plot geometry would read as a drawing error rather than a choice.
-    private const double Pad = 16;
+    private const double Pad = 8;
 
     private IBrush BackgroundBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0xFF, 0xFF));
     private IBrush PlotBrush = new SolidColorBrush(Color.FromRgb(0xF7, 0xF7, 0xFB));

@@ -36,6 +36,7 @@ A shared brush ribbon (size, colour, pressure target, draw-at-zero, Clear) sits 
 - **Per-stage reset** — the ↻ beside the Curve and Smoothing dropdowns restores that stage's *current* type to its starting values without changing the type, so a softened Basic curve goes back to the initial Basic curve. Switching a stage off is the dropdown's job (pick Passthrough), and the button is disabled while a stage is already bypassed.
 - **Driver tip** — a chip at the right end of the telemetry ribbon reminding users to set their tablet driver's pressure curve to default; costs no vertical space, dismissible for the session or for good
 - **Multiple input APIs** — Wintab, Wintab high-res digitizer, and Avalonia's pointer pipeline, switchable at runtime
+- **Collapsible telemetry ribbon** — the chevron beside the Options gear folds the ribbon down to a slim strip, handing 56px to the charts. Meant for demonstrating the curve pipeline, where the telemetry is the tallest thing between the audience and the graphs.
 - **Light and dark themes** — the gear at the right end of the telemetry ribbon opens Options; the choice is Light, Dark or Follow system (the default), applies immediately, and is remembered. The drawing canvas deliberately keeps its light paper in both themes, so strokes stay readable and a canvas saved from one theme matches the other.
 
 ## Tech stack

@@ -679,6 +679,37 @@ public partial class MainWindow : Window
     // right-hand space rather than a band across the window. Two levels of dismissal: the
     // × hides it for this session, "Don't show again" remembers the choice.
 
+    // ── Ribbon ──────────────────────────────────────────────────
+
+    private bool _ribbonCollapsed;
+
+    /// <summary>
+    /// Folds the telemetry ribbon down to a slim strip, and back.
+    /// </summary>
+    /// <remarks>
+    /// For demonstrating the curve pipeline the telemetry is the least interesting band on
+    /// screen and the tallest thing between the audience and the charts, so collapsing it
+    /// hands 56px straight to the chart column.
+    ///
+    /// The gear stays reachable while collapsed — it is the way back to anything else —
+    /// and the driver tip goes with the telemetry, since a hint about calibration is not
+    /// what a slim strip is for. This is session state on purpose: it is a presenting
+    /// mode, not a preference.
+    /// </remarks>
+    private void RibbonToggle_Click(object? sender, RoutedEventArgs e)
+    {
+        _ribbonCollapsed = !_ribbonCollapsed;
+
+        RibbonBody.IsVisible = !_ribbonCollapsed;
+        DriverTipChip.IsVisible = !_ribbonCollapsed && !_uiSettings.DriverTipDismissed;
+        RibbonPanel.Height = _ribbonCollapsed ? 36 : 92;
+
+        // Segoe Fluent Icons: ChevronUp / ChevronDown, the same pair the cards use.
+        RibbonToggle.Content = _ribbonCollapsed ? "" : "";
+        ToolTip.SetTip(RibbonToggle,
+            _ribbonCollapsed ? "Show the telemetry ribbon" : "Collapse the telemetry ribbon");
+    }
+
     /// <summary>
     /// Opens the global options. Modal to the main window so the theme change repaints
     /// visibly behind it, which is the whole preview.

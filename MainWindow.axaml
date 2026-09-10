@@ -56,7 +56,7 @@
              was running empty, so the advice costs no vertical band. -->
         <Border DockPanel.Dock="Top" Background="{DynamicResource Pdl.Surface}"
                 BorderBrush="{DynamicResource Pdl.Divider}" BorderThickness="0,0,0,1" Padding="16,0">
-            <DockPanel Height="92">
+            <DockPanel x:Name="RibbonPanel" Height="92">
 
                 <!-- Gear first, so it takes the OUTERMOST right slot: DockPanel fills in
                      child order, and the tip chip beside it is dismissible. Declared the
@@ -69,6 +69,17 @@
                         Margin="16,0,0,0" VerticalAlignment="Center"
                         HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
                         ToolTip.Tip="Options" Click="Options_Click" />
+
+                <!-- Collapse toggle. Inside the gear rather than outside it: the gear is the
+                     fixed landmark at the edge, and a control that changes the ribbon's
+                     height should not also be the thing that moves when it does. -->
+                <Button DockPanel.Dock="Right" x:Name="RibbonToggle"
+                        Content="&#xE70E;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                        FontSize="11" Width="32" Height="32" Padding="0"
+                        Margin="8,0,0,0" VerticalAlignment="Center"
+                        HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                        ToolTip.Tip="Collapse the telemetry ribbon"
+                        Click="RibbonToggle_Click" />
 
                 <Border DockPanel.Dock="Right" x:Name="DriverTipChip"
                         Background="{DynamicResource Pdl.AdvisoryFill}" BorderBrush="{DynamicResource Pdl.AdvisoryEdge}" BorderThickness="1"
@@ -110,7 +121,7 @@
                     </StackPanel>
                 </Border>
 
-                <StackPanel Orientation="Horizontal" Spacing="36" VerticalAlignment="Center">
+                <StackPanel x:Name="RibbonBody" Orientation="Horizontal" Spacing="36" VerticalAlignment="Center">
 
                     <StackPanel Spacing="6">
                         <TextBlock Text="Pen API" Classes="groupLabel" />
@@ -278,42 +289,43 @@
 
                 <!-- Column 2: the curves, sitting against the canvas they drive.
 
-                     Three charts of 191px plus their headers is 751px of content in 784px
-                     of pane at the default window size, so it fits — and scrolls below
-                     roughly 880px tall rather than shrinking the plots, because these are
-                     drag targets for bezier handles, not pictures. -->
-                <StackPanel Grid.Column="1" Margin="7,12,14,12" Spacing="8">
+                     The plot is square and sized off its width, so a chart's HEIGHT follows
+                     its width and the only way to shorten these cards is to cap that width.
+                     MaxWidth 170 buys ~25px per card — 75px across the three — at the cost
+                     of a little space either side of each plot. The alternative, narrowing
+                     the chart column, would break the equal columns these were built to. -->
+                <StackPanel Grid.Column="1" Margin="7,12,14,12" Spacing="6">
                     <Border Background="{DynamicResource Pdl.Surface}" BorderBrush="{DynamicResource Pdl.Divider}" BorderThickness="1"
-                            CornerRadius="8" Padding="12,10,12,12">
-                        <StackPanel Spacing="8">
-                            <TextBlock Text="Pressure curve 1" FontSize="13" FontWeight="SemiBold"
+                            CornerRadius="8" Padding="10,7,10,8">
+                        <StackPanel Spacing="5">
+                            <TextBlock Text="Pressure curve 1" FontSize="12" FontWeight="SemiBold"
                                        Foreground="{DynamicResource Pdl.Text}" />
-                            <controls:PressureChartControl x:Name="PressureChart" />
+                            <controls:PressureChartControl x:Name="PressureChart" MaxWidth="170" HorizontalAlignment="Center" />
                         </StackPanel>
                     </Border>
 
                     <Border Background="{DynamicResource Pdl.Surface}" BorderBrush="{DynamicResource Pdl.Divider}" BorderThickness="1"
-                            CornerRadius="8" Padding="12,10,12,12">
-                        <StackPanel Spacing="8">
-                            <TextBlock Text="Pressure curve 2" FontSize="13" FontWeight="SemiBold"
+                            CornerRadius="8" Padding="10,7,10,8">
+                        <StackPanel Spacing="5">
+                            <TextBlock Text="Pressure curve 2" FontSize="12" FontWeight="SemiBold"
                                        Foreground="{DynamicResource Pdl.Text}" />
-                            <controls:PressureChartControl x:Name="PressureChart2" />
+                            <controls:PressureChartControl x:Name="PressureChart2" MaxWidth="170" HorizontalAlignment="Center" />
                         </StackPanel>
                     </Border>
 
                     <!-- Derived, not edited: accent border and trace, no draggable nodes. -->
                     <Border Background="{DynamicResource Pdl.Surface}" BorderBrush="{DynamicResource Pdl.Accent}" BorderThickness="1"
-                            CornerRadius="8" Padding="12,10,12,12">
-                        <StackPanel Spacing="8">
+                            CornerRadius="8" Padding="10,7,10,8">
+                        <StackPanel Spacing="5">
                             <DockPanel>
                                 <Border x:Name="EffectivePill" DockPanel.Dock="Right"
                                         CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
                                     <TextBlock x:Name="EffectivePillText" FontSize="11" />
                                 </Border>
-                                <TextBlock Text="Effective pressure curve" FontSize="13" FontWeight="SemiBold"
+                                <TextBlock Text="Effective pressure curve" FontSize="12" FontWeight="SemiBold"
                                            Foreground="{DynamicResource Pdl.Text}" VerticalAlignment="Center" />
                             </DockPanel>
-                            <controls:EffectiveCurveChartControl x:Name="EffectiveChart" />
+                            <controls:EffectiveCurveChartControl x:Name="EffectiveChart" MaxWidth="170" HorizontalAlignment="Center" />
                         </StackPanel>
                     </Border>
                     <!-- Transient feedback only ("Copied"); empty the rest of the time, so

@@ -19,8 +19,13 @@ public sealed class PressureChartControl : Control
 {
     // The chart draws no text at all — no axis titles, numeric labels or tick marks — so
     // the padding exists only to keep a node centred on the plot boundary from being
-    // clipped. Uniform on all four sides, and comfortably clear of NodeDrawRadius.
-    private const double Pad = 16;
+    // clipped: NodeDrawRadius is 6 and its outline pen adds ~0.75, so 8 is the smallest
+    // value that still clears a node sitting exactly on a corner.
+    //
+    // It does NOT set the control's height — that is the plot side plus this padding,
+    // which comes back to the available width either way. Shrinking it grows the plot
+    // inside the same box, which is what makes the card read as chart rather than margin.
+    private const double Pad = 8;
     private const double NodeRadius = 8;
     private const double NodeDrawRadius = 6;
     private const double HandleRadius = 5;
