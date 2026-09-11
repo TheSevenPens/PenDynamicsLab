@@ -12,30 +12,18 @@ using PenDynamicsLab.Curves;
 using PenDynamicsLab.Drawing;
 using PenDynamicsLab.Persistence;
 using PenDynamicsLab.Theming;
-using SkiaSharp;
+using SkiaSharp;   // chart PNG cropping only - the drawing path moved to DrawingSession
 
 namespace PenDynamicsLab;
 
 public partial class MainWindow : Window
 {
-    private static readonly SKColor[] StrokePalette =
-    [
-        new(0xE6, 0x19, 0x4B), new(0x3C, 0xB4, 0x4B), new(0x43, 0x63, 0xD8), new(0xF5, 0x82, 0x31),
-        new(0x91, 0x1E, 0xB4), new(0x42, 0xD4, 0xF4), new(0xF0, 0x32, 0xE6), new(0xBF, 0xEF, 0x45),
-        new(0xFA, 0xBE, 0xD4), new(0x46, 0x99, 0x90), new(0xDC, 0xBE, 0xFF), new(0x9A, 0x63, 0x24),
-        new(0x80, 0x00, 0x00), new(0xAA, 0xFF, 0xC3), new(0x80, 0x80, 0x00), new(0x00, 0x00, 0x75),
-    ];
-    private static readonly SKColor BlackStrokeColor = new(0x1A, 0x1A, 0x2E);
-    private static readonly SKColor RedStrokeColor = new(0xC4, 0x1E, 0x3A);
-
-    // Telemetry chrome. Named here so the ribbon's live states use the same tokens as
-    // the markup rather than Brushes.Gray / Brushes.LimeGreen.
     // Fallback seeds for the telemetry ribbon's code-set colours. These are read through
     // ThemeInk so they follow the palette; the seed is only reached if a key is missing,
     // and it matches that token's light value so a gap degrades to the old appearance.
     //
     // In-range green was its own one-off #16A34A before this. It now uses Pdl.Processed,
-    // which is #14A050 in light — a deliberate, agreed shift, so that the app has one green
+    // which is #14A050 in light - a deliberate, agreed shift, so that the app has one green
     // rather than two nearly-identical ones.
     private static readonly IBrush ProcessedSeed = new SolidColorBrush(Color.FromRgb(0x14, 0xA0, 0x50));
     private static readonly IBrush ProximityIdleSeed = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
@@ -49,11 +37,12 @@ public partial class MainWindow : Window
     /// </summary>
     private bool _penInRange;
 
-    private IPenSession? _session;
-    private readonly DispatcherTimer _renderTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
+    private IPenSession? _penSession;
 
-    private DrawSurface? _processed;
-    private DrawSurface? _raw;
+    // Owns the surfaces, the hit-testing, the stroke colour, and the brush engine. The window
+    // drains points and runs the charts; it does not know what an SKPaint is.
+    private readonly DrawingSession _session;
+    private readonly DispatcherTimer _renderTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
 
     private IReadOnlyList<InputApi> _apis = [];
     private DateTime _lastPointTime;
@@ -62,9 +51,6 @@ public partial class MainWindow : Window
     private PressureCurveParams _curveParams = PressureCurveParams.Default;
     private bool _suppressCurveControlEvents;
 
-    // Brush / drawing state.
-    private SKColor _strokeColor = BlackStrokeColor;
-
     // Single BrushRibbon instance reparented into whichever stroke tab is active —
     // keeps brush settings synced across tabs without duplicating UI state.
     private readonly Controls.BrushRibbon BrushRibbon = new();
@@ -72,17 +58,12 @@ public partial class MainWindow : Window
     // The brush configuration. Drawing reads this record, never the ribbon's controls — the
     // ribbon is a view over it and pushes edits back through SettingsChanged.
     private BrushSettings _brush = BrushSettings.Default;
-    private int _lastColorIndex = -1;
 
     // Stroke-local pressure-smoothing state. Reset whenever the pen lifts or the active canvas changes.
-    private enum ActiveCanvas { None, Processed, Raw }
-    private ActiveCanvas _activeCanvas = ActiveCanvas.None;
-    private Point? _lastDrawPos;
 
     // The live pipeline. Owns the per-channel filter state that used to be a single
     // _smoothedPressure field on this window.
     private readonly DynamicsPipeline _pipeline = new();
-    private readonly Random _rng = new();
 
     private readonly PresetStore _presetStore = new();
     private readonly UiSettings _uiSettings = new();
@@ -106,11 +87,12 @@ public partial class MainWindow : Window
         // The processed surface is shared across both the Stroke tab and the Stroke compare
         // tab — drawing on either is the same content. The raw surface is unique to the
         // compare tab.
-        _processed = new DrawSurface();
-        _processed.AddHost(StrokeView.Image);
-        _processed.AddHost(CompareProcessedView.Image);
-        _raw = new DrawSurface();
-        _raw.AddHost(CompareRawView.Image);
+        _session = new DrawingSession(
+        [
+            new CanvasTarget(StrokeView.Host, StrokeView.Image, CanvasRole.Processed),
+            new CanvasTarget(CompareProcessedView.Host, CompareProcessedView.Image, CanvasRole.Processed),
+            new CanvasTarget(CompareRawView.Host, CompareRawView.Image, CanvasRole.Raw),
+        ]);
 
         // Resize bitmaps to follow whichever host is currently visible (the active tab's).
         StrokeView.Host.PropertyChanged += (_, e) =>
@@ -149,12 +131,12 @@ public partial class MainWindow : Window
         };
 
         // Export menu on each canvas view.
-        StrokeView.SaveRequested += async (_, _) => await SaveSurfaceAsPngAsync(_processed, "stroke.png");
-        CompareProcessedView.SaveRequested += async (_, _) => await SaveSurfaceAsPngAsync(_processed, "processed.png");
-        CompareRawView.SaveRequested += async (_, _) => await SaveSurfaceAsPngAsync(_raw, "unprocessed.png");
-        StrokeView.CopyRequested += async (_, _) => await CopySurfaceAsync(_processed);
-        CompareProcessedView.CopyRequested += async (_, _) => await CopySurfaceAsync(_processed);
-        CompareRawView.CopyRequested += async (_, _) => await CopySurfaceAsync(_raw);
+        StrokeView.SaveRequested += async (_, _) => await SaveSurfaceAsPngAsync(_session.Processed, "stroke.png");
+        CompareProcessedView.SaveRequested += async (_, _) => await SaveSurfaceAsPngAsync(_session.Processed, "processed.png");
+        CompareRawView.SaveRequested += async (_, _) => await SaveSurfaceAsPngAsync(_session.Raw, "unprocessed.png");
+        StrokeView.CopyRequested += async (_, _) => await CopySurfaceAsync(_session.Processed);
+        CompareProcessedView.CopyRequested += async (_, _) => await CopySurfaceAsync(_session.Processed);
+        CompareRawView.CopyRequested += async (_, _) => await CopySurfaceAsync(_session.Raw);
         // Clear always clears both surfaces: they are two views of one stroke, so wiping
         // only the half you right-clicked would leave the comparison mismatched.
         StrokeView.ClearRequested += (_, _) => ClearCanvases();
@@ -202,10 +184,9 @@ public partial class MainWindow : Window
         Closing += (_, _) =>
         {
             _renderTimer.Stop();
-            _session?.Stop();
-            _session?.Dispose();
-            _processed?.Dispose();
-            _raw?.Dispose();
+            _penSession?.Stop();
+            _penSession?.Dispose();
+            _session.Dispose();
         };
 
         // Delete / Backspace clear the canvas — but only when no text input has focus,
@@ -224,57 +205,14 @@ public partial class MainWindow : Window
 
     // ── Surface management ──────────────────────────────────────
 
-    private void EnsureSurfaces()
-    {
-        // Bounds are in DIPs; the surfaces allocate at DIP * RenderScaling physical
-        // pixels so strokes render at the display's true resolution rather than being
-        // magnified by the compositor. Read the scaling every time — it changes when
-        // the window is dragged to a monitor with different DPI.
-        double scale = RenderScaling;
-
-        // IsEffectivelyVisible is true only for the active tab's content — using it
-        // (rather than checking Bounds) avoids picking a host whose layout from a
-        // previous tab is still cached.
-        var processedHost = StrokeView.IsEffectivelyVisible ? StrokeView.Host
-                          : CompareProcessedView.IsEffectivelyVisible ? CompareProcessedView.Host
-                          : null;
-        if (processedHost is { } ph && ph.Bounds.Width > 0 && ph.Bounds.Height > 0)
-            _processed?.EnsureSize(ph.Bounds.Width, ph.Bounds.Height, scale);
-
-        if (CompareRawView.IsEffectivelyVisible &&
-            CompareRawView.Host.Bounds.Width > 0 && CompareRawView.Host.Bounds.Height > 0)
-            _raw?.EnsureSize(CompareRawView.Host.Bounds.Width, CompareRawView.Host.Bounds.Height, scale);
-    }
+    /// <summary>Size the stroke surfaces to the visible tab's canvases.</summary>
+    /// <remarks>
+    /// Read the scaling every time — it changes when the window is dragged to a monitor with
+    /// different DPI, and no Bounds change fires for that.
+    /// </remarks>
+    private void EnsureSurfaces() => _session.EnsureSurfaces(RenderScaling);
 
     // ── Brush controls ──────────────────────────────────────────
-
-    /// <summary>
-    /// Resolve the colour for the stroke that is starting.
-    /// </summary>
-    /// <remarks>
-    /// Reads the configuration off <see cref="_brush"/>, but the resolved colour is per-stroke
-    /// state and stays on the window — it changes mid-gesture, so it does not belong in an
-    /// immutable settings record. Random mode is the clear case: the colour a stroke got cannot
-    /// be recovered from the settings afterwards. This, <c>_rng</c> and <c>_strokeColor</c> move
-    /// to the drawing session in #13.
-    /// </remarks>
-    private void PickStrokeColor()
-    {
-        if (_brush.ColorMode == ColorMode.Black)
-        {
-            _strokeColor = BlackStrokeColor;
-            return;
-        }
-        if (_brush.ColorMode == ColorMode.Red)
-        {
-            _strokeColor = RedStrokeColor;
-            return;
-        }
-        int idx;
-        do { idx = _rng.Next(StrokePalette.Length); } while (idx == _lastColorIndex && StrokePalette.Length > 1);
-        _lastColorIndex = idx;
-        _strokeColor = StrokePalette[idx];
-    }
 
     // ── Curve controls ──────────────────────────────────────────
 
@@ -1024,11 +962,11 @@ public partial class MainWindow : Window
     {
         if (_apis.Count == 0 || ApiCombo.SelectedIndex < 0) return;
 
-        _session?.Stop();
-        _session?.Dispose();
+        _penSession?.Stop();
+        _penSession?.Dispose();
 
         var api = _apis[ApiCombo.SelectedIndex];
-        _session = api == InputApi.AvaloniaPointer
+        _penSession = api == InputApi.AvaloniaPointer
             ? new AvaloniaPointerSession(CanvasArea)
             : PenSessionFactory.Create(api);
         ResetStrokeState();
@@ -1039,12 +977,12 @@ public partial class MainWindow : Window
         if (TryGetPlatformHandle() is { } handle)
             hwnd = handle.Handle;
 
-        var error = _session.Start(hwnd);
+        var error = _penSession.Start(hwnd);
         if (error != null)
         {
             Title = $"PenDynamicsLab - {error}";
-            _session.Dispose();
-            _session = null;
+            _penSession.Dispose();
+            _penSession = null;
             return;
         }
 
@@ -1054,8 +992,7 @@ public partial class MainWindow : Window
 
     private void ResetStrokeState()
     {
-        _activeCanvas = ActiveCanvas.None;
-        _lastDrawPos = null;
+        _session.ResetStroke();
         _pipeline.Reset();
         PressureChart.LiveRawPressure = null;
         PressureChart.LivePressure = null;
@@ -1073,18 +1010,15 @@ public partial class MainWindow : Window
 
     private void RenderTimer_Tick(object? sender, EventArgs e)
     {
-        if (_session == null) return;
+        if (_penSession == null) return;
 
-        var points = _session.DrainPoints();
+        var points = _penSession.DrainPoints();
         if (points.Length == 0)
         {
             if ((DateTime.UtcNow - _lastPointTime).TotalMilliseconds > 200)
             {
                 ApplyProximity(inRange: false);
-                if (_activeCanvas != ActiveCanvas.None)
-                {
-                    ResetStrokeState();
-                }
+                ResetStrokeState();
             }
             return;
         }
@@ -1094,11 +1028,9 @@ public partial class MainWindow : Window
         // null-guarded per-surface below.
         EnsureSurfaces();
 
-        int maxP = _session.MaxPressure;
+        int maxP = _penSession.MaxPressure;
         var topLevel = TopLevel.GetTopLevel(this);
         if (topLevel == null) return;
-
-        bool processedDirty = false, rawDirty = false;
 
         foreach (var pt in points)
         {
@@ -1112,11 +1044,17 @@ public partial class MainWindow : Window
             }
             catch
             {
-                _lastDrawPos = null;
+                _session.EndStroke();
                 continue;
             }
 
-            var (over, localPt) = ResolveActiveCanvas(topLevel, clientPt);
+            var over = _session.ResolveActiveCanvas(topLevel, clientPt, out var localPt);
+
+            // Crossing between canvases resets the filter BEFORE this sample is processed, so the
+            // first point on the new canvas is genuinely unweighted by the old one. Resetting
+            // afterwards — which is what the first version of this did — still let one sample
+            // through carrying the previous canvas's state.
+            if (_session.NoteCanvas(over)) _pipeline.Reset();
 
             // Pressure pipeline + telemetry + chart indicators run for every pen point,
             // regardless of whether the pen is over a stroke canvas. This keeps the
@@ -1124,7 +1062,7 @@ public partial class MainWindow : Window
             double rawPressure = maxP > 0 ? (double)pt.Pressure / maxP : 0;
             var pipeline = _pipeline.Process(rawPressure, _curveParams, _uiSettings.SmoothingOrder);
 
-            UpdateTelemetry(pt, clientPt, over == ActiveCanvas.None ? null : (Point?)localPt, maxP, pipeline.Output);
+            UpdateTelemetry(pt, clientPt, over is null ? null : (Point?)localPt, maxP, pipeline.Output);
             // Each chart's x axis is a different quantity, so the indicators cannot all
             // carry the same number. Curve 1 and the effective chart are both read against
             // pen pressure; curve 2's axis is curve 1's OUTPUT, so it gets that instead —
@@ -1142,103 +1080,18 @@ public partial class MainWindow : Window
             ResponseChart.LivePressure = pipeline.PreCurve;
 
             // Drawing requires the pen to be over a stroke canvas.
-            if (over == ActiveCanvas.None)
+            if (over is null)
             {
-                _lastDrawPos = null;
+                _session.EndStroke();
                 continue;
             }
 
-            // Switching canvases mid-stroke restarts the filter so one canvas's pressure does
-            // not weight the other's first samples. This comment used to say exactly that
-            // while the code cleared only _lastDrawPos — the reset is real now.
-            if (over != _activeCanvas)
-            {
-                _activeCanvas = over;
-                _lastDrawPos = null;
-                _pipeline.Reset();
-            }
-
-            var drawPos = localPt;
-
-            // A new stroke begins whenever pressure arrives with no segment in progress:
-            // at pen-down, and again after the pen crosses to the other canvas. Keying off
-            // the canvas change alone missed the common case — hovering over the canvas
-            // consumes the change at zero pressure, so pressing down afterwards never
-            // picked a colour and every stroke stayed the initial black.
-            if (rawPressure > 0 && _lastDrawPos is null) PickStrokeColor();
-
-            if (rawPressure > 0)
-            {
-                if (_lastDrawPos is { } from)
-                {
-                    if (_processed?.Canvas is { } pc)
-                    {
-                        DrawSegment(pc, from, drawPos,
-                            _brush.StrokeWidthFor(pipeline.Output), _brush.OpacityFor(pipeline.Output),
-                            skipIfZero: !_brush.DrawAtZeroPressure && pipeline.Output <= 0);
-                        processedDirty = true;
-                    }
-                    if (_raw?.Canvas is { } rc)
-                    {
-                        DrawSegment(rc, from, drawPos,
-                            _brush.StrokeWidthFor(rawPressure), _brush.OpacityFor(rawPressure),
-                            skipIfZero: false);
-                        rawDirty = true;
-                    }
-                }
-                _lastDrawPos = drawPos;
-            }
-            else
-            {
-                _lastDrawPos = null;
-            }
+            _session.AddSample(localPt, rawPressure, pipeline.Output, _brush);
         }
 
-        if (processedDirty) _processed!.Present();
-        if (rawDirty) _raw!.Present();
+        _session.PresentDirty();
 
         _lastPointTime = DateTime.UtcNow;
-    }
-
-    private (ActiveCanvas, Point) ResolveActiveCanvas(TopLevel topLevel, Point clientPt)
-    {
-        // Only probe canvases in the currently-visible tab. Stale layout on inactive
-        // tab content can otherwise produce wrong local coords (manifests as an X/Y
-        // displacement on whichever canvas wins the hit test by accident).
-        if (StrokeView.IsEffectivelyVisible &&
-            TryHitTest(StrokeView.Host) is { } a) return (ActiveCanvas.Processed, a);
-        if (CompareProcessedView.IsEffectivelyVisible &&
-            TryHitTest(CompareProcessedView.Host) is { } b) return (ActiveCanvas.Processed, b);
-        if (CompareRawView.IsEffectivelyVisible &&
-            TryHitTest(CompareRawView.Host) is { } c) return (ActiveCanvas.Raw, c);
-        return (ActiveCanvas.None, default);
-
-        Point? TryHitTest(Border host)
-        {
-            if (host.Bounds.Width <= 0 || host.Bounds.Height <= 0) return null;
-            var origin = host.TranslatePoint(new Point(0, 0), topLevel);
-            if (origin is null) return null;
-            var local = new Point(clientPt.X - origin.Value.X, clientPt.Y - origin.Value.Y);
-            if (local.X < 0 || local.X >= host.Bounds.Width ||
-                local.Y < 0 || local.Y >= host.Bounds.Height) return null;
-            return local;
-        }
-    }
-
-    private void DrawSegment(SKCanvas canvas, Point from, Point to, float strokeWidth, float opacity, bool skipIfZero)
-    {
-        if (skipIfZero) return;
-        byte alpha = (byte)Math.Clamp(opacity * 255, 0, 255);
-        var color = _strokeColor.WithAlpha(alpha);
-        using var paint = new SKPaint
-        {
-            Color = color,
-            StrokeWidth = strokeWidth,
-            StrokeCap = SKStrokeCap.Round,
-            IsAntialias = true,
-            Style = SKPaintStyle.Stroke,
-        };
-        canvas.DrawLine((float)from.X, (float)from.Y, (float)to.X, (float)to.Y, paint);
     }
 
     /// <param name="processed">
@@ -1287,8 +1140,7 @@ public partial class MainWindow : Window
 
     private void ClearCanvases()
     {
-        _processed?.Clear();
-        _raw?.Clear();
+        _session.Clear();
         ResetStrokeState();
     }
 }

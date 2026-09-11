@@ -105,6 +105,29 @@ public sealed class DrawSurface : IDisposable
         int w = (int)Math.Round(dipWidth * scale);
         int h = (int)Math.Round(dipHeight * scale);
         if (w <= 0 || h <= 0) return;
+
+        // Never shrink. The preserve-pixels blit below copies the old bitmap in at the origin,
+        // so allocating smaller discards whatever falls outside — permanently, since growing
+        // back cannot recover it. Shrinking the window and restoring it used to truncate the
+        // mark at the smaller height, and a resize drag does that on every step.
+        //
+        // Growing instead of shrinking also makes the shared processed surface safe: the Stroke
+        // tab's canvas and the Compare tab's are different sizes, and the hosts already clip an
+        // oversized bitmap (see StrokeCanvasView — the Image is pinned at 0,0 on a Canvas inside
+        // a ClipToBounds border), so a bitmap larger than its host displays correctly.
+        //
+        // Growth is monotonic within a session: maximise then restore and the bitmap stays at the
+        // maximum. Bounded by screen size, so this is a stated consequence rather than a leak.
+        //
+        // Only when the scale is unchanged. A DPI change has to reallocate either way, and its
+        // resample branch scales the old content by the ratio so it keeps its apparent size —
+        // a smaller pixel count there is correct, not a loss.
+        if (_skBitmap != null && Scale == scale)
+        {
+            w = Math.Max(w, Width);
+            h = Math.Max(h, Height);
+        }
+
         if (_skBitmap != null && Width == w && Height == h && Scale == scale) return;
 
         var oldBitmap = _skBitmap;
