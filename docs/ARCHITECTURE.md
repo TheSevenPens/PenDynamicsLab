@@ -416,6 +416,69 @@ Note the last two are different conditions: **out-of-range needs no points whats
 
 > Earlier revisions of this document claimed smoothed pressure reset "when the pen lifts" and "when the pen crosses between canvases". Neither was true of the code: `_smoothedPressure` was cleared only inside `ResetStrokeState()`, which canvas crossing never called and which the >200 ms path reached only when no points arrived at all. A code comment made the same false claim. Both were corrected when the pipeline was extracted.
 
+## Stroke model
+
+A stroke is recorded as well as rasterized. `DrawingSession` still draws each segment as it
+arrives — nothing is deferred — but it also appends to a `StrokeHistory`, which is what makes
+undo possible without reconstructing history after the fact.
+
+Deliberately **not** a document model: no layers, no tools, no selection. Just the list a stroke
+can be recorded into and replayed from.
+
+### Input is authoritative; the pipeline output is a cache
+
+This is the decision the model exists to make real, and it is the fork that matters — not
+"stroke list vs command list", which for this codebase are the same thing.
+
+| Stored per sample | Status |
+|---|---|
+| `Position`, `RawPressure`, `Orientation` | **Authoritative** — what the pen actually did |
+| `ProcessedPressure` | **Cache** — valid only for the params that produced it |
+
+Storing output alone would be smaller and replay would be exact, but re-running a captured pen
+stream through a different curve — one of the reasons to record strokes at all — would be
+impossible, because the pressure that produced the mark would be gone.
+
+Width and opacity are not stored. They follow from `ProcessedPressure` and the stroke's brush by
+arithmetic, so keeping them would be a second cache to invalidate for no gain.
+
+### Staleness
+
+`StrokeHistory.ParamsVersion` increments whenever `UpdateParams` runs. A stroke carries the
+version it was drawn under, and the two are compared **at replay time** — changing a curve a
+hundred times costs a hundred increments rather than a hundred passes over the history.
+
+A stale stroke is re-run from its raw pressures (`MainWindow.RecomputeStroke`, which owns the
+pipeline) and its cache is rewritten. Rewriting rather than keeping a second view is deliberate:
+two generations of output for one stroke would let the canvas show a mix, with nothing to say
+which is which.
+
+The version counter exists from day one even though the first implementation mostly hits the
+valid case. Adding it once strokes exist without one is the awkward migration this avoids.
+
+### Snapshots, not references
+
+`Brush` and `Color` are captured at stroke start. The colour especially: under `ColorMode.Random`
+the colour a stroke got **cannot be recovered from settings afterwards**, so capturing it is the
+only way it survives.
+
+### Replay depends on the reset contract
+
+A stroke is not a pure function of its own samples — the pipeline carries filter state, so the
+same samples smoothed from a different starting value give a different mark. `RecomputeStroke`
+uses a fresh `DynamicsPipeline`, which is correct precisely because of the rule in
+[Stroke state](#state-flow): a stroke begins with the filter cleared. That guarantee is what makes
+replay reproducible.
+
+### Undo
+
+Undo-last-stroke clears both surfaces and replays everything remaining: **O(strokes) per undo**.
+Fine at lab scale, and deliberately not optimised into a damage-rect scheme.
+
+Tilt and twist are recorded although nothing renders them. They already arrive on every `PenPoint`
+and already show in the telemetry ribbon; recording fields the renderer ignores is nearly free,
+while adding them to the format after strokes exist is a migration.
+
 ## Data model
 
 `PressureCurveParams` (immutable record in `Curves/`) holds the pipeline; `CurveSettings` holds one curve, and the pipeline holds two of them:
