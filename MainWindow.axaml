@@ -17,17 +17,42 @@
         <Style Selector="RadioButton">  <Setter Property="FontSize" Value="13" /></Style>
         <Style Selector="MenuItem">     <Setter Property="FontSize" Value="13" /></Style>
         <Style Selector="Slider">       <Setter Property="FontSize" Value="13" /></Style>
-        <Style Selector="TabItem">      <Setter Property="FontSize" Value="14" /></Style>
+        <!-- MinHeight as well as FontSize. The Fluent default is 48, which centres a 14pt label
+             and pins the selected-tab indicator to the bottom - leaving about 15 DIPs of empty
+             space between the two, so the underline read as belonging to nothing in particular.
+             38 closes most of that without crowding the label. -->
+        <Style Selector="TabItem">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="MinHeight" Value="38" />
+        </Style>
 
         <!-- A muted label sitting beside its control. Replaces the bold uppercase
-             micro-labels that were the app's strongest dated signal. -->
+             micro-labels that were the app's strongest dated signal.
+
+             Same FontSize as .readout on purpose. These two sit in label/value pairs in the
+             telemetry grids, and a Grid aligns boxes rather than baselines - so a smaller label
+             left the value's text sitting lower than its own, by 3 physical pixels at 2.25x
+             scaling. Matching the size makes the line boxes match, which aligns the baselines by
+             construction rather than by a hand-tuned margin that would drift at another DPI.
+
+             The hierarchy is carried by colour instead, which was always doing most of the work:
+             Pdl.Muted here against Pdl.Text on the value. It also puts these in step with the
+             ComboBox / Slider / CheckBox they label, which are all 13. -->
         <Style Selector="TextBlock.fieldLabel">
-            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontSize" Value="13" />
             <Setter Property="Foreground" Value="{DynamicResource Pdl.Muted}" />
         </Style>
-        <!-- Caption over a telemetry group. -->
+        <!-- Caption over a telemetry group. Same FontSize as everything else in the ribbon:
+             the recession is carried by colour, which already runs three steps deep -
+             Pdl.Text on values, Pdl.Muted on field labels, Pdl.GroupLabel lightest of all on
+             these. A smaller size added nothing the colour was not already doing, and left
+             the captions looking slightly undersized rather than deliberately quiet.
+
+             The other option was a small-caps "eyebrow" caption, but that wants uppercase and
+             letterspacing to look intentional, and this app deliberately moved away from bold
+             uppercase micro-labels - see .fieldLabel. -->
         <Style Selector="TextBlock.groupLabel">
-            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontSize" Value="13" />
             <Setter Property="Foreground" Value="{DynamicResource Pdl.GroupLabel}" />
         </Style>
         <!-- Live numeric value. -->
@@ -54,8 +79,12 @@
     <DockPanel>
         <!-- Telemetry ribbon. The driver tip lives at its right-hand end, in space that
              was running empty, so the advice costs no vertical band. -->
+        <!-- Vertical padding matters as much as horizontal here: the inner DockPanel has a fixed
+             height and the tallest group (Position, four rows) filled it, leaving the Canvas row's
+             text three physical pixels off the divider. Padding on the Border moves the divider
+             rather than squeezing the content, so the groups keep the box they were laid out in. -->
         <Border DockPanel.Dock="Top" Background="{DynamicResource Pdl.Surface}"
-                BorderBrush="{DynamicResource Pdl.Divider}" BorderThickness="0,0,0,1" Padding="16,0">
+                BorderBrush="{DynamicResource Pdl.Divider}" BorderThickness="0,0,0,1" Padding="16,8">
             <DockPanel x:Name="RibbonPanel" Height="92">
 
                 <!-- Gear first, so it takes the OUTERMOST right slot: DockPanel fills in
