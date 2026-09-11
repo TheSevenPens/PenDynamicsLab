@@ -999,6 +999,11 @@ public partial class MainWindow : Window
         _penSession?.Dispose();
 
         var api = _apis[ApiCombo.SelectedIndex];
+        // Whatever the previous session last reported says nothing about this one. The
+        // out-of-range path would blank these within 200 ms anyway; doing it here means the
+        // switch never shows another device's readings as if they were current.
+        ClearTelemetryReadouts();
+
         _penSession = api == InputApi.AvaloniaPointer
             ? new AvaloniaPointerSession(CanvasArea)
             : PenSessionFactory.Create(api);
@@ -1051,6 +1056,7 @@ public partial class MainWindow : Window
             if ((DateTime.UtcNow - _lastPointTime).TotalMilliseconds > 200)
             {
                 ApplyProximity(inRange: false);
+                ClearTelemetryReadouts();
                 ResetStrokeState();
             }
             return;
@@ -1133,6 +1139,40 @@ public partial class MainWindow : Window
     /// stages on Passthrough this equals the normalized value, which is the point: the row
     /// always shows something, and a difference means a stage is actually doing work.
     /// </param>
+    /// <summary>The readouts' "no data" placeholder, matching what the markup ships with.</summary>
+    private const string NoReading = "--";
+
+    /// <summary>
+    /// Put every telemetry readout back to <see cref="NoReading"/>.
+    /// </summary>
+    /// <remarks>
+    /// The ribbon starts out showing placeholders because no pen has reported yet, which is
+    /// honest. Leaving the last values on screen once the pen leaves range is not: they look
+    /// live, they are not, and nothing distinguishes a frozen reading from a still one — a pen
+    /// held perfectly still and a pen put down look identical. The proximity dot says "out of
+    /// range", but a row of plausible numbers next to it argues otherwise.
+    ///
+    /// The cursor id goes too. It is in the Pen group rather than the three the report named, but
+    /// it is the same stale-reading problem: it describes a pen that is no longer there.
+    /// </remarks>
+    private void ClearTelemetryReadouts()
+    {
+        CursorLabel.Text = NoReading;
+
+        RawPosLabel.Text = NoReading;
+        ScreenPosLabel.Text = NoReading;
+        AppPosLabel.Text = NoReading;
+        CanvasPosLabel.Text = NoReading;
+
+        RawPressureLabel.Text = NoReading;
+        NormPressureLabel.Text = NoReading;
+        ProcessedPressureLabel.Text = NoReading;
+
+        AzimuthLabel.Text = NoReading;
+        AltitudeLabel.Text = NoReading;
+        TwistLabel.Text = NoReading;
+    }
+
     private void UpdateTelemetry(PenPoint pt, Point clientPt, Point? canvasLocal, int maxP, double processed)
     {
         // The captions are static markup now, so these carry the value alone.
@@ -1142,7 +1182,7 @@ public partial class MainWindow : Window
         RawPosLabel.Text = $"{pt.RawX}, {pt.RawY}";
         ScreenPosLabel.Text = $"{pt.DesktopX:F0}, {pt.DesktopY:F0}";
         AppPosLabel.Text = $"{clientPt.X:F0}, {clientPt.Y:F0}";
-        CanvasPosLabel.Text = canvasLocal is { } cl ? $"{cl.X:F1}, {cl.Y:F1}" : "--";
+        CanvasPosLabel.Text = canvasLocal is { } cl ? $"{cl.X:F1}, {cl.Y:F1}" : NoReading;
 
         float pct = maxP > 0 ? (float)pt.Pressure / maxP * 100f : 0f;
         RawPressureLabel.Text = pt.Pressure.ToString();
