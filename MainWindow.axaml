@@ -20,9 +20,19 @@
         <Style Selector="TabItem">      <Setter Property="FontSize" Value="14" /></Style>
 
         <!-- A muted label sitting beside its control. Replaces the bold uppercase
-             micro-labels that were the app's strongest dated signal. -->
+             micro-labels that were the app's strongest dated signal.
+
+             Same FontSize as .readout on purpose. These two sit in label/value pairs in the
+             telemetry grids, and a Grid aligns boxes rather than baselines - so a smaller label
+             left the value's text sitting lower than its own, by 3 physical pixels at 2.25x
+             scaling. Matching the size makes the line boxes match, which aligns the baselines by
+             construction rather than by a hand-tuned margin that would drift at another DPI.
+
+             The hierarchy is carried by colour instead, which was always doing most of the work:
+             Pdl.Muted here against Pdl.Text on the value. It also puts these in step with the
+             ComboBox / Slider / CheckBox they label, which are all 13. -->
         <Style Selector="TextBlock.fieldLabel">
-            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontSize" Value="13" />
             <Setter Property="Foreground" Value="{DynamicResource Pdl.Muted}" />
         </Style>
         <!-- Caption over a telemetry group. -->
