@@ -116,6 +116,19 @@
                             </StackPanel>
                         </RadioButton>
                     </StackPanel>
+
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Processing order" FontSize="12"
+                                   Foreground="{DynamicResource Pdl.Muted}" />
+
+                        <RadioButton x:Name="SmoothFirstRadio" GroupName="Order" />
+                        <RadioButton x:Name="CurveFirstRadio" GroupName="Order" />
+
+                        <!-- The settings cards are laid out in this order, so the choice
+                             shows itself on screen rather than needing to be remembered. -->
+                        <TextBlock x:Name="OrderChainLabel" FontSize="12" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource Pdl.Muted}" />
+                    </StackPanel>
                 </StackPanel>
             </Panel>
         </Border>

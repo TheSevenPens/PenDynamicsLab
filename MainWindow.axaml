@@ -216,7 +216,10 @@
                     <ScrollViewer Grid.Row="0"
                                   HorizontalScrollBarVisibility="Disabled"
                                   VerticalScrollBarVisibility="Auto">
-                        <StackPanel>
+                        <!-- Card order follows the processing order, so the column reads in
+                             pipeline order rather than needing a pill to describe it.
+                             Reordered in code by ApplyCardOrder. -->
+                        <StackPanel x:Name="SettingsStack">
 
                         <!-- First in the pipeline, and fixed there: quantization models the
                              resolution the pressure arrived at, so nothing downstream can
@@ -259,12 +262,6 @@
                                 <controls:LabeledSlider x:Name="PressureEmaSlider" Label="Smoothing Amount"
                                                         Minimum="0" Maximum="0.99" Value="0" DefaultValue="0" />
                             </StackPanel>
-                            </controls:SectionCard.CardContent>
-                        </controls:SectionCard>
-
-                        <controls:SectionCard x:Name="ProcessingOrderCard" Title="Processing">
-                            <controls:SectionCard.CardContent>
-                            <ComboBox x:Name="ProcessingOrderCombo" Height="32" HorizontalAlignment="Stretch" />
                             </controls:SectionCard.CardContent>
                         </controls:SectionCard>
 

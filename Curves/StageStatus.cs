@@ -75,15 +75,6 @@ public static class StageStatus
         return p.EmaSmoothing <= 0 ? StageState.NoEffect : StageState.On;
     }
 
-    /// <summary>
-    /// The order only decides anything when smoothing and the curves both alter the
-    /// signal; with either side idle, smooth-first and curve-first produce the same result.
-    /// </summary>
-    public static StageState Processing(PressureCurveParams p)
-        => Effective(p) == StageState.On && Smoothing(p) == StageState.On
-            ? StageState.On
-            : StageState.NoEffect;
-
     private static bool CurveIsNeutral(CurveSettings p)
     {
         // A constant output always changes something, and so does a reflection. Neither

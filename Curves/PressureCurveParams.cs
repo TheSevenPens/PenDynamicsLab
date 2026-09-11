@@ -31,7 +31,11 @@ public sealed record PressureCurveParams
 
     public SmoothingType SmoothingType { get; init; } = SmoothingType.Passthrough;
     public double EmaSmoothing { get; init; } = 0;
-    public SmoothingOrder SmoothingOrder { get; init; } = SmoothingOrder.SmoothThenCurve;
+
+    // SmoothingOrder is deliberately NOT here. It is an application setting in UiSettings,
+    // not part of a preset: the settings cards are laid out in the order the stages run,
+    // so the order is always visible on screen and cannot be changed behind your back by
+    // loading a preset. See UiSettings.SmoothingOrder.
 
     /// <summary>The default bezier shape, kept here as well because callers reach for it.</summary>
     public static ImmutableArray<BezierPoint> DefaultBezierPoints => CurveSettings.DefaultBezierPoints;
