@@ -72,6 +72,12 @@ public sealed class DrawingSession : IDisposable
     /// </summary>
     public StrokeHistory History { get; } = new();
 
+    // Everything evicted from the history, already rendered. Undo restores these before replaying
+    // the strokes that are still recorded, so capping the history cannot erase work from the
+    // canvas. Allocated only once the cap is actually reached - a session that never fills the
+    // history never pays for them.
+    private SKBitmap? _processedBaseline, _rawBaseline;
+
     /// <summary>The processed surface. Exposed for PNG export, not for drawing.</summary>
     public DrawSurface Processed { get; } = new();
 
@@ -206,6 +212,48 @@ public sealed class DrawingSession : IDisposable
     {
         _lastDrawPos = null;
         History.EndStroke();
+
+        // Bake anything the cap pushed out into the baseline before losing the samples.
+        while (History.EvictOldestIfOverCap() is { } evicted) BakeIntoBaseline(evicted);
+    }
+
+    /// <summary>Render an evicted stroke into the baseline so undo can still restore it.</summary>
+    private void BakeIntoBaseline(Stroke stroke)
+    {
+        Bake(Processed, ref _processedBaseline, s => s.ProcessedPressure);
+        Bake(Raw, ref _rawBaseline, s => s.RawPressure);
+
+        void Bake(DrawSurface surface, ref SKBitmap? baseline, Func<StrokeSample, double> pressure)
+        {
+            if (surface.Width <= 0 || surface.Height <= 0) return;
+
+            // The surface only ever grows, so a baseline from an earlier size is still valid at
+            // the origin - copy it into a larger one rather than starting over.
+            if (baseline is null || baseline.Width < surface.Width || baseline.Height < surface.Height)
+            {
+                var grown = new SKBitmap(surface.Width, surface.Height, SKColorType.Bgra8888, SKAlphaType.Premul);
+                if (baseline is not null)
+                {
+                    using var copy = new SKCanvas(grown);
+                    copy.DrawBitmap(baseline, 0, 0);
+                    baseline.Dispose();
+                }
+                baseline = grown;
+            }
+
+            using var canvas = new SKCanvas(baseline);
+            // Samples are in DIPs; the baseline is physical pixels, same as the surface it mirrors.
+            canvas.Scale((float)surface.Scale);
+
+            var samples = stroke.Samples;
+            for (int i = 1; i < samples.Count; i++)
+            {
+                double p = pressure(samples[i]);
+                if (!stroke.Brush.DrawAtZeroPressure && p <= 0) continue;
+                _engine.DrawSegment(canvas, samples[i - 1].Position, samples[i].Position, stroke.Color,
+                    stroke.Brush.StrokeWidthFor(p), stroke.Brush.OpacityFor(p));
+            }
+        }
     }
 
     /// <summary>Push whichever surfaces were drawn on to their hosts.</summary>
@@ -224,6 +272,8 @@ public sealed class DrawingSession : IDisposable
         Processed.Clear();
         Raw.Clear();
         History.Clear();
+        _processedBaseline?.Dispose(); _processedBaseline = null;
+        _rawBaseline?.Dispose(); _rawBaseline = null;
         ResetStroke();
     }
 
@@ -260,6 +310,10 @@ public sealed class DrawingSession : IDisposable
 
         Processed.Clear();
         Raw.Clear();
+        // Evicted strokes first: they are no longer replayable, but they are still on screen and
+        // must stay there. Without this the cap would quietly delete work on the next undo.
+        if (_processedBaseline is not null) Processed.DrawSnapshot(_processedBaseline);
+        if (_rawBaseline is not null) Raw.DrawSnapshot(_rawBaseline);
         foreach (var stroke in History.Strokes) Replay(stroke, recompute);
 
         _processedDirty = _rawDirty = true;
@@ -310,5 +364,7 @@ public sealed class DrawingSession : IDisposable
         _engine.Dispose();
         Processed.Dispose();
         Raw.Dispose();
+        _processedBaseline?.Dispose();
+        _rawBaseline?.Dispose();
     }
 }

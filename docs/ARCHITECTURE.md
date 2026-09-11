@@ -475,6 +475,33 @@ replay reproducible.
 Undo-last-stroke clears both surfaces and replays everything remaining: **O(strokes) per undo**.
 Fine at lab scale, and deliberately not optimised into a damage-rect scheme.
 
+### The cap, and why it needs a baseline
+
+History is bounded: `MaxStrokes` (500) and `MaxSamples` (400,000). Without a cap, memory grows for
+as long as you keep drawing and only Clear releases it — a few tens of KB per second of actual
+drawing, which is nothing in a short session and unbounded in a long one.
+
+Capping naively would be a correctness bug. Undo clears both surfaces and replays what is in
+history, so an evicted stroke that was not preserved anywhere would **disappear from the canvas on
+the next undo** — silently destroying work that is still on screen.
+
+So eviction returns the stroke rather than discarding it, and `DrawingSession` renders it into a
+baseline bitmap first. Undo restores the baseline, then replays the strokes still recorded:
+
+```
+undo:  clear surfaces
+       draw baseline        (everything evicted, already rasterized)
+       replay history       (everything still recorded)
+```
+
+The baseline is allocated **lazily**, on first eviction. A session that never fills the history
+never pays for it — which matters, because a baseline pair is two full-size bitmaps and would
+otherwise cost more than the history it bounds.
+
+Evicted strokes are gone as *strokes*: they cannot be undone, and a later re-curve cannot re-render
+them, because their raw pressures are no longer held. That is the trade the cap makes, and it is
+why the limits are generous rather than tight.
+
 Tilt and twist are recorded although nothing renders them. They already arrive on every `PenPoint`
 and already show in the telemetry ribbon; recording fields the renderer ignores is nearly free,
 while adding them to the format after strokes exist is a migration.
