@@ -65,6 +65,13 @@ public sealed class DrawingSession : IDisposable
     private Point? _lastDrawPos;
     private bool _processedDirty, _rawDirty;
 
+    /// <summary>
+    /// What has been drawn, as strokes rather than only as pixels. Recording is immediate and the
+    /// mark is still rasterized as it arrives — this is a parallel record, not a replacement for
+    /// drawing. See #15.
+    /// </summary>
+    public StrokeHistory History { get; } = new();
+
     /// <summary>The processed surface. Exposed for PNG export, not for drawing.</summary>
     public DrawSurface Processed { get; } = new();
 
@@ -152,11 +159,11 @@ public sealed class DrawingSession : IDisposable
     /// <summary>Add one pen sample to the stroke in progress, starting one if needed.</summary>
     /// <param name="rawPressure">Pressure before the pipeline, which drives the raw surface.</param>
     /// <param name="processedPressure">The pipeline's output, which drives the processed surface.</param>
-    public void AddSample(Point pos, double rawPressure, double processedPressure, BrushSettings brush)
+    public void AddSample(Point pos, double rawPressure, double processedPressure, BrushSettings brush, PenOrientation orientation = default)
     {
         if (rawPressure <= 0)
         {
-            _lastDrawPos = null;
+            EndStroke();
             return;
         }
 
@@ -165,7 +172,13 @@ public sealed class DrawingSession : IDisposable
         // missed the common case — hovering over the canvas consumes the change at zero pressure,
         // so pressing down afterwards never picked a colour and every stroke stayed the initial
         // black.
-        if (_lastDrawPos is null) PickStrokeColor(brush.ColorMode);
+        if (_lastDrawPos is null)
+        {
+            PickStrokeColor(brush.ColorMode);
+            History.BeginStroke(brush, _strokeColor);
+        }
+
+        History.AddSample(pos, rawPressure, orientation, processedPressure);
 
         if (_lastDrawPos is { } from)
         {
@@ -189,7 +202,11 @@ public sealed class DrawingSession : IDisposable
     }
 
     /// <summary>End the segment in progress without clearing anything that was drawn.</summary>
-    public void EndStroke() => _lastDrawPos = null;
+    public void EndStroke()
+    {
+        _lastDrawPos = null;
+        History.EndStroke();
+    }
 
     /// <summary>Push whichever surfaces were drawn on to their hosts.</summary>
     public void PresentDirty()
@@ -206,6 +223,7 @@ public sealed class DrawingSession : IDisposable
     {
         Processed.Clear();
         Raw.Clear();
+        History.Clear();
         ResetStroke();
     }
 
@@ -218,6 +236,62 @@ public sealed class DrawingSession : IDisposable
     {
         _active = null;
         _lastDrawPos = null;
+        History.EndStroke();
+    }
+
+    /// <summary>
+    /// Remove the most recent stroke and redraw what is left. Returns false if there was nothing
+    /// to undo.
+    /// </summary>
+    /// <param name="recompute">
+    /// Re-runs a stroke's raw pressures through the current pipeline, for strokes recorded under
+    /// an older parameter generation. Supplied by the window, which owns the pipeline. When null,
+    /// stale strokes are replayed from their cached outputs — visibly the old curve, which is
+    /// wrong but better than not drawing them.
+    /// </param>
+    /// <remarks>
+    /// Undo clears both surfaces and replays every remaining stroke: O(strokes) per undo. That is
+    /// fine at lab scale and deliberately not optimised into a damage-rect scheme — see #15.
+    /// </remarks>
+    public bool UndoLastStroke(Func<Stroke, IReadOnlyList<double>>? recompute = null)
+    {
+        EndStroke();
+        if (!History.RemoveLast()) return false;
+
+        Processed.Clear();
+        Raw.Clear();
+        foreach (var stroke in History.Strokes) Replay(stroke, recompute);
+
+        _processedDirty = _rawDirty = true;
+        PresentDirty();
+        return true;
+    }
+
+    private void Replay(Stroke stroke, Func<Stroke, IReadOnlyList<double>>? recompute)
+    {
+        // A stroke drawn under older params has a stale cache. Re-running it from its raw
+        // pressures is what keeps the canvas from showing two curve generations at once.
+        if (stroke.ParamsVersion != History.ParamsVersion && recompute is not null)
+            stroke.RecacheOutputs(recompute(stroke), History.ParamsVersion);
+
+        var samples = stroke.Samples;
+        for (int i = 1; i < samples.Count; i++)
+        {
+            var from = samples[i - 1].Position;
+            var to = samples[i].Position;
+            var s = samples[i];
+
+            if (Processed.Canvas is { } pc && (stroke.Brush.DrawAtZeroPressure || s.ProcessedPressure > 0))
+            {
+                _engine.DrawSegment(pc, from, to, stroke.Color,
+                    stroke.Brush.StrokeWidthFor(s.ProcessedPressure), stroke.Brush.OpacityFor(s.ProcessedPressure));
+            }
+            if (Raw.Canvas is { } rc)
+            {
+                _engine.DrawSegment(rc, from, to, stroke.Color,
+                    stroke.Brush.StrokeWidthFor(s.RawPressure), stroke.Brush.OpacityFor(s.RawPressure));
+            }
+        }
     }
 
     private void PickStrokeColor(ColorMode mode)

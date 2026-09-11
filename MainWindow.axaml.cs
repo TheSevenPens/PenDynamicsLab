@@ -194,13 +194,42 @@ public partial class MainWindow : Window
         // preset name TextBox.
         KeyDown += (_, e) =>
         {
-            if (e.Key != global::Avalonia.Input.Key.Delete && e.Key != global::Avalonia.Input.Key.Back) return;
             if (e.Handled) return;
             var focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
             if (focused is TextBox) return;
+
+            bool ctrl = e.KeyModifiers.HasFlag(global::Avalonia.Input.KeyModifiers.Control);
+            if (ctrl && e.Key == global::Avalonia.Input.Key.Z)
+            {
+                // Undo re-rasters: clear and replay what is left. Strokes recorded under older
+                // curve params are re-run from their raw pressures rather than their stale cache,
+                // which is what keeps the canvas from mixing two curve generations.
+                if (_session.UndoLastStroke(RecomputeStroke)) e.Handled = true;
+                return;
+            }
+
+            if (e.Key != global::Avalonia.Input.Key.Delete && e.Key != global::Avalonia.Input.Key.Back) return;
             ClearCanvases();
             e.Handled = true;
         };
+    }
+
+    /// <summary>
+    /// Re-run a recorded stroke's raw pressures through the current curve parameters.
+    /// </summary>
+    /// <remarks>
+    /// A fresh <see cref="DynamicsPipeline"/> rather than the live one: replay must not disturb
+    /// the filter state of whatever the pen is doing right now, and starting from a clean filter
+    /// is exactly what the stroke saw when it was drawn — the reset contract from #11 guarantees
+    /// a stroke begins unsmoothed, which is what makes replay reproducible at all.
+    /// </remarks>
+    private IReadOnlyList<double> RecomputeStroke(Stroke stroke)
+    {
+        var pipeline = new DynamicsPipeline();
+        var outputs = new double[stroke.Samples.Count];
+        for (int i = 0; i < outputs.Length; i++)
+            outputs[i] = pipeline.Process(stroke.Samples[i].RawPressure, _curveParams, _uiSettings.SmoothingOrder).Output;
+        return outputs;
     }
 
     // ── Surface management ──────────────────────────────────────
@@ -950,6 +979,10 @@ public partial class MainWindow : Window
     {
         _curveParams = patch(_curveParams);
 
+        // Every recorded stroke's cached pipeline output was produced under the previous
+        // generation. Marking it here is cheap; staleness is discovered per stroke at replay.
+        _session.History.NoteParamsChanged();
+
         PushParamsToViews();
         UpdateDerivedControlState();
         UpdateCardStatuses();
@@ -1086,7 +1119,8 @@ public partial class MainWindow : Window
                 continue;
             }
 
-            _session.AddSample(localPt, rawPressure, pipeline.Output, _brush);
+            _session.AddSample(localPt, rawPressure, pipeline.Output, _brush,
+                new PenOrientation(pt.Azimuth, pt.Altitude, pt.Twist, pt.TiltX, pt.TiltY));
         }
 
         _session.PresentDirty();
