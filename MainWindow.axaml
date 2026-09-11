@@ -35,9 +35,17 @@
             <Setter Property="FontSize" Value="13" />
             <Setter Property="Foreground" Value="{DynamicResource Pdl.Muted}" />
         </Style>
-        <!-- Caption over a telemetry group. -->
+        <!-- Caption over a telemetry group. Same FontSize as everything else in the ribbon:
+             the recession is carried by colour, which already runs three steps deep -
+             Pdl.Text on values, Pdl.Muted on field labels, Pdl.GroupLabel lightest of all on
+             these. A smaller size added nothing the colour was not already doing, and left
+             the captions looking slightly undersized rather than deliberately quiet.
+
+             The other option was a small-caps "eyebrow" caption, but that wants uppercase and
+             letterspacing to look intentional, and this app deliberately moved away from bold
+             uppercase micro-labels - see .fieldLabel. -->
         <Style Selector="TextBlock.groupLabel">
-            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontSize" Value="13" />
             <Setter Property="Foreground" Value="{DynamicResource Pdl.GroupLabel}" />
         </Style>
         <!-- Live numeric value. -->
