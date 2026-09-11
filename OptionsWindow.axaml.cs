@@ -57,6 +57,8 @@ public partial class OptionsWindow : Window
         {
             AppTheme.Light => LightRadio,
             AppTheme.Dark => DarkRadio,
+            AppTheme.Sakura => SakuraRadio,
+            AppTheme.SakuraGradient => SakuraGradientRadio,
             _ => SystemRadio,
         }).IsChecked = true;
         (_settings.UseTwoCurves ? TwoCurveRadio : OneCurveRadio).IsChecked = true;
@@ -67,6 +69,8 @@ public partial class OptionsWindow : Window
 
         LightRadio.IsCheckedChanged += (_, _) => ChooseTheme(LightRadio, AppTheme.Light);
         DarkRadio.IsCheckedChanged += (_, _) => ChooseTheme(DarkRadio, AppTheme.Dark);
+        SakuraRadio.IsCheckedChanged += (_, _) => ChooseTheme(SakuraRadio, AppTheme.Sakura);
+        SakuraGradientRadio.IsCheckedChanged += (_, _) => ChooseTheme(SakuraGradientRadio, AppTheme.SakuraGradient);
         SystemRadio.IsCheckedChanged += (_, _) => ChooseTheme(SystemRadio, AppTheme.System);
 
         OneCurveRadio.IsCheckedChanged += (_, _) => ChooseCurveCount(OneCurveRadio, false);
