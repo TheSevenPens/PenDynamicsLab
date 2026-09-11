@@ -19,6 +19,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- DrawSurface.CopyRows is the strided blit, pulled out of CopyToAvBitmap so the
+         padded-stride path can be tested without a real framebuffer. It is an
+         implementation detail, so it stays internal rather than joining the public API
+         just to be reachable from the test project. -->
+    <InternalsVisibleTo Include="PenDynamicsLab.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.2.7" />
     <PackageReference Include="Avalonia.Desktop" Version="11.2.7" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.7" />

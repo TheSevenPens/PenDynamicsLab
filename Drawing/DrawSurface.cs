@@ -154,14 +154,23 @@ public sealed class DrawSurface : IDisposable
         // the whole host. Leaving it at 96 keeps Bitmap.Size == PixelSize, so the full
         // bitmap is the source; the DIP size is carried by the hosts' explicit
         // Width/Height instead. See ApplyToHost.
+        // Dispose the outgoing bitmap rather than letting the GC find it. The managed
+        // wrapper is tiny and the backing store is unmanaged, so the collector sees
+        // almost no pressure while the real footprint is whatever w * h * 4 was — and
+        // a resize drag reallocates on every mouse move.
+        var oldAvBitmap = _avBitmap;
+
         _avBitmap = new WriteableBitmap(
             new PixelSize(w, h),
             new Vector(96, 96),
             global::Avalonia.Platform.PixelFormat.Bgra8888,
             global::Avalonia.Platform.AlphaFormat.Premul);
 
+        // Hosts still point at the old bitmap until ApplyToHost runs below, so the
+        // dispose has to wait until after they have been repointed.
         CopyToAvBitmap();
         foreach (var host in _hosts) ApplyToHost(host);
+        oldAvBitmap?.Dispose();
     }
 
     public void Clear()
@@ -177,16 +186,61 @@ public sealed class DrawSurface : IDisposable
         foreach (var host in _hosts) host.InvalidateVisual();
     }
 
+    /// <summary>
+    /// Push the SKBitmap pixels into the Avalonia bitmap, row by row.
+    /// </summary>
+    /// <remarks>
+    /// Neither side promises a tightly packed buffer: <see cref="SKBitmap.RowBytes"/> and
+    /// <c>ILockedFramebuffer.RowBytes</c> may both pad each row out to an alignment. Copying
+    /// the whole image as one block assumes <c>stride == width * 4</c> on both sides, and when
+    /// that is wrong the result is not noise but a shear — row <c>N</c> lands at
+    /// <c>N * width * 4</c> instead of <c>N * stride</c>, so each row sits a little further
+    /// left than the one above and the image wraps into a parallelogram.
+    /// </remarks>
     private void CopyToAvBitmap()
     {
         if (_skBitmap == null || _avBitmap == null) return;
         using var fb = _avBitmap.Lock();
+
+        int srcStride = _skBitmap.RowBytes;
+        int dstStride = fb.RowBytes;
+        int rowBytes = Width * 4;
+
         unsafe
         {
-            var src = _skBitmap.GetPixels();
-            var dst = fb.Address;
-            int bytes = Width * Height * 4;
-            Buffer.MemoryCopy((void*)src, (void*)dst, bytes, bytes);
+            byte* src = (byte*)_skBitmap.GetPixels();
+            byte* dst = (byte*)fb.Address;
+            if (src == null || dst == null) return;
+
+            CopyRows(
+                new ReadOnlySpan<byte>(src, srcStride * Height), srcStride,
+                new Span<byte>(dst, dstStride * Height), dstStride,
+                rowBytes, Height);
+        }
+    }
+
+    /// <summary>
+    /// Copy <paramref name="height"/> rows of <paramref name="rowBytes"/> bytes, honouring
+    /// each side's stride. Pulled out of <see cref="CopyToAvBitmap"/> so the padded case can
+    /// be tested without a real framebuffer — no platform seen here produces a padded stride,
+    /// so left inline it would be unreachable in tests and unverifiable.
+    /// </summary>
+    internal static void CopyRows(
+        ReadOnlySpan<byte> src, int srcStride,
+        Span<byte> dst, int dstStride,
+        int rowBytes, int height)
+    {
+        // Both sides packed: the rows are already contiguous, so copy the lot in one go.
+        if (srcStride == rowBytes && dstStride == rowBytes)
+        {
+            src[..(rowBytes * height)].CopyTo(dst);
+            return;
+        }
+
+        for (int y = 0; y < height; y++)
+        {
+            src.Slice(y * srcStride, rowBytes)
+               .CopyTo(dst.Slice(y * dstStride, rowBytes));
         }
     }
 
@@ -201,9 +255,15 @@ public sealed class DrawSurface : IDisposable
 
     public void Dispose()
     {
+        // Repoint the hosts before disposing what they are showing, so nothing can
+        // render from a freed buffer if a frame is still in flight.
+        foreach (var host in _hosts) host.Source = null;
+
         _skCanvas?.Dispose();
         _skBitmap?.Dispose();
+        _avBitmap?.Dispose();
         _skCanvas = null;
         _skBitmap = null;
+        _avBitmap = null;
     }
 }
