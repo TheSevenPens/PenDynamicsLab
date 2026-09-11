@@ -294,33 +294,63 @@ public partial class MainWindow : Window
             if (_suppressCurveControlEvents) return;
 
             UpdateParams(patch(edited));
-            SyncCurveControlsFromParams();
         };
 
+    /// <summary>
+    /// Pushes the current parameters into the controls this window owns directly, then
+    /// into every view. For a wholesale change — a preset load, the curve count, startup.
+    /// </summary>
     private void SyncCurveControlsFromParams()
     {
         _suppressCurveControlEvents = true;
-
         SmoothingTypeCombo.SelectedIndex = (int)_curveParams.SmoothingType;
         ProcessingOrderCombo.SelectedIndex = (int)_curveParams.SmoothingOrder;
         PressureEmaSlider.Value = _curveParams.EmaSmoothing;
         QuantizationCombo.SelectedIndex = Math.Max(0, Array.IndexOf(Quantization.Levels, _curveParams.QuantizationLevels));
+        _suppressCurveControlEvents = false;
 
-        Curve1Editor.Curve = _curveParams.Curve1;
-        Curve2Editor.Curve = _curveParams.Curve2;
+        PushParamsToViews();
+        UpdateDerivedControlState();
+        UpdateCardStatuses();
+    }
+
+    /// <summary>Hands the current parameters to both editors and all four charts.</summary>
+    private void PushParamsToViews()
+    {
+        // Writing a chart's Curve raises its PropertyChanged, which WireChart reads as a
+        // user edit — so the app's own push has to be marked as not one. Without this the
+        // push bounces straight back in as an edit.
+        bool previous = _suppressCurveControlEvents;
+        _suppressCurveControlEvents = true;
         PressureChart.Curve = _curveParams.Curve1;
         PressureChart2.Curve = _curveParams.Curve2;
         EffectiveChart.Params = _curveParams;
         ResponseChart.Params = _curveParams;
+        _suppressCurveControlEvents = previous;
 
+        // The editors are pushed OUTSIDE that guard on purpose. Switching to Sigmoid from
+        // a negative softness makes the editor clamp the value and emit the correction,
+        // and that correction has to reach back here rather than be swallowed.
+        Curve1Editor.Curve = _curveParams.Curve1;
+        Curve2Editor.Curve = _curveParams.Curve2;
+    }
+
+    /// <summary>
+    /// Control state that is derived from the parameters rather than set by the user.
+    /// </summary>
+    /// <remarks>
+    /// This has to run on EVERY parameter change, not just a wholesale sync. It used to
+    /// live inside <see cref="SyncCurveControlsFromParams"/> alone, so switching smoothing
+    /// to EMA left its amount slider hidden until some unrelated edit happened to trigger
+    /// a sync.
+    /// </remarks>
+    private void UpdateDerivedControlState()
+    {
         // Passthrough smoothing ignores the amount, so hide it — same convention as the
         // curve cards, where Passthrough hides softness and the range controls.
-        PressureEmaSlider.IsVisible = _curveParams.SmoothingType != SmoothingType.Passthrough;
-        SmoothingResetButton.IsEnabled = _curveParams.SmoothingType != SmoothingType.Passthrough;
-
-        _suppressCurveControlEvents = false;
-
-        UpdateCardStatuses();
+        bool smoothing = _curveParams.SmoothingType != SmoothingType.Passthrough;
+        PressureEmaSlider.IsVisible = smoothing;
+        SmoothingResetButton.IsEnabled = smoothing;
     }
 
     // ── Card headers ────────────────────────────────────────────
@@ -903,11 +933,8 @@ public partial class MainWindow : Window
     {
         _curveParams = patch(_curveParams);
 
-        PressureChart.Curve = _curveParams.Curve1;
-        PressureChart2.Curve = _curveParams.Curve2;
-        EffectiveChart.Params = _curveParams;
-        ResponseChart.Params = _curveParams;
-
+        PushParamsToViews();
+        UpdateDerivedControlState();
         UpdateCardStatuses();
     }
 
