@@ -66,7 +66,7 @@ dotnet build PenDynamicsLab.slnx
 dotnet run --project PenDynamicsLab.csproj
 ```
 
-Tests (31, all pinning `CurveMath`):
+Tests (174 — `CurveMath`, quantization, preset migration, and UI settings):
 
 ```bash
 dotnet test PenDynamicsLab.Tests/PenDynamicsLab.Tests.csproj

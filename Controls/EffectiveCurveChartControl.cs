@@ -25,7 +25,7 @@ namespace PenDynamicsLab.Controls;
 /// reads without arithmetic.
 /// </para>
 /// </remarks>
-public sealed class EffectiveCurveChartControl : Control
+public sealed class EffectiveCurveChartControl : Control, IExportableChart
 {
     // Matches PressureChartControl exactly: the two sit in the same column and any
     // difference in plot geometry would read as a drawing error rather than a choice.
@@ -78,10 +78,40 @@ public sealed class EffectiveCurveChartControl : Control
             ParamsProperty, LivePressureProperty, LiveRawPressureProperty);
     }
 
+    /// <summary>
+    /// The plot area in control-local DIPs. Mirrors <see cref="PressureChartControl.PlotRect"/>
+    /// because the two charts share a layout — any difference would read as a drawing error.
+    /// </summary>
+    public Rect PlotRect
+    {
+        get
+        {
+            double w = Math.Max(0, Bounds.Width - 2 * Pad);
+            double h = Math.Max(0, Bounds.Height - 2 * Pad);
+            return new Rect(Pad, Pad, w, h);
+        }
+    }
+
+    /// <inheritdoc />
+    public Func<IEnumerable<Control>>? BuildExportMenuItems { get; set; }
+
     public EffectiveCurveChartControl()
     {
         RefreshInk();
         ActualThemeVariantChanged += (_, _) => { RefreshInk(); InvalidateVisual(); };
+
+        // This chart has no editing menu of its own, so unlike the editable charts the whole
+        // menu is the export block. Built on open so it reflects current state, and cancelled
+        // outright when there is nothing to show rather than flashing an empty menu.
+        var menu = new ContextMenu();
+        menu.Opening += (_, e) =>
+        {
+            menu.Items.Clear();
+            if (BuildExportMenuItems?.Invoke() is { } items)
+                foreach (var item in items) menu.Items.Add(item);
+            if (menu.Items.Count == 0) e.Cancel = true;
+        };
+        ContextMenu = menu;
     }
 
     private void RefreshInk()

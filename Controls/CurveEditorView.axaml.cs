@@ -52,16 +52,21 @@ public partial class CurveEditorView : UserControl
         MinApproachClampRadio.GroupName = group;
         MinApproachCutRadio.GroupName = group;
 
+        // Hold the enum values themselves rather than their names, so selection is by value
+        // and not by position. Inserting a CurveType in the middle would otherwise repoint
+        // every dropdown entry after it. (Presets serialize enum names, so saved files were
+        // always safe; it was the UI contract that was not.) The combo still shows the name,
+        // because that is what ToString gives it.
         foreach (var ct in Enum.GetValues<CurveType>())
-            TypeCombo.Items.Add(ct.ToString());
+            TypeCombo.Items.Add(ct);
 
         foreach (var preset in BezierPresets.All)
             BezierPresetCombo.Items.Add(preset.Name);
 
         TypeCombo.SelectionChanged += (_, _) =>
         {
-            if (_suppress || TypeCombo.SelectedIndex < 0) return;
-            Emit(Curve with { CurveType = (CurveType)TypeCombo.SelectedIndex });
+            if (_suppress || TypeCombo.SelectedItem is not CurveType selected) return;
+            Emit(Curve with { CurveType = selected });
         };
 
         BezierPresetCombo.SelectionChanged += (_, _) =>
@@ -121,7 +126,7 @@ public partial class CurveEditorView : UserControl
         var c = Curve;
 
         _suppress = true;
-        TypeCombo.SelectedIndex = (int)c.CurveType;
+        TypeCombo.SelectedItem = c.CurveType;
         SoftnessSlider.Value = c.Softness;
         InputMinSlider.Value = c.InputMinimum;
         InputMaxSlider.Value = c.InputMaximum;

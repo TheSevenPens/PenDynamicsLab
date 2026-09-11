@@ -154,7 +154,11 @@ public partial class MainWindow : Window
         CompareProcessedView.ClearRequested += (_, _) => ClearCanvases();
         CompareRawView.ClearRequested += (_, _) => ClearCanvases();
 
-        PressureChart.BuildExportMenuItems = BuildChartExportMenuItems;
+        // Every curve chart exports, not just curve 1. The file names differ so a folder of
+        // exports says which chart each came from.
+        PressureChart.BuildExportMenuItems = () => BuildChartExportMenuItems(PressureChart, "pressure-curve-1");
+        PressureChart2.BuildExportMenuItems = () => BuildChartExportMenuItems(PressureChart2, "pressure-curve-2");
+        EffectiveChart.BuildExportMenuItems = () => BuildChartExportMenuItems(EffectiveChart, "effective-curve");
         DriverTipChip.IsVisible = !_uiSettings.DriverTipDismissed;
 
         BrushRibbon.ClearRequested += (_, _) => ClearCanvases();
@@ -507,9 +511,12 @@ public partial class MainWindow : Window
                 var data = PressureResponseLoader.LoadSample(PressureResponseLoader.Samples[idx - 1].ResourceName);
                 SetResponseData(data);
             }
-            catch
+            catch (Exception ex)
             {
-                SetResponseData(null);
+                // Reset first: assigning the index re-enters this handler, which clears the
+                // label, so the message has to be written after that settles.
+                ResponseDataCombo.SelectedIndex = 0;
+                SetResponseData(null, $"Could not load that sample — {ex.Message}");
             }
         };
 
@@ -526,13 +533,18 @@ public partial class MainWindow : Window
         ResponseChart.Params = _curveParams;
     }
 
-    private void SetResponseData(PressureResponseData? data)
+    /// <param name="error">
+    /// Shown in place of the dataset description when a load fails. Without it a failure was
+    /// indistinguishable from an empty dataset: the combo kept the sample's name while the
+    /// chart went blank, which reads as "this sample has no data" rather than "it did not load".
+    /// </param>
+    private void SetResponseData(PressureResponseData? data, string? error = null)
     {
         ResponseChart.Data = data;
         ResponseClearButton.IsEnabled = data != null;
-        ResponseInfoLabel.Text = data is null
-            ? ""
-            : $"{data.InventoryId} — {data.Brand} {data.Pen} · {data.Tablet} · {data.Date} · {data.Records.Count} pts";
+        ResponseInfoLabel.Text = data is not null
+            ? $"{data.InventoryId} — {data.Brand} {data.Pen} · {data.Tablet} · {data.Date} · {data.Records.Count} pts"
+            : error ?? "";
     }
 
     private void ResponseClear_Click(object? sender, RoutedEventArgs e)
@@ -562,14 +574,19 @@ public partial class MainWindow : Window
         try
         {
             var local = files[0].TryGetLocalPath();
-            if (local == null) { ResponseDataCombo.SelectedIndex = 0; return; }
+            if (local == null)
+            {
+                ResponseDataCombo.SelectedIndex = 0;
+                SetResponseData(null, "That file has no local path — pick a file on this machine.");
+                return;
+            }
             SetResponseData(PressureResponseLoader.LoadFromFile(local));
             // Keep the combo on "Upload JSON..." position so user knows we're showing custom data.
         }
-        catch
+        catch (Exception ex)
         {
-            SetResponseData(null);
             ResponseDataCombo.SelectedIndex = 0;
+            SetResponseData(null, $"Could not read that file — {ex.Message}");
         }
     }
 
@@ -579,19 +596,20 @@ public partial class MainWindow : Window
     /// Build the chart's export entries. Called fresh on every right-click, because a menu
     /// item can belong to only one parent and the chart rebuilds its ContextMenu each time.
     /// </summary>
-    private IEnumerable<Control> BuildChartExportMenuItems()
+    private IEnumerable<Control> BuildChartExportMenuItems<TChart>(TChart chart, string baseName)
+        where TChart : Control, IExportableChart
     {
         var copyFull = new MenuItem { Header = "Copy full chart" };
-        copyFull.Click += async (_, _) => await CopyChartPngAsync(cropToPlot: false);
+        copyFull.Click += async (_, _) => await CopyChartPngAsync(chart, cropToPlot: false);
 
         var copyPlot = new MenuItem { Header = "Copy plot area only" };
-        copyPlot.Click += async (_, _) => await CopyChartPngAsync(cropToPlot: true);
+        copyPlot.Click += async (_, _) => await CopyChartPngAsync(chart, cropToPlot: true);
 
         var saveFull = new MenuItem { Header = "Save full chart as PNG..." };
-        saveFull.Click += async (_, _) => await SaveChartPngAsync(cropToPlot: false, "pressure-curve.png");
+        saveFull.Click += async (_, _) => await SaveChartPngAsync(chart, cropToPlot: false, $"{baseName}.png");
 
         var savePlot = new MenuItem { Header = "Save plot area as PNG..." };
-        savePlot.Click += async (_, _) => await SaveChartPngAsync(cropToPlot: true, "pressure-curve-plot.png");
+        savePlot.Click += async (_, _) => await SaveChartPngAsync(chart, cropToPlot: true, $"{baseName}-plot.png");
 
         return [copyFull, copyPlot, new Separator(), saveFull, savePlot];
     }
@@ -600,9 +618,10 @@ public partial class MainWindow : Window
     /// Render the curve chart to PNG bytes at full display resolution, optionally
     /// cropped to just the plot area (dropping axis labels and titles).
     /// </summary>
-    private byte[]? RenderChartPng(bool cropToPlot)
+    private byte[]? RenderChartPng<TChart>(TChart chart, bool cropToPlot)
+        where TChart : Control, IExportableChart
     {
-        if (PressureChart.Bounds.Width <= 0 || PressureChart.Bounds.Height <= 0) return null;
+        if (chart.Bounds.Width <= 0 || chart.Bounds.Height <= 0) return null;
 
         // Same DIP-vs-pixel issue as the stroke surfaces: Bounds are DIPs, so rendering
         // at 96 DPI produces an image at 1/RenderScaling of the on-screen resolution.
@@ -613,10 +632,10 @@ public partial class MainWindow : Window
 
         using var rtb = new global::Avalonia.Media.Imaging.RenderTargetBitmap(
             new PixelSize(
-                (int)Math.Round(PressureChart.Bounds.Width * scale),
-                (int)Math.Round(PressureChart.Bounds.Height * scale)),
+                (int)Math.Round(chart.Bounds.Width * scale),
+                (int)Math.Round(chart.Bounds.Height * scale)),
             new Vector(96 * scale, 96 * scale));
-        rtb.Render(PressureChart);
+        rtb.Render(chart);
 
         using var ms = new MemoryStream();
         rtb.Save(ms);
@@ -627,7 +646,7 @@ public partial class MainWindow : Window
         using var full = SKBitmap.Decode(ms);
         if (full is null) return null;
 
-        var plot = PressureChart.PlotRect;
+        var plot = chart.PlotRect;
         int left = Math.Clamp((int)Math.Round(plot.X * scale), 0, full.Width);
         int top = Math.Clamp((int)Math.Round(plot.Y * scale), 0, full.Height);
         int right = Math.Clamp((int)Math.Round((plot.X + plot.Width) * scale), 0, full.Width);
@@ -642,9 +661,10 @@ public partial class MainWindow : Window
         return data.ToArray();
     }
 
-    private async Task SaveChartPngAsync(bool cropToPlot, string suggestedName)
+    private async Task SaveChartPngAsync<TChart>(TChart chart, bool cropToPlot, string suggestedName)
+        where TChart : Control, IExportableChart
     {
-        var png = RenderChartPng(cropToPlot);
+        var png = RenderChartPng(chart, cropToPlot);
         if (png is null) return;
 
         var sp = TopLevel.GetTopLevel(this)?.StorageProvider;
@@ -664,8 +684,9 @@ public partial class MainWindow : Window
         await stream.WriteAsync(png);
     }
 
-    private async Task CopyChartPngAsync(bool cropToPlot)
-        => await CopyPngToClipboardAsync(RenderChartPng(cropToPlot));
+    private async Task CopyChartPngAsync<TChart>(TChart chart, bool cropToPlot)
+        where TChart : Control, IExportableChart
+        => await CopyPngToClipboardAsync(RenderChartPng(chart, cropToPlot));
 
     /// <summary>Copy a rendered PNG to the clipboard, shared by the chart and the canvases.</summary>
     private async Task CopyPngToClipboardAsync(byte[]? png)
@@ -835,8 +856,9 @@ public partial class MainWindow : Window
     /// card describing the order in shorthand, the cards themselves are in it. Quantization
     /// is always first because it always runs first; smoothing and the curves swap.
     ///
-    /// Presets carry <c>SmoothingOrder</c>, so loading one can reorder the column — which
-    /// is why this is called from the sync path and not only from the options dialog.
+    /// The order is a <c>UiSettings</c> preference, not part of a preset, so loading a preset
+    /// cannot reorder the column. This still runs from the sync path as well as the options
+    /// dialog, because the cards also have to be re-laid when the curve count changes.
     /// </remarks>
     private void ApplyCardOrder()
     {
