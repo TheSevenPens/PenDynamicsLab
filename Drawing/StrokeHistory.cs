@@ -22,8 +22,28 @@ namespace PenDynamicsLab.Drawing;
 /// </remarks>
 public sealed class StrokeHistory
 {
+    /// <summary>
+    /// How many completed strokes to keep. Beyond this the oldest is evicted.
+    /// </summary>
+    /// <remarks>
+    /// Undo depth, in plain terms. Generous enough that ordinary use never reaches it, which is
+    /// the point: the cap exists to bound a long session, not to ration undo.
+    /// </remarks>
+    public const int MaxStrokes = 500;
+
+    /// <summary>
+    /// How many recorded samples to keep across all strokes.
+    /// </summary>
+    /// <remarks>
+    /// A stroke-count cap alone does not bound memory — one continuous stroke can run for
+    /// minutes at tablet report rates. At roughly 70 bytes a sample this ceiling is a few tens of
+    /// megabytes, which is the actual quantity worth bounding.
+    /// </remarks>
+    public const int MaxSamples = 400_000;
+
     private readonly List<Stroke> _strokes = [];
     private Stroke? _current;
+    private int _totalSamples;
 
     /// <summary>The current parameter generation. Bumped whenever the curve params change.</summary>
     public int ParamsVersion { get; private set; }
@@ -33,6 +53,9 @@ public sealed class StrokeHistory
 
     /// <summary>Whether there is a completed stroke to undo.</summary>
     public bool CanUndo => _strokes.Count > 0;
+
+    /// <summary>Samples held across all completed strokes.</summary>
+    public int TotalSamples => _totalSamples;
 
     /// <summary>
     /// Note that the curve parameters have changed, invalidating every cached output.
@@ -61,14 +84,45 @@ public sealed class StrokeHistory
     /// </remarks>
     public void EndStroke()
     {
-        if (_current is { Samples.Count: > 0 }) _strokes.Add(_current);
+        if (_current is { Samples.Count: > 0 })
+        {
+            _strokes.Add(_current);
+            _totalSamples += _current.Samples.Count;
+        }
         _current = null;
+    }
+
+    /// <summary>
+    /// Evict the oldest stroke if either cap is exceeded, returning it, or null if nothing needed
+    /// evicting.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Returns the stroke rather than discarding it because <b>the caller has to bake it into the
+    /// replay baseline first</b>. Undo works by clearing the surfaces and replaying what is
+    /// retained, so an evicted stroke that is not preserved somewhere would vanish from the canvas
+    /// on the next undo — silently destroying work the user can still see.
+    /// </para>
+    /// <para>
+    /// One at a time, so the caller can bake each one. Call until it returns null.
+    /// </para>
+    /// </remarks>
+    public Stroke? EvictOldestIfOverCap()
+    {
+        if (_strokes.Count == 0) return null;
+        if (_strokes.Count <= MaxStrokes && _totalSamples <= MaxSamples) return null;
+
+        var evicted = _strokes[0];
+        _strokes.RemoveAt(0);
+        _totalSamples -= evicted.Samples.Count;
+        return evicted;
     }
 
     /// <summary>Drop the most recent completed stroke. Returns false if there was none.</summary>
     public bool RemoveLast()
     {
         if (_strokes.Count == 0) return false;
+        _totalSamples -= _strokes[^1].Samples.Count;
         _strokes.RemoveAt(_strokes.Count - 1);
         return true;
     }
@@ -78,5 +132,6 @@ public sealed class StrokeHistory
     {
         _strokes.Clear();
         _current = null;
+        _totalSamples = 0;
     }
 }

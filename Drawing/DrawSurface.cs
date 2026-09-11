@@ -196,6 +196,23 @@ public sealed class DrawSurface : IDisposable
         oldAvBitmap?.Dispose();
     }
 
+    /// <summary>
+    /// Draw a device-pixel snapshot over this surface at 1:1.
+    /// </summary>
+    /// <remarks>
+    /// The canvas carries the DIP transform, so drawing a bitmap that is already in physical
+    /// pixels needs that transform undone for the duration — otherwise the snapshot would be
+    /// scaled up a second time. Used to restore the evicted-stroke baseline before a replay.
+    /// </remarks>
+    public void DrawSnapshot(SKBitmap snapshot)
+    {
+        if (_skCanvas is null) return;
+        _skCanvas.Save();
+        _skCanvas.Scale((float)(1.0 / Scale));
+        _skCanvas.DrawBitmap(snapshot, 0, 0);
+        _skCanvas.Restore();
+    }
+
     public void Clear()
     {
         _skCanvas?.Clear(ClearColor);
