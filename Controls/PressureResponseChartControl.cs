@@ -235,13 +235,13 @@ public sealed class PressureResponseChartControl : Control
                 FlowDirection.LeftToRight, ChartTypeface, ChartFontSize, LabelBrush);
             context.DrawText(ft, new Point(Math.Round(PadLeft - YLabelSpacing) - ft.Width, gy - ft.Height / 2));
         }
-        var xAxis = new FormattedText("PHYSICAL (gf)", System.Globalization.CultureInfo.InvariantCulture,
+        var xAxis = new FormattedText("Physical (gf)", System.Globalization.CultureInfo.InvariantCulture,
             FlowDirection.LeftToRight, ChartTypeface, ChartFontSize, LabelBrush);
         context.DrawText(xAxis,
             new Point(Math.Round(PadLeft + plotW / 2 - xAxis.Width / 2),
                      Math.Round(height - XAxisLabelSpacing - xAxis.Height)));
 
-        var yAxis = new FormattedText(useCurve ? "OUTPUT %" : "LOGICAL %",
+        var yAxis = new FormattedText(useCurve ? "Output %" : "Logical %",
             System.Globalization.CultureInfo.InvariantCulture,
             FlowDirection.LeftToRight, ChartTypeface, ChartFontSize, LabelBrush);
         var yAxisOrigin = new Point(Math.Round(YAxisLabelSpacing), Math.Round(PadTop + plotH / 2));

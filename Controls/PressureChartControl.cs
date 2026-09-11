@@ -15,7 +15,7 @@ namespace PenDynamicsLab.Controls;
 /// WebPressureExplorer's PressureChart.svelte: read-only curve trace plus draggable
 /// min/max control nodes (power/sigmoid/extended) or full bezier anchor/handle editing.
 /// </summary>
-public sealed class PressureChartControl : Control
+public sealed class PressureChartControl : Control, IExportableChart
 {
     // The chart draws no text at all — no axis titles, numeric labels or tick marks — so
     // the padding exists only to keep a node centred on the plot boundary from being

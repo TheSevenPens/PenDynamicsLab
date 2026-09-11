@@ -12,11 +12,14 @@ public partial class BrushRibbon : UserControl
 {
     public double BrushSize => BrushSizeSlider.Value;
 
-    // Combo item order mirrors the enum, so the selected index is the enum value.
-    public ColorMode ColorMode => (ColorMode)Math.Max(0, ColorModeCombo.SelectedIndex);
+    // The combos hold the enum values themselves, so selection is read by value rather than
+    // by position — inserting a mode in the middle cannot silently repoint the dropdown.
+    // The fallbacks cover the brief window before the initial selection is applied.
+    public ColorMode ColorMode =>
+        ColorModeCombo.SelectedItem is ColorMode m ? m : ColorMode.Black;
 
     public PressureControl PressureControl =>
-        (PressureControl)Math.Max(0, PressureControlCombo.SelectedIndex);
+        PressureControlCombo.SelectedItem is PressureControl c ? c : PressureControl.Size;
 
     public bool DrawZeroPressure => DrawZeroPressureCheck.IsChecked == true;
 
@@ -27,11 +30,11 @@ public partial class BrushRibbon : UserControl
     {
         InitializeComponent();
 
-        foreach (var m in Enum.GetValues<ColorMode>()) ColorModeCombo.Items.Add(m.ToString());
-        ColorModeCombo.SelectedIndex = 0;
+        foreach (var m in Enum.GetValues<ColorMode>()) ColorModeCombo.Items.Add(m);
+        ColorModeCombo.SelectedItem = ColorMode.Black;
 
-        foreach (var c in Enum.GetValues<PressureControl>()) PressureControlCombo.Items.Add(c.ToString());
-        PressureControlCombo.SelectedIndex = 0;
+        foreach (var c in Enum.GetValues<PressureControl>()) PressureControlCombo.Items.Add(c);
+        PressureControlCombo.SelectedItem = PressureControl.Size;
         BrushSizeSlider.PropertyChanged += (_, e) =>
         {
             if (e.Property.Name != "Value") return;

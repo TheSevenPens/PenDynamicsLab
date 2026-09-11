@@ -419,7 +419,8 @@ Stroke state (last position, smoothed pressure, live indicators) resets when:
 | `Curve2` | `CurveSettings` | Shapes what curve 1 produced |
 | `SmoothingType` | `SmoothingType` enum | Passthrough, Ema; Passthrough skips smoothing entirely |
 | `EmaSmoothing` | `double` 0-0.99 | Pressure EMA smoothing amount (ignored when Passthrough) |
-| `SmoothingOrder` | `SmoothingOrder` enum | Whether smoothing runs before or after **both** curves |
+
+The smoothing **order** is deliberately not here — it lives on `UiSettings`, for the reasons set out above. A preset therefore cannot change it.
 
 `CurveSettings`:
 
