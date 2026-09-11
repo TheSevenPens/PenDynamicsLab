@@ -17,7 +17,14 @@
         <Style Selector="RadioButton">  <Setter Property="FontSize" Value="13" /></Style>
         <Style Selector="MenuItem">     <Setter Property="FontSize" Value="13" /></Style>
         <Style Selector="Slider">       <Setter Property="FontSize" Value="13" /></Style>
-        <Style Selector="TabItem">      <Setter Property="FontSize" Value="14" /></Style>
+        <!-- MinHeight as well as FontSize. The Fluent default is 48, which centres a 14pt label
+             and pins the selected-tab indicator to the bottom - leaving about 15 DIPs of empty
+             space between the two, so the underline read as belonging to nothing in particular.
+             38 closes most of that without crowding the label. -->
+        <Style Selector="TabItem">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="MinHeight" Value="38" />
+        </Style>
 
         <!-- A muted label sitting beside its control. Replaces the bold uppercase
              micro-labels that were the app's strongest dated signal.
@@ -72,8 +79,12 @@
     <DockPanel>
         <!-- Telemetry ribbon. The driver tip lives at its right-hand end, in space that
              was running empty, so the advice costs no vertical band. -->
+        <!-- Vertical padding matters as much as horizontal here: the inner DockPanel has a fixed
+             height and the tallest group (Position, four rows) filled it, leaving the Canvas row's
+             text three physical pixels off the divider. Padding on the Border moves the divider
+             rather than squeezing the content, so the groups keep the box they were laid out in. -->
         <Border DockPanel.Dock="Top" Background="{DynamicResource Pdl.Surface}"
-                BorderBrush="{DynamicResource Pdl.Divider}" BorderThickness="0,0,0,1" Padding="16,0">
+                BorderBrush="{DynamicResource Pdl.Divider}" BorderThickness="0,0,0,1" Padding="16,8">
             <DockPanel x:Name="RibbonPanel" Height="92">
 
                 <!-- Gear first, so it takes the OUTERMOST right slot: DockPanel fills in
