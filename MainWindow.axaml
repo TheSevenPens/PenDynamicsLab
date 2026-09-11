@@ -218,6 +218,16 @@
                                   VerticalScrollBarVisibility="Auto">
                         <StackPanel>
 
+                        <!-- First in the pipeline, and fixed there: quantization models the
+                             resolution the pressure arrived at, so nothing downstream can
+                             undo it. No reset button — the level IS the only setting, so
+                             there would be nothing for reset to restore. -->
+                        <controls:SectionCard x:Name="QuantizationCard" Title="Quantization">
+                            <controls:SectionCard.CardContent>
+                                <ComboBox x:Name="QuantizationCombo" Height="32" HorizontalAlignment="Stretch" />
+                            </controls:SectionCard.CardContent>
+                        </controls:SectionCard>
+
                         <!-- Curve 1 shapes the pen's pressure; curve 2 shapes what curve 1
                              produced. The numbering is the order, and the effective chart
                              below shows the pair collapsed into one mapping. -->

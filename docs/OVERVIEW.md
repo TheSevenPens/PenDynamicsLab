@@ -19,6 +19,7 @@ A shared brush ribbon (size, colour, pressure target, draw-at-zero, Clear) sits 
 
 ## Key features
 
+- **Quantization** — coarsens incoming pressure to a fixed number of levels before anything else runs, the way a lower-resolution tablet would report it. Passthrough, or a power of two from 8192 down to 2. Always first in the pipeline, with no order setting: nothing downstream can restore detail it has discarded.
 - **One or two curves** — one by default, which is what most sessions want. Options → Curves adds a second: curve 1 shapes the pen's pressure, curve 2 shapes what curve 1 produced, and the **effective pressure curve** chart shows the pair collapsed into the one mapping the brush obeys. At one curve the card and chart lose their numbers and the effective chart goes, since it would be the same line drawn twice.
 - **Seven curve types** — passthrough (identity, the default), flat (constant), basic (power law across the full [0, 1] range), extended (the same power law, plus input/output range controls), inverted (`1 - x`), sigmoid (S-curve), and bezier (custom cubic bezier with up to 16 points)
 - **Bezier presets** — built-in shapes (Linear, Soft, Firm, S-Curve, Light Touch, Heavy, Step) for quick setup
