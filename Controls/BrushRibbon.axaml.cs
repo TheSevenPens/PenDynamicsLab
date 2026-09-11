@@ -1,27 +1,48 @@
 using Avalonia.Controls;
-using PenDynamicsLab.Curves;
+using PenDynamicsLab.Drawing;
 
 namespace PenDynamicsLab.Controls;
 
 /// <summary>
-/// Top-of-stroke-area toolbar: brush size, color mode, pressure target,
-/// draw-at-zero toggle, and Clear. Surfaces the current values via plain
-/// properties (read on demand by the drawing pipeline) and a Clear event.
+/// Top-of-stroke-area toolbar: brush size, colour mode, pressure target, draw-at-zero toggle,
+/// and Clear.
 /// </summary>
+/// <remarks>
+/// <para>
+/// A <b>view over <see cref="BrushSettings"/></b>, not the place brush state lives. It reads the
+/// record into its controls and writes edits back out through <see cref="SettingsChanged"/>;
+/// drawing code takes the record and never reaches in here for a value.
+/// </para>
+/// <para>
+/// That distinction is what lets a second consumer exist at all — a stamp engine, a headless
+/// replay, a second tool — without one of them having to construct a <c>UserControl</c> to find
+/// out how wide the brush is.
+/// </para>
+/// </remarks>
 public partial class BrushRibbon : UserControl
 {
-    public double BrushSize => BrushSizeSlider.Value;
+    private BrushSettings _settings = BrushSettings.Default;
 
-    // The combos hold the enum values themselves, so selection is read by value rather than
-    // by position — inserting a mode in the middle cannot silently repoint the dropdown.
-    // The fallbacks cover the brief window before the initial selection is applied.
-    public ColorMode ColorMode =>
-        ColorModeCombo.SelectedItem is ColorMode m ? m : ColorMode.Black;
+    // Set while pushing the record into the controls, so the change events that causes are not
+    // mistaken for user edits and echoed straight back out.
+    private bool _suppress;
 
-    public PressureControl PressureControl =>
-        PressureControlCombo.SelectedItem is PressureControl c ? c : PressureControl.Size;
+    /// <summary>
+    /// The brush configuration this ribbon is showing. Assigning pushes it into the controls;
+    /// reading returns whatever the user has since edited.
+    /// </summary>
+    public BrushSettings Settings
+    {
+        get => _settings;
+        set
+        {
+            _settings = value;
+            SyncToControls();
+        }
+    }
 
-    public bool DrawZeroPressure => DrawZeroPressureCheck.IsChecked == true;
+    /// <summary>Fires when the user changes any control, carrying the updated record.</summary>
+    public event EventHandler<BrushSettings>? SettingsChanged;
 
     /// <summary>Fires when the user clicks Clear.</summary>
     public event EventHandler? ClearRequested;
@@ -30,18 +51,51 @@ public partial class BrushRibbon : UserControl
     {
         InitializeComponent();
 
+        // The combos hold the enum values themselves, so selection is read by value rather than
+        // by position — inserting a mode in the middle cannot silently repoint the dropdown.
         foreach (var m in Enum.GetValues<ColorMode>()) ColorModeCombo.Items.Add(m);
-        ColorModeCombo.SelectedItem = ColorMode.Black;
-
         foreach (var c in Enum.GetValues<PressureControl>()) PressureControlCombo.Items.Add(c);
-        PressureControlCombo.SelectedItem = PressureControl.Size;
+
+        SyncToControls();
+
         BrushSizeSlider.PropertyChanged += (_, e) =>
         {
             if (e.Property.Name != "Value") return;
             UpdateBrushSizeLabel();
+            Emit(_settings with { Size = BrushSizeSlider.Value });
         };
-        UpdateBrushSizeLabel();
+        ColorModeCombo.SelectionChanged += (_, _) =>
+        {
+            if (ColorModeCombo.SelectedItem is ColorMode m) Emit(_settings with { ColorMode = m });
+        };
+        PressureControlCombo.SelectionChanged += (_, _) =>
+        {
+            if (PressureControlCombo.SelectedItem is PressureControl c) Emit(_settings with { PressureDrives = c });
+        };
+        DrawZeroPressureCheck.IsCheckedChanged += (_, _) =>
+            Emit(_settings with { DrawAtZeroPressure = DrawZeroPressureCheck.IsChecked == true });
+
         ClearButton.Click += (_, _) => ClearRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void Emit(BrushSettings next)
+    {
+        if (_suppress || next == _settings) return;
+        _settings = next;
+        SettingsChanged?.Invoke(this, next);
+    }
+
+    /// <summary>Pushes the record into the controls without echoing the resulting events back.</summary>
+    private void SyncToControls()
+    {
+        _suppress = true;
+        BrushSizeSlider.Value = _settings.Size;
+        ColorModeCombo.SelectedItem = _settings.ColorMode;
+        PressureControlCombo.SelectedItem = _settings.PressureDrives;
+        DrawZeroPressureCheck.IsChecked = _settings.DrawAtZeroPressure;
+        _suppress = false;
+
+        UpdateBrushSizeLabel();
     }
 
     private void UpdateBrushSizeLabel()
