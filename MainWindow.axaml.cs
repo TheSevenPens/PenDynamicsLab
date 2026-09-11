@@ -30,10 +30,24 @@ public partial class MainWindow : Window
 
     // Telemetry chrome. Named here so the ribbon's live states use the same tokens as
     // the markup rather than Brushes.Gray / Brushes.LimeGreen.
-    private static readonly IBrush ProximityBrush = new SolidColorBrush(Color.FromRgb(0x16, 0xA3, 0x4A));
-    private static readonly IBrush OutOfRangeBrush = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
-    private static readonly IBrush ForegroundBrush = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
-    private static readonly IBrush MutedBrush = new SolidColorBrush(Color.FromRgb(0x61, 0x61, 0x61));
+    // Fallback seeds for the telemetry ribbon's code-set colours. These are read through
+    // ThemeInk so they follow the palette; the seed is only reached if a key is missing,
+    // and it matches that token's light value so a gap degrades to the old appearance.
+    //
+    // In-range green was its own one-off #16A34A before this. It now uses Pdl.Processed,
+    // which is #14A050 in light — a deliberate, agreed shift, so that the app has one green
+    // rather than two nearly-identical ones.
+    private static readonly IBrush ProcessedSeed = new SolidColorBrush(Color.FromRgb(0x14, 0xA0, 0x50));
+    private static readonly IBrush ProximityIdleSeed = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0));
+    private static readonly IBrush TextSeed = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
+    private static readonly IBrush MutedSeed = new SolidColorBrush(Color.FromRgb(0x61, 0x61, 0x61));
+
+    /// <summary>
+    /// Whether the ribbon is currently showing "In range". Held because the proximity chrome
+    /// is painted from code: with the pen idle nothing repaints it, so a theme switch has to
+    /// re-apply the current state rather than wait for the next pen point.
+    /// </summary>
+    private bool _penInRange;
 
     private IPenSession? _session;
     private readonly DispatcherTimer _renderTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
@@ -116,6 +130,16 @@ public partial class MainWindow : Window
         // DIPs, so no Bounds change fires — the surfaces have to be re-allocated off
         // the scaling change itself or they'd stay at the old pixel density.
         ScalingChanged += (_, _) => EnsureSurfaces();
+
+        // The effective-chart pill and the proximity chrome are painted from code, so they
+        // cannot follow {DynamicResource}. The cards look after themselves — SectionCard has
+        // its own handler — but these two have to be re-applied here, and the proximity state
+        // in particular will not repaint on its own while the pen is idle.
+        ActualThemeVariantChanged += (_, _) =>
+        {
+            UpdateCardStatuses();
+            ApplyProximity(_penInRange);
+        };
 
         // Export menu on each canvas view.
         StrokeView.SaveRequested += async (_, _) => await SaveSurfaceAsPngAsync(_processed, "stroke.png");
@@ -352,6 +376,26 @@ public partial class MainWindow : Window
     /// when bypassed, "On · no effect" when running but configured to change nothing,
     /// On otherwise. Processing names the order and greys it out while the order is moot.
     /// </summary>
+    /// <summary>
+    /// Paint the proximity dot and label for the current pen state, from the palette.
+    /// </summary>
+    /// <remarks>
+    /// The colour genuinely depends on state, so unlike the static labels in the ribbon this
+    /// cannot simply be left to <c>{DynamicResource}</c> in XAML — but it still has to be
+    /// read against the active variant rather than baked in at startup.
+    /// </remarks>
+    private void ApplyProximity(bool inRange)
+    {
+        _penInRange = inRange;
+        ProximityDot.Fill = inRange
+            ? ThemeInk.Brush(this, "Pdl.Processed", ProcessedSeed)
+            : ThemeInk.Brush(this, "Pdl.ProximityIdle", ProximityIdleSeed);
+        ProximityLabel.Text = inRange ? "In range" : "Out of range";
+        ProximityLabel.Foreground = inRange
+            ? ThemeInk.Brush(this, "Pdl.Text", TextSeed)
+            : ThemeInk.Brush(this, "Pdl.Muted", MutedSeed);
+    }
+
     private void UpdateCardStatuses()
     {
         ApplyStageStatus(QuantizationCard,
@@ -364,8 +408,9 @@ public partial class MainWindow : Window
         // pair does something" are not the same claim. See StageStatus.Effective.
         var (effText, effTone) = StatusText(StageStatus.Effective(_curveParams));
         EffectivePillText.Text = effText;
-        EffectivePillText.Foreground = ToneInk(effTone);
-        EffectivePill.Background = ToneFill(effTone);
+        var (effFill, effInk) = StatusInk.Resolve(this, effTone);
+        EffectivePillText.Foreground = effInk;
+        EffectivePill.Background = effFill;
     }
 
     private static (string, StatusTone) StatusText(StageState state) => state switch
@@ -377,22 +422,6 @@ public partial class MainWindow : Window
 
     private static void ApplyStageStatus(SectionCard card, StageState state)
         => (card.Status, card.StatusKind) = StatusText(state);
-
-    // The effective chart is not a SectionCard, so it paints its own pill from the same
-    // tones rather than inventing a second palette for the same three states.
-    private static IBrush ToneFill(StatusTone tone) => tone switch
-    {
-        StatusTone.Active => new SolidColorBrush(Color.FromRgb(0xEF, 0xF6, 0xFC)),
-        StatusTone.Advisory => new SolidColorBrush(Color.FromRgb(0xFF, 0xF9, 0xF0)),
-        _ => new SolidColorBrush(Color.FromRgb(0xF0, 0xF0, 0xF0)),
-    };
-
-    private static IBrush ToneInk(StatusTone tone) => tone switch
-    {
-        StatusTone.Active => new SolidColorBrush(Color.FromRgb(0x11, 0x5E, 0xA3)),
-        StatusTone.Advisory => new SolidColorBrush(Color.FromRgb(0x7A, 0x5A, 0x16)),
-        _ => new SolidColorBrush(Color.FromRgb(0x61, 0x61, 0x61)),
-    };
 
     // ── Section resets ──────────────────────────────────────────
 
@@ -1053,9 +1082,7 @@ public partial class MainWindow : Window
         {
             if ((DateTime.UtcNow - _lastPointTime).TotalMilliseconds > 200)
             {
-                ProximityDot.Fill = OutOfRangeBrush;
-                ProximityLabel.Text = "Out of range";
-                ProximityLabel.Foreground = MutedBrush;
+                ApplyProximity(inRange: false);
                 if (_activeCanvas != ActiveCanvas.None)
                 {
                     ResetStrokeState();
@@ -1234,9 +1261,7 @@ public partial class MainWindow : Window
     private void UpdateTelemetry(PenPoint pt, Point clientPt, Point? canvasLocal, int maxP, double processed)
     {
         // The captions are static markup now, so these carry the value alone.
-        ProximityDot.Fill = ProximityBrush;
-        ProximityLabel.Text = "In range";
-        ProximityLabel.Foreground = ForegroundBrush;
+        ApplyProximity(inRange: true);
         CursorLabel.Text = pt.Cursor.ToString();
 
         RawPosLabel.Text = $"{pt.RawX}, {pt.RawY}";
