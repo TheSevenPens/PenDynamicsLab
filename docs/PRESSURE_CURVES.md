@@ -42,6 +42,26 @@ Controls the curve segment from `x = 0` to `x = InputMinimum`:
 - **Clamp** (default): Output holds at `Minimum` across the entire range. The curve is `(0, Minimum) → (InputMinimum, Minimum)`.
 - **Cut**: Output is zero until `InputMinimum`, then jumps up. The curve is `(0, 0) → (InputMinimum, 0) → (InputMinimum, Minimum)`.
 
+## Quantization
+
+Runs before everything else, and has no order setting of its own — the Processing card stays about smoothing and the curves. It models the resolution the pressure arrived at, and no later stage can restore detail it has already discarded.
+
+A level of `N` gives `N + 1` possible values — `0, 1/N, 2/N … 1` — reached by **ceiling**, so zero happens only when the pen reports zero and everything above it falls into `N` equal-width buckets:
+
+| Level 2 | → | Level 4 | → |
+|---|---|---|---|
+| exactly 0 | 0 | exactly 0 | 0 |
+| (0, 0.5] | 0.5 | (0, 0.25] | 0.25 |
+| (0.5, 1] | 1 | (0.25, 0.5] | 0.5 |
+| | | (0.5, 0.75] | 0.75 |
+| | | (0.75, 1] | 1 |
+
+Ceiling rather than nearest or floor: nearest turns the bottom `1/(2N)` of the range into zero, so a light touch makes no mark; floor makes the top bucket a single point, so full pressure needs exactly the pen's maximum. The cost of ceiling is that there is no soft entry — the faintest contact registers at `1/N`, which at 8192 levels is invisible and at 2 levels is the whole character of the setting.
+
+The offered levels are powers of two from 8192 down to 2. The upper end mirrors real tablet pressure resolutions, which is the point: picking 1024 on an 8192-level pen shows what that pen would feel like.
+
+Quantization is deliberately **not** drawn on the effective pressure curve chart, which keeps meaning "the two curves composed".
+
 ## Curve types
 
 ### Passthrough
@@ -197,6 +217,9 @@ The full pipeline from raw pen input to final stroke parameter (per pen point in
 ```
 Raw pen pressure (pt.Pressure / pt.MaxPressure  → 0..1)
   │
+  ▼
+[Quantization]    ← always first; no order setting
+  │                  ceiling to N levels, or passthrough
   ▼
 [EMA smoothing]    ← if SmoothingOrder = SmoothThenCurve
   │

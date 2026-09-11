@@ -233,6 +233,9 @@ public partial class MainWindow : Window
 
     private void InitializeCurveControls()
     {
+        foreach (var level in Quantization.Levels)
+            QuantizationCombo.Items.Add(Quantization.Format(level));
+
         foreach (var st in Enum.GetValues<SmoothingType>())
             SmoothingTypeCombo.Items.Add(FormatSmoothingType(st));
 
@@ -245,6 +248,11 @@ public partial class MainWindow : Window
         PressureEmaSlider.Value = _curveParams.EmaSmoothing;
         _suppressCurveControlEvents = false;
 
+        QuantizationCombo.SelectionChanged += (_, _) =>
+        {
+            if (_suppressCurveControlEvents || QuantizationCombo.SelectedIndex < 0) return;
+            UpdateParams(p => p with { QuantizationLevels = Quantization.Levels[QuantizationCombo.SelectedIndex] });
+        };
         SmoothingTypeCombo.SelectionChanged += (_, _) =>
         {
             if (_suppressCurveControlEvents || SmoothingTypeCombo.SelectedIndex < 0) return;
@@ -296,6 +304,7 @@ public partial class MainWindow : Window
         SmoothingTypeCombo.SelectedIndex = (int)_curveParams.SmoothingType;
         ProcessingOrderCombo.SelectedIndex = (int)_curveParams.SmoothingOrder;
         PressureEmaSlider.Value = _curveParams.EmaSmoothing;
+        QuantizationCombo.SelectedIndex = Math.Max(0, Array.IndexOf(Quantization.Levels, _curveParams.QuantizationLevels));
 
         Curve1Editor.Curve = _curveParams.Curve1;
         Curve2Editor.Curve = _curveParams.Curve2;
@@ -324,6 +333,8 @@ public partial class MainWindow : Window
     /// </summary>
     private void UpdateCardStatuses()
     {
+        ApplyStageStatus(QuantizationCard,
+            Quantization.IsActive(_curveParams.QuantizationLevels) ? StageState.On : StageState.Off);
         ApplyStageStatus(Curve1Card, StageStatus.Curve(_curveParams.Curve1));
         ApplyStageStatus(Curve2Card, StageStatus.Curve(_curveParams.Curve2));
         ApplyStageStatus(SmoothingCard, StageStatus.Smoothing(_curveParams));
@@ -955,8 +966,14 @@ public partial class MainWindow : Window
     private readonly record struct PressurePipelineResult(
         double Raw, double PreCurve, double Output);
 
-    private PressurePipelineResult ProcessPressure(double raw)
+    private PressurePipelineResult ProcessPressure(double rawInput)
     {
+        // Quantization is first and unconditional: it models the resolution the pressure
+        // arrived at, and no later stage can restore detail it has discarded. Everything
+        // downstream — including the value the charts show as "raw" — sees the coarsened
+        // signal, because that is what the pen effectively gave us.
+        double raw = Quantization.Apply(rawInput, _curveParams.QuantizationLevels);
+
         // Passthrough short-circuits to the same path as an amount of 0: no smoothing,
         // and the EMA state still tracks the input so switching back mid-stroke doesn't
         // jump from a stale value.

@@ -128,6 +128,19 @@ public class PresetMigrationTests : IDisposable
     }
 
     [Fact]
+    public void ALegacyPreset_DoesNotQuantize()
+        // Absent from every preset saved before quantization existed, which is right:
+        // those presets did not quantize.
+        => Assert.Equal(0, LoadLegacy().Get("Soft touch")!.Params.QuantizationLevels);
+
+    [Fact]
+    public void QuantizationSurvivesASaveAndReload()
+    {
+        new PresetStore(_path).Save("Coarse", new PressureCurveParams { QuantizationLevels = 16 });
+        Assert.Equal(16, new PresetStore(_path).Get("Coarse")!.Params.QuantizationLevels);
+    }
+
+    [Fact]
     public void EnumsAreStoredByName_SoAddingACurveTypeCannotRepointSavedPresets()
     {
         new PresetStore(_path).Save("Named", new PressureCurveParams

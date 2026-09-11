@@ -9,7 +9,8 @@ MainWindow
     ├── Left panel (472 px) — two equal-width columns, settings before curves
     │       (one curve by default; a second card and two more charts appear with UseTwoCurves)
     │   ├── Settings column
-    │   │   ├── ScrollViewer — SectionCard × 3 or 4
+    │   │   ├── ScrollViewer — SectionCard × 4 or 5
+    │   │   │   ├── Quantization  [Off | On] — level combo (Passthrough, 8192 … 2)
     │   │   │   ├── Curve 1  [Off | On · no effect | On] — CurveEditorView
     │   │   │   │   ├── Curve type combo + type-scoped reset
     │   │   │   │   ├── Bezier toolbar (Add / Remove / count / preset combo, Bezier only)
@@ -210,6 +211,20 @@ It exists so a second curve costs one more instance rather than a second copy of
 
 > **Radio groups are matched by name across the whole window.** Two instances sharing `GroupName="MinApproach"` would let curve 2's *Cut* clear curve 1's *Clamp*. The constructor gives each instance its own group name.
 
+### Quantization
+
+`Quantization.Apply(x, levels)` coarsens pressure to `levels` steps by **ceiling**: zero only when the pen reports zero, and above that exactly `N` equal-width buckets. Level `N` yields `N + 1` possible values — `0, 1/N, 2/N … 1`. At two levels, `(0, 0.5]` gives 0.5 and `(0.5, 1]` gives 1.
+
+Ceiling rather than nearest or floor, deliberately. Nearest turns the bottom `1/(2N)` of the range into zero, so at low levels a light touch makes no mark at all. Floor makes the top bucket a single point — full pressure only at exactly the pen's maximum, which never happens. Ceiling gives the `N` equal nonzero buckets the level number promises, at the cost of no soft entry: the faintest contact registers at `1/N`.
+
+The ceiling carries a `1e-9` epsilon. Without it a value that should sit exactly on a bucket edge but lands a hair above in floating point — `3.0000000000000004` rather than `3` — is pushed a whole bucket up. At 8192 levels a bucket is `0.0001` wide, so an epsilon that small cannot swallow a real one.
+
+**This stage has no order setting and is always first.** It models the resolution the pressure arrived at, and nothing downstream can restore detail it has discarded — so the Processing card stays about smoothing and the curves only, and its pill does not mention quantization.
+
+It is also deliberately **absent from the effective curve chart**, which keeps meaning "the two curves composed".
+
+The offered levels mirror real tablet pressure resolutions, which is what makes the setting legible — picking 1024 on an 8192-level pen shows what that pen would feel like. The bottom three (8, 4, 2) are below any real hardware and exist because that is where the effect becomes unmistakable on screen.
+
 ### Curve count
 
 `UiSettings.UseTwoCurves` (off by default) drives `MainWindow.ApplyCurveCount`, which shows or hides the Curve 2 card, its chart, and the effective chart.
@@ -380,6 +395,7 @@ Stroke state (last position, smoothed pressure, live indicators) resets when:
 
 | Field | Type | Purpose |
 |---|---|---|
+| `QuantizationLevels` | `int` | Pressure levels to coarsen the input to, or 0 for none. Always applied first |
 | `Curve1` | `CurveSettings` | Shapes the pen's pressure |
 | `Curve2` | `CurveSettings` | Shapes what curve 1 produced |
 | `SmoothingType` | `SmoothingType` enum | Passthrough, Ema; Passthrough skips smoothing entirely |
@@ -441,7 +457,7 @@ Pen events come from `IPenSession` (WinPenKit, referenced as a sibling project �
 ## Key design points
 
 1. **Immutable params record** — `PressureCurveParams` is a `record` with `init` properties. Every change is a `with { ... }` rebuild, which makes change detection and parity-test reasoning straightforward.
-2. **Pure math separation** — `Curves/CurveMath.cs` has no Avalonia or SkiaSharp dependencies. The xUnit project pins behavior with 131 tests against analytically-derived values.
+2. **Pure math separation** — `Curves/CurveMath.cs` has no Avalonia or SkiaSharp dependencies. The xUnit project pins behavior with 167 tests against analytically-derived values.
 3. **Avalonia DrawingContext for charts; SkiaSharp for canvases** — Charts are simple line geometry and benefit from Avalonia's text rendering + transform stack. The drawing canvases need many small antialiased strokes per frame, where SkiaSharp via `SKBitmap`/`WriteableBitmap` interop is faster.
 4. **Single owner of state** — `MainWindow` holds the params and the surfaces; everything else is a leaf control receiving values via StyledProperties or queried for its current value. Even the chart's own edits round-trip through this owner.
 5. **One surface, many views** — `DrawSurface` supports multiple `Image` hosts so the processed canvas is shared between tabs rather than copied. Sizing and hit-testing both key off `IsEffectivelyVisible` to avoid stale inactive-tab layout.

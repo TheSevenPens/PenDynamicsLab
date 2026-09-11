@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using PenDynamicsLab.Curves;
@@ -32,6 +32,7 @@ public sealed class PressureCurveParamsConverter : JsonConverter<PressureCurvePa
     private sealed record Dto
     {
         // Current shape.
+        public int? QuantizationLevels { get; init; }
         public CurveSettings? Curve1 { get; init; }
         public CurveSettings? Curve2 { get; init; }
 
@@ -78,6 +79,9 @@ public sealed class PressureCurveParamsConverter : JsonConverter<PressureCurvePa
 
         return new PressureCurveParams
         {
+            // Absent in every preset saved before quantization existed, which is exactly
+            // right: those presets did not quantize.
+            QuantizationLevels = dto.QuantizationLevels ?? 0,
             Curve1 = curve1,
             Curve2 = dto.Curve2 ?? CurveSettings.Default,
             SmoothingType = dto.SmoothingType ?? PressureCurveParams.Default.SmoothingType,
