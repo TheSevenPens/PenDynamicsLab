@@ -74,7 +74,10 @@ public partial class MainWindow : Window
     private enum ActiveCanvas { None, Processed, Raw }
     private ActiveCanvas _activeCanvas = ActiveCanvas.None;
     private Point? _lastDrawPos;
-    private double? _smoothedPressure;
+
+    // The live pipeline. Owns the per-channel filter state that used to be a single
+    // _smoothedPressure field on this window.
+    private readonly DynamicsPipeline _pipeline = new();
     private readonly Random _rng = new();
 
     private readonly PresetStore _presetStore = new();
@@ -1037,7 +1040,7 @@ public partial class MainWindow : Window
     {
         _activeCanvas = ActiveCanvas.None;
         _lastDrawPos = null;
-        _smoothedPressure = null;
+        _pipeline.Reset();
         PressureChart.LiveRawPressure = null;
         PressureChart.LivePressure = null;
         PressureChart2.LiveRawPressure = null;
@@ -1049,49 +1052,6 @@ public partial class MainWindow : Window
     }
 
     // ── Pressure pipeline ───────────────────────────────────────
-
-    private readonly record struct PressurePipelineResult(
-        double Raw, double PreCurve, double Output);
-
-    private PressurePipelineResult ProcessPressure(double rawInput)
-    {
-        // Quantization is first and unconditional: it models the resolution the pressure
-        // arrived at, and no later stage can restore detail it has discarded. Everything
-        // downstream — including the value the charts show as "raw" — sees the coarsened
-        // signal, because that is what the pen effectively gave us.
-        double raw = Quantization.Apply(rawInput, _curveParams.QuantizationLevels);
-
-        // Passthrough short-circuits to the same path as an amount of 0: no smoothing,
-        // and the EMA state still tracks the input so switching back mid-stroke doesn't
-        // jump from a stale value.
-        double smoothing = _curveParams.SmoothingType == SmoothingType.Passthrough
-            ? 0
-            : Math.Clamp(_curveParams.EmaSmoothing, 0, EmaConstants.Max);
-        double Smooth(double v)
-        {
-            if (smoothing <= 0) { _smoothedPressure = v; return v; }
-            if (_smoothedPressure is not { } prev) { _smoothedPressure = v; return v; }
-            double alpha = 1 - smoothing;
-            double next = prev + alpha * (v - prev);
-            _smoothedPressure = next;
-            return next;
-        }
-
-        if (_uiSettings.SmoothingOrder == SmoothingOrder.CurveThenSmooth)
-        {
-            double curved = CurveMath.ApplyPressureCurve(raw, _curveParams);
-            double smoothed = Smooth(curved);
-            // In this order the chart's "live" indicator shows the raw input — the smoothing
-            // happens after the curve, so there's no distinct pre-curve value to highlight.
-            return new PressurePipelineResult(Raw: raw, PreCurve: raw, Output: smoothed);
-        }
-        else
-        {
-            double smoothed = Smooth(raw);
-            double curved = CurveMath.ApplyPressureCurve(smoothed, _curveParams);
-            return new PressurePipelineResult(Raw: raw, PreCurve: smoothed, Output: curved);
-        }
-    }
 
     // ── Render timer ─────────────────────────────────────────────
 
@@ -1146,7 +1106,7 @@ public partial class MainWindow : Window
             // regardless of whether the pen is over a stroke canvas. This keeps the
             // Pressure response tab's chart live even though it has no canvas.
             double rawPressure = maxP > 0 ? (double)pt.Pressure / maxP : 0;
-            var pipeline = ProcessPressure(rawPressure);
+            var pipeline = _pipeline.Process(rawPressure, _curveParams, _uiSettings.SmoothingOrder);
 
             UpdateTelemetry(pt, clientPt, over == ActiveCanvas.None ? null : (Point?)localPt, maxP, pipeline.Output);
             // Each chart's x axis is a different quantity, so the indicators cannot all
@@ -1172,11 +1132,14 @@ public partial class MainWindow : Window
                 continue;
             }
 
-            // Switching canvases mid-stroke restarts the smoothing state so segments don't bleed across.
+            // Switching canvases mid-stroke restarts the filter so one canvas's pressure does
+            // not weight the other's first samples. This comment used to say exactly that
+            // while the code cleared only _lastDrawPos — the reset is real now.
             if (over != _activeCanvas)
             {
                 _activeCanvas = over;
                 _lastDrawPos = null;
+                _pipeline.Reset();
             }
 
             var drawPos = localPt;
