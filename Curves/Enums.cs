@@ -40,15 +40,5 @@ public enum SmoothingOrder
     CurveThenSmooth,
 }
 
-public enum ColorMode
-{
-    Black,
-    Red,
-    Random,
-}
-
-public enum PressureControl
-{
-    Size,
-    Opacity,
-}
+// ColorMode and PressureControl moved to Drawing/Enums.cs - they are brush concepts,
+// not curve ones, and drawing code should not have to reach into Curves/ for them.

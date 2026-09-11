@@ -68,6 +68,10 @@ public partial class MainWindow : Window
     // Single BrushRibbon instance reparented into whichever stroke tab is active —
     // keeps brush settings synced across tabs without duplicating UI state.
     private readonly Controls.BrushRibbon BrushRibbon = new();
+
+    // The brush configuration. Drawing reads this record, never the ribbon's controls — the
+    // ribbon is a view over it and pushes edits back through SettingsChanged.
+    private BrushSettings _brush = BrushSettings.Default;
     private int _lastColorIndex = -1;
 
     // Stroke-local pressure-smoothing state. Reset whenever the pen lifts or the active canvas changes.
@@ -165,6 +169,8 @@ public partial class MainWindow : Window
         DriverTipChip.IsVisible = !_uiSettings.DriverTipDismissed;
 
         BrushRibbon.ClearRequested += (_, _) => ClearCanvases();
+        BrushRibbon.SettingsChanged += (_, next) => _brush = next;
+        BrushRibbon.Settings = _brush;
         InitializeCurveControls();
         ApplyCurveCount(_uiSettings.UseTwoCurves);
         InitializeResponseSection();
@@ -242,14 +248,24 @@ public partial class MainWindow : Window
 
     // ── Brush controls ──────────────────────────────────────────
 
+    /// <summary>
+    /// Resolve the colour for the stroke that is starting.
+    /// </summary>
+    /// <remarks>
+    /// Reads the configuration off <see cref="_brush"/>, but the resolved colour is per-stroke
+    /// state and stays on the window — it changes mid-gesture, so it does not belong in an
+    /// immutable settings record. Random mode is the clear case: the colour a stroke got cannot
+    /// be recovered from the settings afterwards. This, <c>_rng</c> and <c>_strokeColor</c> move
+    /// to the drawing session in #13.
+    /// </remarks>
     private void PickStrokeColor()
     {
-        if (BrushRibbon.ColorMode == ColorMode.Black)
+        if (_brush.ColorMode == ColorMode.Black)
         {
             _strokeColor = BlackStrokeColor;
             return;
         }
-        if (BrushRibbon.ColorMode == ColorMode.Red)
+        if (_brush.ColorMode == ColorMode.Red)
         {
             _strokeColor = RedStrokeColor;
             return;
@@ -1158,14 +1174,14 @@ public partial class MainWindow : Window
                     if (_processed?.Canvas is { } pc)
                     {
                         DrawSegment(pc, from, drawPos,
-                            SizeFor(pipeline.Output), OpacityFor(pipeline.Output),
-                            skipIfZero: !BrushRibbon.DrawZeroPressure && pipeline.Output <= 0);
+                            _brush.StrokeWidthFor(pipeline.Output), _brush.OpacityFor(pipeline.Output),
+                            skipIfZero: !_brush.DrawAtZeroPressure && pipeline.Output <= 0);
                         processedDirty = true;
                     }
                     if (_raw?.Canvas is { } rc)
                     {
                         DrawSegment(rc, from, drawPos,
-                            SizeFor(rawPressure), OpacityFor(rawPressure),
+                            _brush.StrokeWidthFor(rawPressure), _brush.OpacityFor(rawPressure),
                             skipIfZero: false);
                         rawDirty = true;
                     }
@@ -1207,19 +1223,6 @@ public partial class MainWindow : Window
                 local.Y < 0 || local.Y >= host.Bounds.Height) return null;
             return local;
         }
-    }
-
-    private float SizeFor(double pressure)
-    {
-        if (BrushRibbon.PressureControl == PressureControl.Opacity) return (float)BrushRibbon.BrushSize;
-        return (float)Math.Max(1, pressure * BrushRibbon.BrushSize);
-    }
-
-    private float OpacityFor(double pressure)
-    {
-        if (BrushRibbon.PressureControl == PressureControl.Opacity)
-            return (float)Math.Max(0.02, pressure);
-        return 1f;
     }
 
     private void DrawSegment(SKCanvas canvas, Point from, Point to, float strokeWidth, float opacity, bool skipIfZero)
