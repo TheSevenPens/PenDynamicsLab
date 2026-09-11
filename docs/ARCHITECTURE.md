@@ -75,7 +75,8 @@ Single source of truth. Owns:
 - `_curveParams` — immutable `PressureCurveParams` record
 - Two `DrawSurface` instances (`_processed`, `_raw`) for the stroke bitmaps
 - The single shared `BrushRibbon` instance, reparented between tab slots
-- Stroke-local pressure-smoothing state (`_smoothedPressure`, `_lastDrawPos`, `_activeCanvas`)
+- Stroke-local drawing state (`_lastDrawPos`, `_activeCanvas`) — the pen's *filter* state moved out to `DynamicsPipeline`
+- The `DynamicsPipeline` instance, which owns per-channel filter state and runs the live composition
 - The `PresetStore`, the `UiSettings`, and the live `IPenSession`
 
 The render timer (16 ms tick) drains pen points from the session, runs them through the pressure pipeline, draws line segments to the surfaces, and updates the live indicators on both charts.
@@ -367,7 +368,7 @@ That single owner is what keeps two curve editors and four charts from disagreei
 PenSession point (pt.Pressure / pt.MaxPressure → 0..1 raw)
   │
   ▼
-ProcessPressure:
+DynamicsPipeline.Process (quantize first, always):
    if SmoothThenCurve:                   if CurveThenSmooth:
      smoothed = ema(raw)                   curved   = curve(raw)
      curved   = curve(smoothed)            smoothed = ema(curved)
@@ -402,11 +403,18 @@ Pressure → stroke parameters (`SizeFor` / `OpacityFor`, both reading `BrushRib
 - `PressureControl.Size`: stroke width = `max(1, pressure * brushSize)`, opacity = 1
 - `PressureControl.Opacity`: stroke width = `brushSize`, opacity = `max(0.02, pressure)`
 
-Stroke state (last position, smoothed pressure, live indicators) resets when:
-- The pen lifts (no pressure for >200 ms or no points drained)
-- The pen crosses between canvases (so a stroke doesn't "snap" across the divider)
-- The user switches tabs
-- The user clicks Clear, or presses Delete / Backspace with no `TextBox` focused
+Stroke state resets in two parts, with different owners.
+
+**Filter state** lives in `DynamicsPipeline` and clears on:
+- **Any zero-pressure sample.** There is no pen-up event — the drain loop has only the pressure value, and `rawPressure > 0` is what "pen down" means here. So a lift, a hover, and a mid-stroke dip to exactly zero all end the stroke as far as the filter is concerned. This is deliberate: carried-over smoothing produces artifacts an artist notices and cannot explain, and the first sample of a new stroke should be the pen's own, not a blend with the last one. The cost is a spikier first sample on a fast dotted sequence.
+- The pen crossing between canvases, so one canvas's pressure does not weight the other's first samples
+- Tab change, session start, Clear (or Delete / Backspace with no `TextBox` focused), and true out-of-range — no points drained at all for >200 ms
+
+Note the last two are different conditions: **out-of-range needs no points whatsoever**, which hovering does not satisfy. Hovering resets the filter by the zero-pressure rule instead.
+
+**Window state** — last position, active canvas, the charts' live indicators — resets on tab change, session start, Clear, and out-of-range, and `_lastDrawPos` additionally on any zero-pressure sample and on canvas crossing.
+
+> Earlier revisions of this document claimed smoothed pressure reset "when the pen lifts" and "when the pen crosses between canvases". Neither was true of the code: `_smoothedPressure` was cleared only inside `ResetStrokeState()`, which canvas crossing never called and which the >200 ms path reached only when no points arrived at all. A code comment made the same false claim. Both were corrected when the pipeline was extracted.
 
 ## Data model
 
