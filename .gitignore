@@ -77,3 +77,10 @@ coverage*.info
 *.tmp
 *.log
 *.bak
+
+# Agent tooling mirrors
+#
+# Some agent tools copy .claude/skills into a vendor-neutral .agents/skills tree.
+# It is a generated mirror, not a source of truth, and it goes stale the moment
+# the real skill is edited - so it must not be committed alongside it.
+.agents/

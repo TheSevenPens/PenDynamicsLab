@@ -30,12 +30,27 @@ On a scaled display (this machine reports 216 DPI = 2.25×), a DPI-unaware proce
 
 `scripts/win.ps1` calls `SetProcessDPIAware()` on load. **Dot-source it in every PowerShell call** — process-level DPI awareness does not persist between tool invocations.
 
+## Trap 3: a window hanging off its monitor silently eats input
+
+Injected pointer input is delivered by absolute screen coordinate, so any part of the window that is off its monitor — or underneath the taskbar — receives nothing. The app is still running and still painting; strokes aimed at that region just never arrive.
+
+This is easy to miss because the failure is partial and looks like a bug in whatever you are testing. On a multi-monitor setup the window can restore straddling two displays: in one session the window ran to y=2214 while the monitor's work area ended at y=2052, so the bottom 162px sat over the taskbar. Strokes drawn there produced nothing, while identical strokes higher up worked — which reads exactly like "the lower canvas is broken".
+
+Call `Set-WindowDrawable` before any injection. It maximizes onto whichever monitor the window is mostly on and throws if the client area still does not fit:
+
+```powershell
+Set-WindowDrawable -Hwnd $h | Format-List
+```
+
+Measure the **client** rect, not the window rect — `Test-WindowDrawable` does. A maximized window's *window* rect overhangs the work area by the invisible resize border (typically 14px), which is not a real overflow and will make a naive check report failure on a perfectly good window.
+
 ## Quickstart
 
 ```powershell
 $S = "<repo>\.claude\skills\run-pendynamicslab\scripts"
 . "$S\win.ps1"; . "$S\pen.ps1"
 $h = Get-AppHwnd
+Set-WindowDrawable -Hwnd $h | Out-Null   # see Trap 3 — do this before injecting
 Save-Shot -Hwnd $h -Path "shot.png"
 ```
 

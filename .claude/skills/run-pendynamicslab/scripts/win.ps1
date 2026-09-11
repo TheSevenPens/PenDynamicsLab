@@ -15,6 +15,7 @@ public class W {
   [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr h);
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
   [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h,IntPtr a,int x,int y,int cx,int cy,uint f);
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h,int nCmdShow);
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L,T,R,B; }
   [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X,Y; }
 }
@@ -118,4 +119,44 @@ function Resize-Win { param([IntPtr]$Hwnd,[int]$PhysW,[int]$PhysH)
   $r = New-Object W+RECT; [void][W]::GetWindowRect($Hwnd,[ref]$r)
   [void][W]::SetWindowPos($Hwnd,[IntPtr]::Zero,$r.L,$r.T,$PhysW,$PhysH,0x4)
   "resized to ${PhysW}x${PhysH} physical"
+}
+
+# Pointer injection lands at absolute screen coordinates, so any part of the window
+# hanging off its monitor - or sitting under the taskbar - simply receives nothing.
+# Windows will happily restore a window straddling two monitors, and the app's saved
+# geometry may put it there, so check before injecting rather than after a stroke
+# mysteriously fails to appear.
+#
+# Measure the CLIENT rect, not the window rect: a maximized window's rect overhangs
+# the work area by the invisible resize border, which is not a real overflow.
+function Test-WindowDrawable { param([IntPtr]$Hwnd)
+  Add-Type -AssemblyName System.Windows.Forms | Out-Null
+  $sc = [System.Windows.Forms.Screen]::FromHandle($Hwnd); $wa = $sc.WorkingArea
+  $o = New-Object W+POINT;  [void][W]::ClientToScreen($Hwnd,[ref]$o)
+  $cr = New-Object W+RECT;  [void][W]::GetClientRect($Hwnd,[ref]$cr)
+  [pscustomobject]@{
+    Monitor = $sc.DeviceName
+    ClientLeft = $o.X; ClientTop = $o.Y
+    ClientRight = $o.X + $cr.R; ClientBottom = $o.Y + $cr.B
+    WorkLeft = $wa.Left; WorkTop = $wa.Top; WorkRight = $wa.Right; WorkBottom = $wa.Bottom
+    Fits = ($o.X -ge $wa.Left) -and ($o.Y -ge $wa.Top) -and
+           (($o.X + $cr.R) -le $wa.Right) -and (($o.Y + $cr.B) -le $wa.Bottom)
+  }
+}
+
+# Maximize onto whichever monitor the window is mostly on, then confirm the client
+# area is fully inside that monitor's work area. Call this before any pen injection.
+function Set-WindowDrawable { param([IntPtr]$Hwnd)
+  $before = Test-WindowDrawable -Hwnd $Hwnd
+  if ($before.Fits) { return $before }
+  [void][W]::ShowWindow($Hwnd, 3)   # SW_MAXIMIZE
+  Start-Sleep -Milliseconds 1200
+  $after = Test-WindowDrawable -Hwnd $Hwnd
+  if (-not $after.Fits) {
+    throw ("window client ({0},{1})-({2},{3}) still outside {4} work area ({5},{6})-({7},{8}) - " +
+           "pen injection into the overhang will be swallowed" -f
+           $after.ClientLeft,$after.ClientTop,$after.ClientRight,$after.ClientBottom,
+           $after.Monitor,$after.WorkLeft,$after.WorkTop,$after.WorkRight,$after.WorkBottom)
+  }
+  return $after
 }
