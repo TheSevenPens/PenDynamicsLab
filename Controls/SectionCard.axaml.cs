@@ -2,6 +2,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 
+using PenDynamicsLab.Theming;
+
 namespace PenDynamicsLab.Controls;
 
 /// <summary>
@@ -61,6 +63,10 @@ public partial class SectionCard : UserControl
             else if (e.Property == CardContentProperty) BodyPresenter.Content = e.NewValue;
         };
 
+        // The pill is painted from code, so it cannot follow {DynamicResource} on its own —
+        // repaint it whenever the variant changes, the same way the charts refresh their ink.
+        ActualThemeVariantChanged += (_, _) => SyncHeader();
+
         SyncHeader();
         SyncExpanded();
     }
@@ -73,22 +79,10 @@ public partial class SectionCard : UserControl
 
         // Colour carries the distinction so the label can stay short. Advisory borrows
         // the driver tip's amber, which already means "worth a look" in this app.
-        var (fill, ink) = StatusKind switch
-        {
-            StatusTone.Active => (ActiveFill, ActiveInk),
-            StatusTone.Advisory => (AdvisoryFill, AdvisoryInk),
-            _ => (NeutralFill, NeutralInk),
-        };
+        var (fill, ink) = StatusInk.Resolve(this, StatusKind);
         StatusPill.Background = fill;
         StatusText.Foreground = ink;
     }
-
-    private static readonly IBrush NeutralFill = new SolidColorBrush(Color.FromRgb(0xF0, 0xF0, 0xF0));
-    private static readonly IBrush NeutralInk = new SolidColorBrush(Color.FromRgb(0x61, 0x61, 0x61));
-    private static readonly IBrush ActiveFill = new SolidColorBrush(Color.FromRgb(0xEF, 0xF6, 0xFC));
-    private static readonly IBrush ActiveInk = new SolidColorBrush(Color.FromRgb(0x11, 0x5E, 0xA3));
-    private static readonly IBrush AdvisoryFill = new SolidColorBrush(Color.FromRgb(0xFF, 0xF9, 0xF0));
-    private static readonly IBrush AdvisoryInk = new SolidColorBrush(Color.FromRgb(0x7A, 0x5A, 0x16));
 
     private void SyncExpanded()
     {
