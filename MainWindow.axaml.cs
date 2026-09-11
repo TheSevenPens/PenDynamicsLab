@@ -120,6 +120,16 @@ public partial class MainWindow : Window
         // the scaling change itself or they'd stay at the old pixel density.
         ScalingChanged += (_, _) => EnsureSurfaces();
 
+        // Wintab hands packets to whichever context is on top of the driver's overlap order, and
+        // losing focus to another application drops ours down it with nothing to put it back. The
+        // symptom is that the first stroke after returning to the app is silently swallowed while
+        // every stroke after it draws — confirmed against Krita, which does not have the bug
+        // because Qt makes this same call on window activation.
+        //
+        // A no-op for the pointer-based sessions: Windows routes their input by window, so they
+        // need nothing. See IPenSession.OnActivated.
+        Activated += (_, _) => _penSession?.OnActivated();
+
         // The effective-chart pill and the proximity chrome are painted from code, so they
         // cannot follow {DynamicResource}. The cards look after themselves — SectionCard has
         // its own handler — but these two have to be re-applied here, and the proximity state
