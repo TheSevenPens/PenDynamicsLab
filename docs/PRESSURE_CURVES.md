@@ -221,7 +221,7 @@ Raw pen pressure (pt.Pressure / pt.MaxPressure  → 0..1)
 [Quantization]    ← always first; no order setting
   │                  ceiling to N levels, or passthrough
   ▼
-[EMA smoothing]    ← if SmoothingOrder = SmoothThenCurve
+[EMA smoothing]    ← if UiSettings.SmoothingOrder = SmoothThenCurve
   │
   ▼
 [ApplyCurve, Curve1]    ← curve 1's type + its settings
@@ -230,7 +230,7 @@ Raw pen pressure (pt.Pressure / pt.MaxPressure  → 0..1)
 [ApplyCurve, Curve2]    ← curve 2, over curve 1's output
   │                        (Passthrough when the app is set to one curve)
   ▼
-[EMA smoothing]    ← if SmoothingOrder = CurveThenSmooth
+[EMA smoothing]    ← if UiSettings.SmoothingOrder = CurveThenSmooth
   │
   ▼
 Output pressure (0..1)  →  brush size  OR  opacity  (per PressureControl)

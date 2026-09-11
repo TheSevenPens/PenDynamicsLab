@@ -239,12 +239,8 @@ public partial class MainWindow : Window
         foreach (var st in Enum.GetValues<SmoothingType>())
             SmoothingTypeCombo.Items.Add(FormatSmoothingType(st));
 
-        foreach (var so in Enum.GetValues<SmoothingOrder>())
-            ProcessingOrderCombo.Items.Add(FormatSmoothingOrder(so));
-
         _suppressCurveControlEvents = true;
         SmoothingTypeCombo.SelectedIndex = (int)_curveParams.SmoothingType;
-        ProcessingOrderCombo.SelectedIndex = (int)_curveParams.SmoothingOrder;
         PressureEmaSlider.Value = _curveParams.EmaSmoothing;
         _suppressCurveControlEvents = false;
 
@@ -257,11 +253,6 @@ public partial class MainWindow : Window
         {
             if (_suppressCurveControlEvents || SmoothingTypeCombo.SelectedIndex < 0) return;
             UpdateParams(p => p with { SmoothingType = (SmoothingType)SmoothingTypeCombo.SelectedIndex });
-        };
-        ProcessingOrderCombo.SelectionChanged += (_, _) =>
-        {
-            if (_suppressCurveControlEvents || ProcessingOrderCombo.SelectedIndex < 0) return;
-            UpdateParams(p => p with { SmoothingOrder = (SmoothingOrder)ProcessingOrderCombo.SelectedIndex });
         };
 
         WireSlider(PressureEmaSlider, v => p => p with { EmaSmoothing = v });
@@ -304,13 +295,13 @@ public partial class MainWindow : Window
     {
         _suppressCurveControlEvents = true;
         SmoothingTypeCombo.SelectedIndex = (int)_curveParams.SmoothingType;
-        ProcessingOrderCombo.SelectedIndex = (int)_curveParams.SmoothingOrder;
         PressureEmaSlider.Value = _curveParams.EmaSmoothing;
         QuantizationCombo.SelectedIndex = Math.Max(0, Array.IndexOf(Quantization.Levels, _curveParams.QuantizationLevels));
         _suppressCurveControlEvents = false;
 
         PushParamsToViews();
         UpdateDerivedControlState();
+        ApplyCardOrder();
         UpdateCardStatuses();
     }
 
@@ -375,15 +366,6 @@ public partial class MainWindow : Window
         EffectivePillText.Text = effText;
         EffectivePillText.Foreground = ToneInk(effTone);
         EffectivePill.Background = ToneFill(effTone);
-
-        // Processing always names the order; the tone says whether the order decides
-        // anything, which it only does while both smoothing and the curves alter the signal.
-        string chain = _uiSettings.UseTwoCurves ? "C1 → C2" : "C";
-        ProcessingOrderCard.Status =
-            _curveParams.SmoothingOrder == SmoothingOrder.SmoothThenCurve ? $"S → {chain}" : $"{chain} → S";
-        ProcessingOrderCard.StatusKind = StageStatus.Processing(_curveParams) == StageState.On
-            ? StatusTone.Active
-            : StatusTone.Neutral;
     }
 
     private static (string, StatusTone) StatusText(StageState state) => state switch
@@ -759,8 +741,13 @@ public partial class MainWindow : Window
     /// </summary>
     private async void Options_Click(object? sender, RoutedEventArgs e)
     {
-        var dialog = new OptionsWindow(_theme, _uiSettings);
-        dialog.UseTwoCurvesChanged += (_, useTwo) => ApplyCurveCount(useTwo);
+        var dialog = new OptionsWindow(_theme, _uiSettings, FormatSmoothingOrder);
+        dialog.UseTwoCurvesChanged += (_, useTwo) =>
+        {
+            ApplyCurveCount(useTwo);
+            dialog.RefreshOrderLabels(FormatSmoothingOrder);
+        };
+        dialog.SmoothingOrderChanged += (_, _) => ApplyCardOrder();
         await dialog.ShowDialog(this);
     }
 
@@ -804,16 +791,38 @@ public partial class MainWindow : Window
         Curve1Card.Title = useTwo ? "Curve 1" : "Curve";
         Chart1Title.Text = useTwo ? "Pressure curve 1" : "Pressure curve";
 
-        // The order labels name the curves, so they change with the count.
-        _suppressCurveControlEvents = true;
-        int order = ProcessingOrderCombo.SelectedIndex;
-        ProcessingOrderCombo.Items.Clear();
-        foreach (var so in Enum.GetValues<SmoothingOrder>())
-            ProcessingOrderCombo.Items.Add(FormatSmoothingOrder(so));
-        ProcessingOrderCombo.SelectedIndex = order;
-        _suppressCurveControlEvents = false;
-
+        ApplyCardOrder();
         SyncCurveControlsFromParams();
+    }
+
+    // ── Card order ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Lays the settings cards out in pipeline order, so the column reads top to bottom in
+    /// the order the stages actually run.
+    /// </summary>
+    /// <remarks>
+    /// This is what replaced the Processing card's <c>S → C1 → C2</c> pill: rather than a
+    /// card describing the order in shorthand, the cards themselves are in it. Quantization
+    /// is always first because it always runs first; smoothing and the curves swap.
+    ///
+    /// Presets carry <c>SmoothingOrder</c>, so loading one can reorder the column — which
+    /// is why this is called from the sync path and not only from the options dialog.
+    /// </remarks>
+    private void ApplyCardOrder()
+    {
+        Control[] order = _uiSettings.SmoothingOrder == SmoothingOrder.SmoothThenCurve
+            ? [QuantizationCard, SmoothingCard, Curve1Card, Curve2Card]
+            : [QuantizationCard, Curve1Card, Curve2Card, SmoothingCard];
+
+        // Already in this order? Leave the tree alone rather than detaching and
+        // reattaching live controls for nothing.
+        if (SettingsStack.Children.Count == order.Length
+            && SettingsStack.Children.Zip(order).All(pair => ReferenceEquals(pair.First, pair.Second)))
+            return;
+
+        SettingsStack.Children.Clear();
+        foreach (var card in order) SettingsStack.Children.Add(card);
     }
 
     /// <summary>Hide for this session only.</summary>
@@ -1017,7 +1026,7 @@ public partial class MainWindow : Window
             return next;
         }
 
-        if (_curveParams.SmoothingOrder == SmoothingOrder.CurveThenSmooth)
+        if (_uiSettings.SmoothingOrder == SmoothingOrder.CurveThenSmooth)
         {
             double curved = CurveMath.ApplyPressureCurve(raw, _curveParams);
             double smoothed = Smooth(curved);

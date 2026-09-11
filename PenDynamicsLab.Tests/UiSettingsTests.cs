@@ -1,3 +1,4 @@
+using PenDynamicsLab.Curves;
 using PenDynamicsLab.Persistence;
 using Xunit;
 
@@ -99,6 +100,26 @@ public class UiSettingsTests : IDisposable
         Assert.Equal(AppTheme.Light, reloaded.Theme);
         Assert.True(reloaded.DriverTipDismissed);
         Assert.True(reloaded.UseTwoCurves);
+    }
+
+    // ── Processing order ─────────────────────────────────────────
+
+    [Fact]
+    public void SmoothingOrder_DefaultsToSmoothFirst()
+        => Assert.Equal(SmoothingOrder.SmoothThenCurve, new UiSettings(_path).SmoothingOrder);
+
+    [Fact]
+    public void SmoothingOrder_SurvivesAReload()
+    {
+        new UiSettings(_path).SmoothingOrder = SmoothingOrder.CurveThenSmooth;
+        Assert.Equal(SmoothingOrder.CurveThenSmooth, new UiSettings(_path).SmoothingOrder);
+    }
+
+    [Fact]
+    public void SmoothingOrder_IsStoredByName()
+    {
+        new UiSettings(_path).SmoothingOrder = SmoothingOrder.CurveThenSmooth;
+        Assert.Contains("\"CurveThenSmooth\"", File.ReadAllText(_path));
     }
 
     [Fact]

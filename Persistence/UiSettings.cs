@@ -1,6 +1,7 @@
 ﻿using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using PenDynamicsLab.Curves;
 
 namespace PenDynamicsLab.Persistence;
 
@@ -39,6 +40,18 @@ public sealed class UiSettings
         /// most sessions want, and the second one exists for specific comparisons.
         /// </summary>
         public bool UseTwoCurves { get; init; }
+
+        /// <summary>
+        /// Whether smoothing runs before or after the curves.
+        /// </summary>
+        /// <remarks>
+        /// A preference rather than part of <c>PressureCurveParams</c>, even though it
+        /// changes the output. The settings cards are laid out in the order the stages
+        /// run, so the choice is always legible on screen — which is what makes it safe
+        /// to be app-level: it cannot quietly differ from what a preset expected, because
+        /// you can see it. The trade is that presets no longer carry it.
+        /// </remarks>
+        public SmoothingOrder SmoothingOrder { get; init; } = SmoothingOrder.SmoothThenCurve;
     }
 
     // Enums as names, not ordinals: the file is meant to be readable, and adding a theme
@@ -89,6 +102,17 @@ public sealed class UiSettings
         {
             if (_model.UseTwoCurves == value) return;
             _model = _model with { UseTwoCurves = value };
+            Save();
+        }
+    }
+
+    public SmoothingOrder SmoothingOrder
+    {
+        get => _model.SmoothingOrder;
+        set
+        {
+            if (_model.SmoothingOrder == value) return;
+            _model = _model with { SmoothingOrder = value };
             Save();
         }
     }

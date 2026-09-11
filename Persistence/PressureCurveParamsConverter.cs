@@ -39,7 +39,9 @@ public sealed class PressureCurveParamsConverter : JsonConverter<PressureCurvePa
         // Shared by both shapes.
         public SmoothingType? SmoothingType { get; init; }
         public double? EmaSmoothing { get; init; }
-        public SmoothingOrder? SmoothingOrder { get; init; }
+        // Presets written before the order became an application setting still carry a
+        // SmoothingOrder. System.Text.Json ignores members the DTO does not declare, so
+        // it is dropped on read — which is the intent.
 
         // Legacy: one curve's fields, flat.
         public CurveType? CurveType { get; init; }
@@ -86,7 +88,6 @@ public sealed class PressureCurveParamsConverter : JsonConverter<PressureCurvePa
             Curve2 = dto.Curve2 ?? CurveSettings.Default,
             SmoothingType = dto.SmoothingType ?? PressureCurveParams.Default.SmoothingType,
             EmaSmoothing = dto.EmaSmoothing ?? PressureCurveParams.Default.EmaSmoothing,
-            SmoothingOrder = dto.SmoothingOrder ?? PressureCurveParams.Default.SmoothingOrder,
         };
     }
 

@@ -154,46 +154,4 @@ public class StageStatusTests
     public void Smoothing_EmaWithAmount_IsOn()
         => Assert.Equal(StageState.On, StageStatus.Smoothing(new PressureCurveParams
         { SmoothingType = SmoothingType.Ema, EmaSmoothing = 0.5 }));
-
-    // ── Processing state ─────────────────────────────────────────
-
-    private static readonly CurveSettings ShapedBasic =
-        new() { CurveType = CurveType.Basic, Softness = 0.5 };
-
-    [Fact]
-    public void Processing_IsOn_OnlyWhenSmoothingAndTheCurvesBothAlterTheSignal()
-        => Assert.Equal(StageState.On, StageStatus.Processing(new PressureCurveParams
-        {
-            Curve1 = ShapedBasic,
-            SmoothingType = SmoothingType.Ema,
-            EmaSmoothing = 0.5,
-        }));
-
-    [Fact]
-    public void Processing_IsMoot_WhenBothCurvesAreOff()
-        => Assert.Equal(StageState.NoEffect, StageStatus.Processing(new PressureCurveParams
-        {
-            SmoothingType = SmoothingType.Ema,
-            EmaSmoothing = 0.5,
-        }));
-
-    [Fact]
-    public void Processing_IsOn_WhenOnlyCurve2Shapes()
-        // The order still matters with curve 1 bypassed: smoothing before or after the
-        // pair is a real difference.
-        => Assert.Equal(StageState.On, StageStatus.Processing(new PressureCurveParams
-        {
-            Curve2 = ShapedBasic,
-            SmoothingType = SmoothingType.Ema,
-            EmaSmoothing = 0.5,
-        }));
-
-    [Fact]
-    public void Processing_IsMoot_WhenSmoothingHasNoEffect()
-        => Assert.Equal(StageState.NoEffect, StageStatus.Processing(new PressureCurveParams
-        {
-            Curve1 = ShapedBasic,
-            SmoothingType = SmoothingType.Ema,
-            EmaSmoothing = 0,
-        }));
 }

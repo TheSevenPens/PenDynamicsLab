@@ -71,7 +71,17 @@ public class PresetMigrationTests : IDisposable
         var p = LoadLegacy().Get("Soft touch")!.Params;
         Assert.Equal(SmoothingType.Ema, p.SmoothingType);
         Assert.Equal(0.4, p.EmaSmoothing);
-        Assert.Equal(SmoothingOrder.SmoothThenCurve, p.SmoothingOrder);
+    }
+
+    [Fact]
+    public void ALegacyPresetsProcessingOrder_IsIgnored()
+    {
+        // The order became an application setting, so presets no longer carry it. Older
+        // files still have the field; reading one must not fail on it, and must not try
+        // to apply it either — the app's own setting decides.
+        var p = LoadLegacy().Get("Soft touch")!.Params;
+        Assert.NotNull(p);
+        Assert.Contains("\"SmoothingOrder\"", LegacyJson);
     }
 
     [Theory]

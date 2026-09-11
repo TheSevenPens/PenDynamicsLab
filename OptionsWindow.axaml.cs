@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using PenDynamicsLab.Curves;
 using PenDynamicsLab.Persistence;
 using PenDynamicsLab.Theming;
 
@@ -23,17 +24,26 @@ public partial class OptionsWindow : Window
     private readonly ThemeService _theme;
     private readonly UiSettings _settings;
     private bool _suppress;
+    private Func<SmoothingOrder, string> _formatOrder;
 
     /// <summary>Raised when the user changes the curve count. The owner applies the layout.</summary>
     public event EventHandler<bool>? UseTwoCurvesChanged;
 
-    // Parameterless ctor for the XAML previewer only; the app always passes its own.
-    public OptionsWindow() : this(new ThemeService(new UiSettings()), new UiSettings()) { }
+    /// <summary>Raised when the user changes the processing order. The owner reorders the cards.</summary>
+    public event EventHandler<SmoothingOrder>? SmoothingOrderChanged;
 
-    public OptionsWindow(ThemeService theme, UiSettings settings)
+    // Parameterless ctor for the XAML previewer only; the app always passes its own.
+    public OptionsWindow() : this(new ThemeService(new UiSettings()), new UiSettings(), o => o.ToString()) { }
+
+    /// <param name="formatOrder">
+    /// Supplied by the owner because the order labels name the curves, and whether that is
+    /// singular or plural depends on the curve count.
+    /// </param>
+    public OptionsWindow(ThemeService theme, UiSettings settings, Func<SmoothingOrder, string> formatOrder)
     {
         _theme = theme;
         _settings = settings;
+        _formatOrder = formatOrder;
 
         // Do NOT define InitializeComponent() here. The Avalonia source generator emits
         // one into the other half of this partial class; a hand-written copy shadows it,
@@ -50,7 +60,10 @@ public partial class OptionsWindow : Window
             _ => SystemRadio,
         }).IsChecked = true;
         (_settings.UseTwoCurves ? TwoCurveRadio : OneCurveRadio).IsChecked = true;
+        (_settings.SmoothingOrder == SmoothingOrder.SmoothThenCurve ? SmoothFirstRadio : CurveFirstRadio).IsChecked = true;
         _suppress = false;
+
+        RefreshOrderLabels(_formatOrder);
 
         LightRadio.IsCheckedChanged += (_, _) => ChooseTheme(LightRadio, AppTheme.Light);
         DarkRadio.IsCheckedChanged += (_, _) => ChooseTheme(DarkRadio, AppTheme.Dark);
@@ -58,6 +71,9 @@ public partial class OptionsWindow : Window
 
         OneCurveRadio.IsCheckedChanged += (_, _) => ChooseCurveCount(OneCurveRadio, false);
         TwoCurveRadio.IsCheckedChanged += (_, _) => ChooseCurveCount(TwoCurveRadio, true);
+
+        SmoothFirstRadio.IsCheckedChanged += (_, _) => ChooseOrder(SmoothFirstRadio, SmoothingOrder.SmoothThenCurve);
+        CurveFirstRadio.IsCheckedChanged += (_, _) => ChooseOrder(CurveFirstRadio, SmoothingOrder.CurveThenSmooth);
 
         AppearanceRail.Click += (_, _) => Select(appearance: true);
         CurvesRail.Click += (_, _) => Select(appearance: false);
@@ -91,6 +107,33 @@ public partial class OptionsWindow : Window
 
         _settings.UseTwoCurves = useTwo;
         UseTwoCurvesChanged?.Invoke(this, useTwo);
+    }
+
+    private void ChooseOrder(RadioButton source, SmoothingOrder order)
+    {
+        if (_suppress || source.IsChecked != true) return;
+        if (_settings.SmoothingOrder == order) return;
+
+        _settings.SmoothingOrder = order;
+        SmoothingOrderChanged?.Invoke(this, order);
+        RefreshOrderLabels(_formatOrder);
+    }
+
+    /// <summary>
+    /// Re-labels the order radios and the chain line. Called again when the curve count
+    /// changes, because the labels name the curves and go plural with two of them.
+    /// </summary>
+    public void RefreshOrderLabels(Func<SmoothingOrder, string> formatOrder)
+    {
+        _formatOrder = formatOrder;
+        SmoothFirstRadio.Content = formatOrder(SmoothingOrder.SmoothThenCurve);
+        CurveFirstRadio.Content = formatOrder(SmoothingOrder.CurveThenSmooth);
+
+        string curves = _settings.UseTwoCurves ? "Curve 1 → Curve 2" : "Curve";
+        string chain = _settings.SmoothingOrder == SmoothingOrder.SmoothThenCurve
+            ? $"Quantization → Smoothing → {curves}"
+            : $"Quantization → {curves} → Smoothing";
+        OrderChainLabel.Text = $"Cards appear in this order: {chain}.";
     }
 
     /// <summary>Reflects a curve count the owner changed on its own — a preset load, say.</summary>

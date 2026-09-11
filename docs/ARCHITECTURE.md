@@ -17,8 +17,8 @@ MainWindow
     │   │   │   │   ├── LabeledSlider × N (Curve Amount, in/out range, flat level)
     │   │   │   │   └── Min approach radios
     │   │   │   ├── Curve 2  [same] — CurveEditorView          (only when UseTwoCurves)
-    │   │   │   ├── Smoothing  [Off | On · no effect | On] — algorithm combo (Passthrough / EMA) + type-scoped reset, Smoothing Amount
-    │   │   │   └── Processing  [S → C | S → C1 → C2] — smooth-first / curve-first dropdown
+    │   │   │   └── Smoothing  [Off | On · no effect | On] — algorithm combo (Passthrough / EMA) + type-scoped reset, Smoothing Amount
+    │   │   │       (smoothing and the curves swap places with the processing order)
     │   │   └── Presets (pinned to the bottom row) — empty-state text, saved list, "Save current settings"
     │   └── Curve column
     │       ├── "Pressure curve 1" card → PressureChartControl (export on its right-click menu)
@@ -225,6 +225,16 @@ It is also deliberately **absent from the effective curve chart**, which keeps m
 
 The offered levels mirror real tablet pressure resolutions, which is what makes the setting legible — picking 1024 on an 8192-level pen shows what that pen would feel like. The bottom three (8, 4, 2) are below any real hardware and exist because that is where the effect becomes unmistakable on screen.
 
+### Processing order
+
+`UiSettings.SmoothingOrder` decides whether smoothing runs before or after the curves, and `MainWindow.ApplyCardOrder()` lays the settings cards out to match — quantization always first, then smoothing and the curves in whichever order applies. The column reads top to bottom in the order the stages actually run.
+
+That is what replaced the Processing card and its `S → C1 → C2` pill: rather than a card describing the order in shorthand, the cards themselves are in it. It also gives the left column a card back.
+
+**It lives in `UiSettings` rather than `PressureCurveParams`, even though it changes the output.** That breaks the rule that the params record alone determines behaviour, and the reason it is safe is specifically the card layout: the order is always legible on screen, so it cannot quietly differ from what a preset assumed. The trade is that presets no longer carry it — older preset files still contain a `SmoothingOrder` field, and it is ignored on read.
+
+This is a real decision with a real cost, not an oversight. The alternative was keeping it in the params, which would have made it reset on every launch and change whenever a preset was loaded — not what an application setting should do.
+
 ### Curve count
 
 `UiSettings.UseTwoCurves` (off by default) drives `MainWindow.ApplyCurveCount`, which shows or hides the Curve 2 card, its chart, and the effective chart.
@@ -276,7 +286,7 @@ That converter reads both shapes — the current one with `Curve1`/`Curve2`, and
 Saving takes a generated `Preset N` rather than prompting, so it stays one click; naming moves to Rename, which is when a name is worth thinking about — by then you know what the preset turned out to be. Each row carries a single `···` menu (Load / Rename / Delete) rather than a Load button beside a glyph button, which never lined up and had nowhere to put rename.
 
 ### `UiSettings`
-A small persisted bag of preferences in `%LOCALAPPDATA%\PenDynamicsLab\ui-settings.json` — `DriverTipDismissed`, the `AppTheme`, and `UseTwoCurves`. Enums serialize by name, so inserting a theme into the middle of the enum cannot silently repoint everyone's saved preference. Deliberately separate from `PresetStore`: presets are user content they name and manage, these are preferences the app remembers on their behalf. Every read and write is best-effort, because a preference failing to persist must never stop the app.
+A small persisted bag of preferences in `%LOCALAPPDATA%\PenDynamicsLab\ui-settings.json` — `DriverTipDismissed`, the `AppTheme`, `UseTwoCurves`, and `SmoothingOrder`. Enums serialize by name, so inserting a theme into the middle of the enum cannot silently repoint everyone's saved preference. Deliberately separate from `PresetStore`: presets are user content they name and manage, these are preferences the app remembers on their behalf. Every read and write is best-effort, because a preference failing to persist must never stop the app.
 
 ### `PressureResponseLoader`
 Reads pen hardware response JSON. Includes a custom `JsonConverter<ResponseRecord>` so each record can be a 2-element `[gf, logPct]` array. Bundles three WACOM KP-504E sample files as embedded resources.
@@ -331,7 +341,7 @@ MainWindow._curveParams (PressureCurveParams)
    │
    ◄── CurveEditorView.CurveChanged        (its sliders, combos, radios, reset)
    ◄── PressureChartN writes Curve         (drag node / handle / context menu)
-   ◄── quantization / smoothing / processing combos, preset load, ApplyCurveCount
+   ◄── quantization / smoothing combos, preset load, ApplyCurveCount
         all via UpdateParams(p => p with { ... })
 ```
 
