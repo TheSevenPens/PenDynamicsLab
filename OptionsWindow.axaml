@@ -95,14 +95,6 @@
                                            Foreground="{DynamicResource Pdl.Muted}" />
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton x:Name="SakuraGradientRadio" GroupName="Theme">
-                            <StackPanel Spacing="2">
-                                <TextBlock Text="Sakura gradient" />
-                                <TextBlock Text="Sakura, with gentle gradients across the larger surfaces."
-                                           FontSize="12" TextWrapping="Wrap"
-                                           Foreground="{DynamicResource Pdl.Muted}" />
-                            </StackPanel>
-                        </RadioButton>
                         <RadioButton x:Name="SystemRadio" GroupName="Theme">
                             <StackPanel Spacing="2">
                                 <TextBlock Text="Follow system" />

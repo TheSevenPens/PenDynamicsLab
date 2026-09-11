@@ -14,9 +14,6 @@ public enum AppTheme
 
     /// <summary>A light theme with pale cherry-blossom pink chrome.</summary>
     Sakura,
-
-    /// <summary>Sakura, with gentle gradients on the large chrome surfaces.</summary>
-    SakuraGradient,
 }
 
 /// <summary>

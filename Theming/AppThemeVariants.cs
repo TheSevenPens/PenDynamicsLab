@@ -14,8 +14,8 @@ namespace PenDynamicsLab.Theming;
 /// <c>Pdl.*</c> brushes the app defines are re-pointed.
 /// </para>
 /// <para>
-/// It also means a variant only has to override what it wants to change — though in practice both
-/// Sakura dictionaries define the full set, so a missing key is a visible mistake rather than a
+/// It also means a variant only has to override what it wants to change — though in practice the
+/// Sakura dictionary defines the full set, so a missing key is a visible mistake rather than a
 /// silent fallback to blue.
 /// </para>
 /// </remarks>
@@ -23,13 +23,4 @@ public static class AppThemeVariants
 {
     /// <summary>A light theme whose chrome is pale cherry-blossom pink.</summary>
     public static readonly ThemeVariant Sakura = new("Sakura", ThemeVariant.Light);
-
-    /// <summary>
-    /// Sakura with gentle vertical gradients on the large chrome surfaces.
-    /// </summary>
-    /// <remarks>
-    /// An experiment, kept separate rather than folded into Sakura so the two can be compared
-    /// side by side and one dropped without unpicking the other.
-    /// </remarks>
-    public static readonly ThemeVariant SakuraGradient = new("SakuraGradient", ThemeVariant.Light);
 }

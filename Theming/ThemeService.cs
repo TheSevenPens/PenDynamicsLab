@@ -90,7 +90,7 @@ public sealed class ThemeService
             k => k,
             k => app.Resources.TryGetResource(k, null, out var v) ? v : null);
 
-        bool sakura = theme is AppTheme.Sakura or AppTheme.SakuraGradient;
+        bool sakura = theme is AppTheme.Sakura;
         for (int i = 0; i < AccentKeys.Length; i++)
         {
             object? value = sakura ? SakuraAccent[i] : _platformAccent[AccentKeys[i]];
@@ -110,7 +110,6 @@ public sealed class ThemeService
             AppTheme.Light => ThemeVariant.Light,
             AppTheme.Dark => ThemeVariant.Dark,
             AppTheme.Sakura => AppThemeVariants.Sakura,
-            AppTheme.SakuraGradient => AppThemeVariants.SakuraGradient,
             _ => ThemeVariant.Default,
         };
     }
