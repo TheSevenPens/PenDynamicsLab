@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:theming="clr-namespace:PenDynamicsLab.Theming">
     <!--
         Every colour the app draws, in both themes, in one place.
 
@@ -132,6 +133,54 @@
             <SolidColorBrush x:Key="ButtonForegroundPointerOver"  Color="#EAEAEA" />
             <SolidColorBrush x:Key="ButtonForegroundPressed"      Color="#C8C8C8" />
             <SolidColorBrush x:Key="ButtonForegroundDisabled"     Color="#6A6A6A" />
+        </ResourceDictionary>
+
+        <ResourceDictionary x:Key="{x:Static theming:AppThemeVariants.Sakura}">
+
+            <SolidColorBrush x:Key="Pdl.Surface"             Color="#FDEFF4" />
+            <SolidColorBrush x:Key="Pdl.Pane"                Color="#F8DFE9" />
+            <SolidColorBrush x:Key="Pdl.Divider"             Color="#EFCEDB" />
+            <SolidColorBrush x:Key="Pdl.ControlEdge"         Color="#DDB0C2" />
+            <SolidColorBrush x:Key="Pdl.Text"                Color="#3A2A30" />
+            <SolidColorBrush x:Key="Pdl.Muted"               Color="#6F5860" />
+            <SolidColorBrush x:Key="Pdl.GroupLabel"          Color="#9E838C" />
+            <SolidColorBrush x:Key="Pdl.Hint"                Color="#957B84" />
+            <SolidColorBrush x:Key="Pdl.SliderLabel"         Color="#5F4850" />
+            <SolidColorBrush x:Key="Pdl.SliderValue"         Color="#45333A" />
+            <SolidColorBrush x:Key="Pdl.SubtleText"          Color="#4E3B42" />
+            <SolidColorBrush x:Key="Pdl.Accent"              Color="#C1466F" />
+            <SolidColorBrush x:Key="Pdl.ActiveFill"          Color="#FAD8E4" />
+            <SolidColorBrush x:Key="Pdl.ActiveInk"           Color="#9B2F56" />
+            <SolidColorBrush x:Key="Pdl.NeutralFill"         Color="#F3DFE7" />
+            <SolidColorBrush x:Key="Pdl.NeutralInk"          Color="#6F5860" />
+            <SolidColorBrush x:Key="Pdl.AdvisoryFill"        Color="#FFF6E9" />
+            <SolidColorBrush x:Key="Pdl.AdvisoryInk"         Color="#7A5A16" />
+            <SolidColorBrush x:Key="Pdl.AdvisoryEdge"        Color="#F0D8A8" />
+            <SolidColorBrush x:Key="Pdl.AdvisoryIcon"        Color="#8A6516" />
+            <SolidColorBrush x:Key="Pdl.Processed"           Color="#14A050" />
+            <SolidColorBrush x:Key="Pdl.ProximityIdle"       Color="#BC9FAC" />
+            <SolidColorBrush x:Key="Pdl.Splitter"            Color="#E3C3D1" />
+            <SolidColorBrush x:Key="Pdl.PlotField"           Color="#FEF5F9" />
+            <SolidColorBrush x:Key="Pdl.PlotGrid"            Color="#F6DEE9" />
+            <SolidColorBrush x:Key="Pdl.CurveInk"            Color="#2B1C22" />
+            <SolidColorBrush x:Key="Pdl.NodeOutline"         Color="#FFFFFF" />
+            <SolidColorBrush x:Key="Pdl.GuideInk"            Color="#40000000" />
+            <SolidColorBrush x:Key="Pdl.HandleStem"          Color="#38000000" />
+            <SolidColorBrush x:Key="Pdl.BezierNode"          Color="#C1466F" />
+            <SolidColorBrush x:Key="Pdl.BezierEnd"           Color="#8C7079" />
+            <SolidColorBrush x:Key="Pdl.CanvasPaper"         Color="#F7F7F4" />
+            <SolidColorBrush x:Key="ButtonBackground"        Color="#FFFFFF" />
+            <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#FBEAF1" />
+            <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#F5DCE6" />
+            <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="#FDF6F9" />
+            <SolidColorBrush x:Key="ButtonBorderBrush"       Color="#DDB0C2" />
+            <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#D2A0B4" />
+            <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="#D2A0B4" />
+            <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="#F0DDE5" />
+            <SolidColorBrush x:Key="ButtonForeground"        Color="#3A2A30" />
+            <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#3A2A30" />
+            <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#4E3B42" />
+            <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="#B59CA4" />
         </ResourceDictionary>
 
     </ResourceDictionary.ThemeDictionaries>

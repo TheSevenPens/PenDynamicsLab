@@ -11,6 +11,9 @@ public enum AppTheme
     System,
     Light,
     Dark,
+
+    /// <summary>A light theme with pale cherry-blossom pink chrome.</summary>
+    Sakura,
 }
 
 /// <summary>
