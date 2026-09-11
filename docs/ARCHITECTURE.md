@@ -331,12 +331,21 @@ MainWindow._curveParams (PressureCurveParams)
    │
    ◄── CurveEditorView.CurveChanged        (its sliders, combos, radios, reset)
    ◄── PressureChartN writes Curve         (drag node / handle / context menu)
-   ◄── smoothing / processing controls, preset load, ApplyCurveCount
+   ◄── quantization / smoothing / processing combos, preset load, ApplyCurveCount
         all via UpdateParams(p => p with { ... })
-        then SyncCurveControlsFromParams()  (with _suppressCurveControlEvents = true)
 ```
 
-Every change funnels through `UpdateParams(Func<PressureCurveParams, PressureCurveParams>)`, which rebuilds the immutable record with `with { ... }` and pushes it to every chart and editor. That single owner is what keeps two curve editors and three charts from disagreeing about what the pipeline currently is: an editor never writes to its own `Curve` from its own handlers — it raises `CurveChanged` and `MainWindow` writes back.
+Every change funnels through `UpdateParams(Func<PressureCurveParams, PressureCurveParams>)`, which rebuilds the immutable record with `with { ... }` and then does three things, all of which have to happen on **every** change:
+
+- `PushParamsToViews()` — hands the new parameters to both editors and all four charts.
+- `UpdateDerivedControlState()` — control state derived from the parameters rather than set by the user, currently the smoothing amount slider's visibility and its reset button. Living only in `SyncCurveControlsFromParams` once meant switching smoothing to EMA left its slider hidden until an unrelated edit happened to trigger a sync.
+- `UpdateCardStatuses()` — the header pills.
+
+`SyncCurveControlsFromParams()` is for a **wholesale** change — preset load, curve count, startup. It pushes into the combos this window owns directly, then calls the same three.
+
+That single owner is what keeps two curve editors and four charts from disagreeing: an editor never writes to its own `Curve` from its own handlers — it raises `CurveChanged` and `MainWindow` writes back.
+
+> **Writing a chart's `Curve` raises its `PropertyChanged`, which `WireChart` reads as a user edit.** `PushParamsToViews` therefore guards the chart writes with `_suppressCurveControlEvents`, or the app's own push bounces straight back in as an edit. The **editors** are pushed outside that guard on purpose: switching to Sigmoid from a negative softness makes the editor clamp the value and emit the correction, and that correction has to reach back rather than be swallowed.
 
 `CurveEditorView.UpdateVisibility()` runs whenever its `Curve` changes and drives per-curve-type control visibility, including whether that curve's reset button is enabled — a type with no settings of its own has nothing for a type-scoped reset to restore. It also clamps `Softness` into the active range — Sigmoid restricts the slider to `[0, 0.95]` (steepness is `softness * 14`, and the top of the range is numerically unstable), everything else uses `[-0.9, 0.9]`.
 
