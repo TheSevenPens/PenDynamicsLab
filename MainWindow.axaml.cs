@@ -1425,12 +1425,23 @@ public partial class MainWindow : Window
         CursorLabel.Text = pt.Cursor.ToString();
 
         RawPosLabel.Text = $"{pt.RawX}, {pt.RawY}";
-        // F2, not F0. At any display scale the DIP conversion divides, so an integer desktop
-        // coordinate still produces a fractional app position - a decimal readout downstream
-        // proves nothing about the input. The fractional part has to be visible here or
-        // quantization is undetectable by eye.
+        // A readout has to resolve finer than one device pixel, or it cannot show the fault
+        // it exists to show. F0 resolves 1.0 at every display scale, which is never finer
+        // than a device pixel, so a quantized coordinate and a good one print the same.
+        //
+        // F2 here, because this is the desktop position - upstream of the DIP divide, and
+        // the only place quantization of the input is visible at all. A decimal further
+        // downstream proves nothing about the input: the divide produces decimals from
+        // whole numbers, which is how a healthy-looking app position once hid a truncating
+        // conversion for most of a day.
         ScreenPosLabel.Text = $"{pt.DesktopX:F2}, {pt.DesktopY:F2}";
-        AppPosLabel.Text = $"{clientPt.X:F0}, {clientPt.Y:F0}";
+        // F2, not F0. The conversion above is written by hand precisely so PointToClient
+        // cannot snap the position to whole pixels; printing it at F0 discards what that
+        // care preserved. At 2.25x, desktop 101.00 and 102.00 become 44.889 and 45.333,
+        // and F0 prints both as 45.
+        AppPosLabel.Text = $"{clientPt.X:F2}, {clientPt.Y:F2}";
+        // F1 is left alone: 0.1 resolves finer than one device pixel at any scale this
+        // application meets, so it can still show quantization. F0 could not.
         CanvasPosLabel.Text = canvasLocal is { } cl ? $"{cl.X:F1}, {cl.Y:F1}" : NoReading;
 
         float pct = maxP > 0 ? (float)pt.Pressure / maxP * 100f : 0f;
