@@ -1033,7 +1033,12 @@ public partial class MainWindow : Window
             {
                 if (_presetStore.Get(name) is { } p)
                 {
-                    _curveParams = p.Params;
+                    // Through UpdateParams rather than assigning _curveParams directly.
+                    // That is the only thing that bumps StrokeHistory.ParamsVersion, and
+                    // without the bump an undo after a preset load replays earlier strokes
+                    // from caches produced under the previous curve - the mixing
+                    // RecomputeStroke exists to prevent.
+                    UpdateParams(_ => p.Params);
 
                     // A preset holding a real curve 2 has to switch the second curve on,
                     // or half of it would apply with nothing on screen to show it.
