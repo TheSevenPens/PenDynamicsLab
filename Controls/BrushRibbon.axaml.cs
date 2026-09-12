@@ -47,6 +47,19 @@ public partial class BrushRibbon : UserControl
     /// <summary>Fires when the user clicks Clear.</summary>
     public event EventHandler? ClearRequested;
 
+    /// <summary>
+    /// Whether tapping stamps the alignment test figure instead of drawing.
+    /// </summary>
+    /// <remarks>
+    /// Kept off <see cref="BrushSettings"/> on purpose. It is not a property of the brush - it
+    /// changes what a pen-down <i>means</i> - and folding it in would put a diagnostic mode into
+    /// the record that presets are saved from and that drawing code reads on every sample.
+    /// </remarks>
+    public bool TapTestEnabled => TapTestCheck.IsChecked == true;
+
+    /// <summary>Fires when the user toggles tap test, carrying the new state.</summary>
+    public event EventHandler<bool>? TapTestChanged;
+
     public BrushRibbon()
     {
         InitializeComponent();
@@ -74,6 +87,9 @@ public partial class BrushRibbon : UserControl
         };
         DrawZeroPressureCheck.IsCheckedChanged += (_, _) =>
             Emit(_settings with { DrawAtZeroPressure = DrawZeroPressureCheck.IsChecked == true });
+
+        TapTestCheck.IsCheckedChanged += (_, _) =>
+            TapTestChanged?.Invoke(this, TapTestEnabled);
 
         ClearButton.Click += (_, _) => ClearRequested?.Invoke(this, EventArgs.Empty);
     }
