@@ -63,6 +63,10 @@ public sealed class DrawingSession : IDisposable
 
     private CanvasRole? _active;
     private Point? _lastDrawPos;
+
+    // The pressures the previous sample was drawn at. A segment needs the width at both of its
+    // ends to taper, and only one of them belongs to the sample now arriving.
+    private double _lastRawPressure, _lastProcessedPressure;
     private bool _processedDirty, _rawDirty;
 
     /// <summary>
@@ -182,6 +186,12 @@ public sealed class DrawingSession : IDisposable
         {
             PickStrokeColor(brush.ColorMode);
             History.BeginStroke(brush, _strokeColor);
+
+            // No predecessor to ramp from. Seeding with this sample's own pressure makes the
+            // first segment start at the width it ends at, rather than opening from the width
+            // the previous stroke happened to finish on.
+            _lastRawPressure = rawPressure;
+            _lastProcessedPressure = processedPressure;
         }
 
         History.AddSample(pos, rawPressure, orientation, processedPressure);
@@ -193,18 +203,22 @@ public sealed class DrawingSession : IDisposable
             if (Processed.Canvas is { } pc && (brush.DrawAtZeroPressure || processedPressure > 0))
             {
                 _engine.DrawSegment(pc, from, pos, _strokeColor,
-                    brush.StrokeWidthFor(processedPressure), brush.OpacityFor(processedPressure));
+                    brush.StrokeWidthFor(_lastProcessedPressure), brush.StrokeWidthFor(processedPressure),
+                    brush.OpacityFor(processedPressure));
                 _processedDirty = true;
             }
             if (Raw.Canvas is { } rc)
             {
                 _engine.DrawSegment(rc, from, pos, _strokeColor,
-                    brush.StrokeWidthFor(rawPressure), brush.OpacityFor(rawPressure));
+                    brush.StrokeWidthFor(_lastRawPressure), brush.StrokeWidthFor(rawPressure),
+                    brush.OpacityFor(rawPressure));
                 _rawDirty = true;
             }
         }
 
         _lastDrawPos = pos;
+        _lastRawPressure = rawPressure;
+        _lastProcessedPressure = processedPressure;
     }
 
     /// <summary>End the segment in progress without clearing anything that was drawn.</summary>
@@ -251,7 +265,9 @@ public sealed class DrawingSession : IDisposable
                 double p = pressure(samples[i]);
                 if (!stroke.Brush.DrawAtZeroPressure && p <= 0) continue;
                 _engine.DrawSegment(canvas, samples[i - 1].Position, samples[i].Position, stroke.Color,
-                    stroke.Brush.StrokeWidthFor(p), stroke.Brush.OpacityFor(p));
+                    stroke.Brush.StrokeWidthFor(pressure(samples[i - 1])),
+                    stroke.Brush.StrokeWidthFor(p),
+                    stroke.Brush.OpacityFor(p));
             }
         }
     }
@@ -334,16 +350,21 @@ public sealed class DrawingSession : IDisposable
             var from = samples[i - 1].Position;
             var to = samples[i].Position;
             var s = samples[i];
+            var prev = samples[i - 1];
 
             if (Processed.Canvas is { } pc && (stroke.Brush.DrawAtZeroPressure || s.ProcessedPressure > 0))
             {
                 _engine.DrawSegment(pc, from, to, stroke.Color,
-                    stroke.Brush.StrokeWidthFor(s.ProcessedPressure), stroke.Brush.OpacityFor(s.ProcessedPressure));
+                    stroke.Brush.StrokeWidthFor(prev.ProcessedPressure),
+                    stroke.Brush.StrokeWidthFor(s.ProcessedPressure),
+                    stroke.Brush.OpacityFor(s.ProcessedPressure));
             }
             if (Raw.Canvas is { } rc)
             {
                 _engine.DrawSegment(rc, from, to, stroke.Color,
-                    stroke.Brush.StrokeWidthFor(s.RawPressure), stroke.Brush.OpacityFor(s.RawPressure));
+                    stroke.Brush.StrokeWidthFor(prev.RawPressure),
+                    stroke.Brush.StrokeWidthFor(s.RawPressure),
+                    stroke.Brush.OpacityFor(s.RawPressure));
             }
         }
     }
