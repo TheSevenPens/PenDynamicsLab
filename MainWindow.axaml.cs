@@ -727,11 +727,20 @@ public partial class MainWindow : Window
         // Avalonia has no first-class "set image" clipboard API, so the bytes go on under
         // the PNG format name. Apps that accept PNG from the clipboard (browsers, most
         // image editors) will paste it; ones that only read CF_DIB may not see it.
-        var data = new global::Avalonia.Input.DataObject();
-        data.Set("PNG", png);
+        //
+        // A *platform* format rather than an application one: the name has to reach the
+        // clipboard as the literal "PNG" that other applications look for, not as a name
+        // namespaced to this app, which is what CreateBytesApplicationFormat would produce.
+        // NOT disposed here, despite DataTransfer being IDisposable. SetDataAsync's contract is
+        // explicit that the caller must not dispose it: the clipboard takes ownership and
+        // releases it when it becomes unused. Disposing it here leaves the format advertised on
+        // the clipboard with no data behind it, so a paste finds "PNG" listed and gets nothing.
+        var format = global::Avalonia.Input.DataFormat.CreateBytesPlatformFormat("PNG");
+        var data = new global::Avalonia.Input.DataTransfer();
+        data.Add(global::Avalonia.Input.DataTransferItem.Create(format, png));
         try
         {
-            await clipboard.SetDataObjectAsync(data);
+            await clipboard.SetDataAsync(data);
             FlashChartStatus("Copied");
         }
         catch
