@@ -70,6 +70,23 @@ public partial class BrushRibbon : UserControl
     /// <summary>Show a short line beside the Record box — sample count, or where a file went.</summary>
     public void SetRecordStatus(string text) => RecordStatus.Text = text;
 
+    /// <summary>
+    /// Clear the Record box without raising <see cref="RecordChanged"/>.
+    /// </summary>
+    /// <remarks>
+    /// For when something other than the user ends a recording — switching the pen API, which
+    /// invalidates what is still being captured. Raising the event would run the save path a
+    /// second time and overwrite the status line with "nothing captured".
+    /// </remarks>
+    public void ClearRecordWithoutNotifying()
+    {
+        _suppressRecordEvent = true;
+        RecordCheck.IsChecked = false;
+        _suppressRecordEvent = false;
+    }
+
+    private bool _suppressRecordEvent;
+
     public BrushRibbon()
     {
         InitializeComponent();
@@ -102,7 +119,10 @@ public partial class BrushRibbon : UserControl
             TapTestChanged?.Invoke(this, TapTestEnabled);
 
         RecordCheck.IsCheckedChanged += (_, _) =>
+        {
+            if (_suppressRecordEvent) return;
             RecordChanged?.Invoke(this, RecordCheck.IsChecked == true);
+        };
 
         ClearButton.Click += (_, _) => ClearRequested?.Invoke(this, EventArgs.Empty);
     }
