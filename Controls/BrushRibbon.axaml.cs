@@ -60,6 +60,16 @@ public partial class BrushRibbon : UserControl
     /// <summary>Fires when the user toggles tap test, carrying the new state.</summary>
     public event EventHandler<bool>? TapTestChanged;
 
+    /// <summary>Fires when the user toggles recording, carrying the new state.</summary>
+    /// <remarks>
+    /// Kept off <see cref="BrushSettings"/>: recording is not a property of the brush, and a
+    /// preset should not be able to switch it on.
+    /// </remarks>
+    public event EventHandler<bool>? RecordChanged;
+
+    /// <summary>Show a short line beside the Record box — sample count, or where a file went.</summary>
+    public void SetRecordStatus(string text) => RecordStatus.Text = text;
+
     public BrushRibbon()
     {
         InitializeComponent();
@@ -90,6 +100,9 @@ public partial class BrushRibbon : UserControl
 
         TapTestCheck.IsCheckedChanged += (_, _) =>
             TapTestChanged?.Invoke(this, TapTestEnabled);
+
+        RecordCheck.IsCheckedChanged += (_, _) =>
+            RecordChanged?.Invoke(this, RecordCheck.IsChecked == true);
 
         ClearButton.Click += (_, _) => ClearRequested?.Invoke(this, EventArgs.Empty);
     }

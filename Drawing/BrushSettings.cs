@@ -37,6 +37,26 @@ public sealed record BrushSettings
     /// <summary>The ribbon slider's starting value.</summary>
     public const double DefaultSize = 40;
 
+    /// <summary>
+    /// The thinnest mark a stroke can taper to, in DIPs.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This used to be 1 DIP, on the reasoning that a zero-width stroke draws nothing so a light
+    /// touch would silently skip. True of zero, but 1 DIP is far more than zero: on a 168 dpi
+    /// display it is 1.75 physical pixels, so the entry and exit of every stroke stopped dead at
+    /// a visible width instead of fading out. Krita tapers to a genuine sub-pixel hairline, which
+    /// is most of why its stroke ends look like ink and ours looked like a marker.
+    /// </para>
+    /// <para>
+    /// A quarter of a DIP is still safely above zero - the geometry stays valid and the faintest
+    /// contact leaves a trace - while being thin enough that antialiasing renders it as a fading
+    /// hairline rather than a line with a width. Lower it further for a fuller fade-out; the
+    /// floor exists to keep a mark, not to set a look.
+    /// </para>
+    /// </remarks>
+    public const double MinStrokeWidth = 0.25;
+
     private readonly double _size = DefaultSize;
 
     /// <summary>
@@ -71,12 +91,12 @@ public sealed record BrushSettings
     /// </summary>
     /// <remarks>
     /// Lives on the record rather than on the window so that anything holding these settings can
-    /// work out the mark — which is the point of having a record at all. Never returns less than
-    /// 1 DIP: a zero-width stroke draws nothing, so a light touch would silently skip.
+    /// work out the mark — which is the point of having a record at all. Floored at
+    /// <see cref="MinStrokeWidth"/> rather than at zero, so the faintest contact still marks.
     /// </remarks>
     public float StrokeWidthFor(double pressure) => PressureDrives == PressureControl.Opacity
         ? (float)Size
-        : (float)Math.Max(1, pressure * Size);
+        : (float)Math.Max(MinStrokeWidth, pressure * Size);
 
     /// <summary>
     /// Stroke opacity for a pipeline output value.

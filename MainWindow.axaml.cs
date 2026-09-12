@@ -63,6 +63,9 @@ public partial class MainWindow : Window
     // starts rather than as every sample the pen spends down.
     private bool _penWasDown;
 
+    // Raw pen capture, for replaying a stroke later under settings it was never drawn under.
+    private readonly Diagnostics.StrokeRecorder _recorder = new();
+
     // The brush configuration. Drawing reads this record, never the ribbon's controls — the
     // ribbon is a view over it and pushes edits back through SettingsChanged.
     private BrushSettings _brush = BrushSettings.Default;
@@ -176,6 +179,20 @@ public partial class MainWindow : Window
             // pen last was, in whichever mode that happened to be.
             ResetStrokeState();
         };
+
+        BrushRibbon.RecordChanged += (_, on) =>
+        {
+            if (on)
+            {
+                _recorder.Start();
+                BrushRibbon.SetRecordStatus("recording...");
+                return;
+            }
+
+            BrushRibbon.SetRecordStatus(SaveRecording() is { } path
+                ? Path.GetFileName(path)
+                : "nothing captured");
+        };
         BrushRibbon.SettingsChanged += (_, next) => _brush = next;
         BrushRibbon.Settings = _brush;
         InitializeCurveControls();
@@ -203,7 +220,7 @@ public partial class MainWindow : Window
                 ApiCombo.Items.Add(name);
             }
             ApiCombo.SelectionChanged += ApiCombo_SelectionChanged;
-            if (ApiCombo.Items.Count > 0) ApiCombo.SelectedIndex = 0;
+            SelectDefaultApi();
         };
 
         Closing += (_, _) =>
@@ -1053,6 +1070,75 @@ public partial class MainWindow : Window
         _renderTimer.Start();
     }
 
+    /// <summary>
+    /// Write what the recorder has collected, returning the file path or null.
+    /// </summary>
+    /// <remarks>
+    /// The canvas geometry goes in with it. Desktop coordinates alone are not replayable — where
+    /// the canvas was on screen is what turns them back into canvas-local positions.
+    /// </remarks>
+    private string? SaveRecording()
+    {
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel is null) return null;
+
+        double scale = topLevel.RenderScaling;
+        var clientOrigin = topLevel.PointToScreen(new Point(0, 0));
+
+        var originDip = new Point(0, 0);
+        var sizeDip = new Size(0, 0);
+        _session.TryGetCanvasGeometry(topLevel, out originDip, out sizeDip);
+
+        var originPhysical = new Point(
+            clientOrigin.X + originDip.X * scale,
+            clientOrigin.Y + originDip.Y * scale);
+
+        string api = _apis.Count > 0 && ApiCombo.SelectedIndex >= 0
+            ? _apis[ApiCombo.SelectedIndex].ToString()
+            : "";
+
+        return _recorder.StopAndSave(api, _penSession?.MaxPressure ?? 0, scale, originPhysical, sizeDip);
+    }
+
+    /// <summary>
+    /// Select the input API to start on: Wintab's digitizer context if it is available.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Not merely a preference. The system context has the driver scale the tablet's roughly
+    /// 52885 x 29835 units of input down onto the desktop's screen pixels and hand over integers,
+    /// which is about a sevenfold reduction before this app sees anything. Measured on one
+    /// recorded stroke, that quantization takes the median turn between consecutive segments from
+    /// 1.5 degrees to 11.3 - at the ~2px steps a tablet reports, an integer grid only offers a
+    /// few directions, and the path zigzags between them instead of following the pen. On a
+    /// constant-width stroke it reads as small bumps along both edges.
+    /// </para>
+    /// <para>
+    /// The digitizer context is also not the unusual choice it sounds like. Qt overrides
+    /// lcOutExt to the tablet's input extents unconditionally, so every Qt application - Krita
+    /// among them - is on tablet-native input with no setting to turn it off. Starting on the
+    /// system context was the odd default, not this.
+    /// </para>
+    /// <para>
+    /// The system context stays in the list. Being able to switch and watch the difference is
+    /// the point of a lab.
+    /// </para>
+    /// </remarks>
+    private void SelectDefaultApi()
+    {
+        if (ApiCombo.Items.Count == 0) return;
+
+        int preferred = -1;
+        for (int i = 0; i < _apis.Count; i++)
+        {
+            if (_apis[i] != InputApi.WintabDigitizer) continue;
+            preferred = i;
+            break;
+        }
+
+        ApiCombo.SelectedIndex = preferred >= 0 ? preferred : 0;
+    }
+
     private void ResetStrokeState()
     {
         _penWasDown = false;
@@ -1099,13 +1185,31 @@ public partial class MainWindow : Window
 
         foreach (var pt in points)
         {
+            _recorder.Add(pt);
+
             // Determine which sub-canvas the pen is over by translating screen coords into each
             // host's local frame. The host where local Y ∈ [0, height] wins.
             Point clientPt;
             try
             {
-                var screenPt = new PixelPoint((int)pt.DesktopX, (int)pt.DesktopY);
-                clientPt = topLevel.PointToClient(screenPt);
+                // Converted by hand rather than through PointToClient, which takes a PixelPoint
+                // and so forces the position onto the whole-pixel grid on the way in.
+                //
+                // That cost is not theoretical. Measured across one recorded stroke, quantizing
+                // the same hi-res input to whole pixels takes the median turn between consecutive
+                // segments from 1.5 degrees to 11.3 - the path starts zigzagging, because at the
+                // ~2px steps a tablet reports there are only a handful of directions a segment on
+                // an integer grid can point in. 11.3 is atan(1/5); the neighbouring values are
+                // atan(1/3) and 45 degrees. Rounding instead of truncating does not help, because
+                // the grid is the problem rather than the rounding rule.
+                //
+                // The window origin is genuinely on a pixel boundary, so taking it as an integer
+                // loses nothing; only the pen's own position needs the precision kept.
+                var origin = topLevel.PointToScreen(new Point(0, 0));
+                double dipScale = topLevel.RenderScaling;
+                clientPt = new Point(
+                    (pt.DesktopX - origin.X) / dipScale,
+                    (pt.DesktopY - origin.Y) / dipScale);
             }
             catch
             {
