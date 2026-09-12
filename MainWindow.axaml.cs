@@ -9,6 +9,7 @@ using WinPenKit;
 using WinPenKit.Avalonia;
 using PenDynamicsLab.Controls;
 using PenDynamicsLab.Curves;
+using PenDynamicsLab.Diagnostics;
 using PenDynamicsLab.Drawing;
 using PenDynamicsLab.Persistence;
 using PenDynamicsLab.Theming;
@@ -282,6 +283,25 @@ public partial class MainWindow : Window
     /// different DPI, and no Bounds change fires for that.
     /// </remarks>
     private void EnsureSurfaces() => _session.EnsureSurfaces(RenderScaling);
+
+    /// <summary>
+    /// Runs the launch-time acceptance checks against this window - the same checks, and the
+    /// same report format, the Scribble samples are held to.
+    /// </summary>
+    internal WinPenKit.Diagnostics.SelfTest RunSelfTest(string? strokePath)
+    {
+        EnsureSurfaces();
+
+        var origin = new Point(0, 0);
+        var size = new Size(0, 0);
+        if (_session.TryGetCanvasGeometry(this, out var o, out var s))
+        {
+            origin = o;
+            size = s;
+        }
+
+        return SelfTestCommand.Run(this, _session.Processed, origin, size, strokePath);
+    }
 
     // ── Brush controls ──────────────────────────────────────────
 
@@ -1330,7 +1350,11 @@ public partial class MainWindow : Window
         CursorLabel.Text = pt.Cursor.ToString();
 
         RawPosLabel.Text = $"{pt.RawX}, {pt.RawY}";
-        ScreenPosLabel.Text = $"{pt.DesktopX:F0}, {pt.DesktopY:F0}";
+        // F2, not F0. At any display scale the DIP conversion divides, so an integer desktop
+        // coordinate still produces a fractional app position - a decimal readout downstream
+        // proves nothing about the input. The fractional part has to be visible here or
+        // quantization is undetectable by eye.
+        ScreenPosLabel.Text = $"{pt.DesktopX:F2}, {pt.DesktopY:F2}";
         AppPosLabel.Text = $"{clientPt.X:F0}, {clientPt.Y:F0}";
         CanvasPosLabel.Text = canvasLocal is { } cl ? $"{cl.X:F1}, {cl.Y:F1}" : NoReading;
 
