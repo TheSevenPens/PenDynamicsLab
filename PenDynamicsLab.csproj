@@ -38,4 +38,11 @@
     <ProjectReference Include="..\WinPenKit\WinPenKit.Avalonia\WinPenKit.Avalonia.csproj" />
   </ItemGroup>
 
+  <!-- Linked, not copied: this is the yardstick both repos are measured by, and two
+       copies of a yardstick is one too many. -->
+  <ItemGroup>
+    <Content Include="..\WinPenKit\testdata\reference-stroke.csv"
+             Link="testdata\reference-stroke.csv"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
