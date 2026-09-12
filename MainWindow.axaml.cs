@@ -170,7 +170,7 @@ public partial class MainWindow : Window
         PressureChart.BuildExportMenuItems = () => BuildChartExportMenuItems(PressureChart, "pressure-curve-1");
         PressureChart2.BuildExportMenuItems = () => BuildChartExportMenuItems(PressureChart2, "pressure-curve-2");
         EffectiveChart.BuildExportMenuItems = () => BuildChartExportMenuItems(EffectiveChart, "effective-curve");
-        DriverTipChip.IsVisible = !_uiSettings.DriverTipDismissed;
+        UpdateDriverTipVisibility();
 
         BrushRibbon.ClearRequested += (_, _) => ClearCanvases();
         BrushRibbon.TapTestChanged += (_, on) =>
@@ -976,7 +976,7 @@ public partial class MainWindow : Window
         _ribbonCollapsed = !_ribbonCollapsed;
 
         RibbonBody.IsVisible = !_ribbonCollapsed;
-        DriverTipChip.IsVisible = !_ribbonCollapsed && !_uiSettings.DriverTipDismissed;
+        UpdateDriverTipVisibility();
         RibbonPanel.Height = _ribbonCollapsed ? 36 : 92;
 
         // Segoe Fluent Icons: ChevronUp / ChevronDown, the same pair the cards use.
@@ -1076,9 +1076,30 @@ public partial class MainWindow : Window
         foreach (var card in order) SettingsStack.Children.Add(card);
     }
 
+    /// <summary>Set by the chip's x, and never cleared: it lasts as long as the window.</summary>
+    private bool _driverTipHiddenForSession;
+
+    /// <summary>
+    /// Three separate things hide the chip, and every one of them has to be asked each time
+    /// its visibility is set.
+    /// </summary>
+    /// <remarks>
+    /// The x used to write <c>IsVisible = false</c> and record nothing, so the next thing to
+    /// recompute visibility had no way to know it had been clicked. Collapsing the ribbon and
+    /// expanding it again brought the tip back, because expanding asked only the persisted
+    /// setting. One method, asking all three, is what keeps a new caller from reintroducing
+    /// that by writing its own expression.
+    /// </remarks>
+    private void UpdateDriverTipVisibility() =>
+        DriverTipChip.IsVisible =
+            !_ribbonCollapsed && !_driverTipHiddenForSession && !_uiSettings.DriverTipDismissed;
+
     /// <summary>Hide for this session only.</summary>
     private void DriverTipDismiss_Click(object? sender, RoutedEventArgs e)
-        => DriverTipChip.IsVisible = false;
+    {
+        _driverTipHiddenForSession = true;
+        UpdateDriverTipVisibility();
+    }
 
     private void DriverTipGotIt_Click(object? sender, RoutedEventArgs e)
         => DriverTipButton.Flyout?.Hide();
@@ -1087,7 +1108,7 @@ public partial class MainWindow : Window
     {
         _uiSettings.DriverTipDismissed = true;
         DriverTipButton.Flyout?.Hide();
-        DriverTipChip.IsVisible = false;
+        UpdateDriverTipVisibility();
     }
 
     private void RebuildUserPresetList()
