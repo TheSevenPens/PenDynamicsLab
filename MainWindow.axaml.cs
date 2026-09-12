@@ -185,7 +185,14 @@ public partial class MainWindow : Window
         {
             if (on)
             {
-                _recorder.Start();
+                if (CaptureRecordingContext() is not { } context)
+                {
+                    BrushRibbon.SetRecordStatus("cannot record: no window");
+                    BrushRibbon.ClearRecordWithoutNotifying();
+                    return;
+                }
+
+                _recorder.Start(context);
                 BrushRibbon.SetRecordStatus("recording...");
                 return;
             }
@@ -1144,6 +1151,19 @@ public partial class MainWindow : Window
         _penSession?.Stop();
         _penSession?.Dispose();
 
+        // A recording in progress belongs to the session being torn down. Its samples were
+        // scaled to that device's pressure range, so carrying them into the next session would
+        // mean one file describing two devices under one MaxPressure. Save what was captured,
+        // under the context it was captured in, and stop.
+        if (_recorder.IsRecording)
+        {
+            string? saved = SaveRecording();
+            BrushRibbon.ClearRecordWithoutNotifying();
+            BrushRibbon.SetRecordStatus(saved is { } p
+                ? $"{Path.GetFileName(p)} (stopped: API changed)"
+                : "recording discarded: API changed");
+        }
+
         var api = _apis[ApiCombo.SelectedIndex];
         // Whatever the previous session last reported says nothing about this one. The
         // out-of-range path would blank these within 200 ms anyway; doing it here means the
@@ -1181,7 +1201,11 @@ public partial class MainWindow : Window
     /// The canvas geometry goes in with it. Desktop coordinates alone are not replayable — where
     /// the canvas was on screen is what turns them back into canvas-local positions.
     /// </remarks>
-    private string? SaveRecording()
+    /// <summary>
+    /// What is true right now: the device, and where the canvas sits on the desktop. Read once
+    /// when recording starts, never at save time.
+    /// </summary>
+    private RecordingContext? CaptureRecordingContext()
     {
         var topLevel = TopLevel.GetTopLevel(this);
         if (topLevel is null) return null;
@@ -1201,8 +1225,10 @@ public partial class MainWindow : Window
             ? _apis[ApiCombo.SelectedIndex].ToString()
             : "";
 
-        return _recorder.StopAndSave(api, _penSession?.MaxPressure ?? 0, scale, originPhysical, sizeDip);
+        return new RecordingContext(api, _penSession?.MaxPressure ?? 0, scale, originPhysical, sizeDip);
     }
+
+    private string? SaveRecording() => _recorder.StopAndSave();
 
     /// <summary>
     /// Select the input API to start on: Wintab's digitizer context if it is available.

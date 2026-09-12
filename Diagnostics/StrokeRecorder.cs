@@ -22,6 +22,7 @@ public sealed class StrokeRecorder
 {
     private readonly List<RecordedPoint> _points = [];
     private DateTime _start;
+    private RecordingContext _context;
 
     /// <summary>Whether samples are currently being collected.</summary>
     public bool IsRecording { get; private set; }
@@ -34,10 +35,21 @@ public sealed class StrokeRecorder
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "PenDynamicsLab", "recordings");
 
-    public void Start()
+    /// <summary>
+    /// Begin collecting, and snapshot the context these samples are being captured under.
+    /// </summary>
+    /// <remarks>
+    /// Taken here rather than at save time, because by then it may describe a different
+    /// device or a different canvas. Switching the pen API mid-recording used to write the
+    /// new session's <c>MaxPressure</c> over samples scaled to the old device's, so every
+    /// replayed pressure came out wrong; changing tab used to write the visible pane's
+    /// geometry over points drawn on another.
+    /// </remarks>
+    public void Start(RecordingContext context)
     {
         _points.Clear();
         _start = DateTime.UtcNow;
+        _context = context;
         IsRecording = true;
     }
 
@@ -62,21 +74,20 @@ public sealed class StrokeRecorder
     /// Stop recording and write what was collected, returning the file path, or null if nothing
     /// was captured.
     /// </summary>
-    public string? StopAndSave(string api, int maxPressure, double renderScaling,
-        Point canvasOriginPhysical, Size canvasSizeDip)
+    public string? StopAndSave()
     {
         IsRecording = false;
         if (_points.Count == 0) return null;
 
         var recording = new StrokeRecording
         {
-            Api = api,
-            MaxPressure = maxPressure,
-            RenderScaling = renderScaling,
-            CanvasOriginX = canvasOriginPhysical.X,
-            CanvasOriginY = canvasOriginPhysical.Y,
-            CanvasWidth = canvasSizeDip.Width,
-            CanvasHeight = canvasSizeDip.Height,
+            Api = _context.Api,
+            MaxPressure = _context.MaxPressure,
+            RenderScaling = _context.RenderScaling,
+            CanvasOriginX = _context.CanvasOriginPhysical.X,
+            CanvasOriginY = _context.CanvasOriginPhysical.Y,
+            CanvasWidth = _context.CanvasSizeDip.Width,
+            CanvasHeight = _context.CanvasSizeDip.Height,
             Points = [.. _points],
         };
 
@@ -88,3 +99,19 @@ public sealed class StrokeRecorder
         return path;
     }
 }
+
+/// <summary>
+/// What was true when a recording started: which device produced the samples, and where the
+/// canvas they were aimed at sat on the desktop.
+/// </summary>
+/// <remarks>
+/// A recording is only replayable against the conditions it was captured under. Carrying them
+/// as one value makes it awkward to supply them from the wrong moment, which is the mistake
+/// this type exists to prevent.
+/// </remarks>
+public readonly record struct RecordingContext(
+    string Api,
+    int MaxPressure,
+    double RenderScaling,
+    Point CanvasOriginPhysical,
+    Size CanvasSizeDip);
