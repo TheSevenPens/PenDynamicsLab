@@ -220,7 +220,7 @@ public partial class MainWindow : Window
                 ApiCombo.Items.Add(name);
             }
             ApiCombo.SelectionChanged += ApiCombo_SelectionChanged;
-            if (ApiCombo.Items.Count > 0) ApiCombo.SelectedIndex = 0;
+            SelectDefaultApi();
         };
 
         Closing += (_, _) =>
@@ -1098,6 +1098,45 @@ public partial class MainWindow : Window
             : "";
 
         return _recorder.StopAndSave(api, _penSession?.MaxPressure ?? 0, scale, originPhysical, sizeDip);
+    }
+
+    /// <summary>
+    /// Select the input API to start on: Wintab's digitizer context if it is available.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Not merely a preference. The system context has the driver scale the tablet's roughly
+    /// 52885 x 29835 units of input down onto the desktop's screen pixels and hand over integers,
+    /// which is about a sevenfold reduction before this app sees anything. Measured on one
+    /// recorded stroke, that quantization takes the median turn between consecutive segments from
+    /// 1.5 degrees to 11.3 - at the ~2px steps a tablet reports, an integer grid only offers a
+    /// few directions, and the path zigzags between them instead of following the pen. On a
+    /// constant-width stroke it reads as small bumps along both edges.
+    /// </para>
+    /// <para>
+    /// The digitizer context is also not the unusual choice it sounds like. Qt overrides
+    /// lcOutExt to the tablet's input extents unconditionally, so every Qt application - Krita
+    /// among them - is on tablet-native input with no setting to turn it off. Starting on the
+    /// system context was the odd default, not this.
+    /// </para>
+    /// <para>
+    /// The system context stays in the list. Being able to switch and watch the difference is
+    /// the point of a lab.
+    /// </para>
+    /// </remarks>
+    private void SelectDefaultApi()
+    {
+        if (ApiCombo.Items.Count == 0) return;
+
+        int preferred = -1;
+        for (int i = 0; i < _apis.Count; i++)
+        {
+            if (_apis[i] != InputApi.WintabDigitizer) continue;
+            preferred = i;
+            break;
+        }
+
+        ApiCombo.SelectedIndex = preferred >= 0 ? preferred : 0;
     }
 
     private void ResetStrokeState()
