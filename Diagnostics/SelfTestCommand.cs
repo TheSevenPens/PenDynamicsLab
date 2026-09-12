@@ -99,6 +99,33 @@ public static class SelfTestCommand
                    strokePath == null ? "reference recording not found" : $"not found: {strokePath}");
         }
 
+        // Last, because this one moves the window and puts it back.
+        //
+        // Every check above holds the window still, and none of them can see a canvas origin
+        // that is read once and cached: the replay positions its input relative to the origin
+        // the application reports and then subtracts the same value back off, so a wrong origin
+        // cancels itself exactly, and L1.surface-alignment asks whether the origin is a whole
+        // number rather than the right one.
+        //
+        // The delegate re-reads the window origin on every call, because that is what
+        // RenderTimer_Tick does for every pen point. Handing it the windowOrigin captured
+        // above would report a stale origin belonging to this file rather than to the input
+        // path -- a check that fails for its own reasons measures nothing.
+        //
+        // canvasOriginDip is not re-read. It is an offset within the window, and the check
+        // moves the window without resizing it, so it is the one part of the conversion the
+        // move cannot change.
+        t.CheckOriginTracksWindow(
+            window.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero,
+            (x, y) =>
+            {
+                var origin = window.PointToScreen(new Point(0, 0));
+                double dipScale = window.RenderScaling;
+                return ((x - origin.X) / dipScale - canvasOriginDip.X,
+                        (y - origin.Y) / dipScale - canvasOriginDip.Y);
+            },
+            scale);
+
         return t;
     }
 }
