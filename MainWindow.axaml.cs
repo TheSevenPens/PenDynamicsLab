@@ -801,7 +801,10 @@ public partial class MainWindow : Window
         rtb.Render(chart);
 
         using var ms = new MemoryStream();
-        rtb.Save(ms);
+        // Avalonia 12 replaced Save(Stream, int?) with an encoder-options overload. PNG's
+        // options default to CompressionLevel.Optimal, and the bytes this produces are
+        // identical to what the old call produced, so nothing about an export changed.
+        rtb.Save(ms, global::Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default);
         if (!cropToPlot) return ms.ToArray();
 
         // Crop in pixel space: the plot rect is in DIPs, so scale it to match the render.
