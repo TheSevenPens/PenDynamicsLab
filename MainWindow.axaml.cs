@@ -1,4 +1,4 @@
-﻿using Avalonia;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -54,6 +54,14 @@ public partial class MainWindow : Window
     // Single BrushRibbon instance reparented into whichever stroke tab is active —
     // keeps brush settings synced across tabs without duplicating UI state.
     private readonly Controls.BrushRibbon BrushRibbon = new();
+
+    // Tap test. Deliberately not persisted in UiSettings: a diagnostic mode that silently
+    // survived a restart would look like the app had stopped drawing.
+    private bool _tapTest;
+
+    // Whether the last pen sample carried pressure, so a tap can be recognised as the moment it
+    // starts rather than as every sample the pen spends down.
+    private bool _penWasDown;
 
     // The brush configuration. Drawing reads this record, never the ribbon's controls — the
     // ribbon is a view over it and pushes edits back through SettingsChanged.
@@ -161,6 +169,13 @@ public partial class MainWindow : Window
         DriverTipChip.IsVisible = !_uiSettings.DriverTipDismissed;
 
         BrushRibbon.ClearRequested += (_, _) => ClearCanvases();
+        BrushRibbon.TapTestChanged += (_, on) =>
+        {
+            _tapTest = on;
+            // Leaving a stroke open across the switch would join the next mark to wherever the
+            // pen last was, in whichever mode that happened to be.
+            ResetStrokeState();
+        };
         BrushRibbon.SettingsChanged += (_, next) => _brush = next;
         BrushRibbon.Settings = _brush;
         InitializeCurveControls();
@@ -1040,6 +1055,7 @@ public partial class MainWindow : Window
 
     private void ResetStrokeState()
     {
+        _penWasDown = false;
         _session.ResetStroke();
         _pipeline.Reset();
         PressureChart.LiveRawPressure = null;
@@ -1132,6 +1148,17 @@ public partial class MainWindow : Window
             if (over is null)
             {
                 _session.EndStroke();
+                continue;
+            }
+
+            // Tap test stamps a fixed figure on pen-down and draws nothing else, so the surface
+            // can be judged on its own. Keyed off the transition into pressure rather than off
+            // pressure itself, or holding the pen down would stack a stamp every 16 ms.
+            if (_tapTest)
+            {
+                bool down = rawPressure > 0;
+                if (down && !_penWasDown) _session.DrawTestPattern(localPt, over.Value);
+                _penWasDown = down;
                 continue;
             }
 

@@ -221,6 +221,37 @@ public sealed class DrawingSession : IDisposable
         _lastProcessedPressure = processedPressure;
     }
 
+    /// <summary>
+    /// Stamp the alignment test figure at <paramref name="pos"/> on the canvas given.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Diagnostic, not drawing: this is how a tap answers "is the surface itself sound?" without
+    /// a stroke in the way. See <see cref="TestPattern"/> for what the figure is measuring.
+    /// </para>
+    /// <para>
+    /// Deliberately <b>not recorded in <see cref="History"/></b>. A stamp is not a stroke, and
+    /// letting undo peel these off one at a time would mean replay had to know how to redraw
+    /// them. Clear removes them, which is all a diagnostic mark needs.
+    /// </para>
+    /// <para>
+    /// Ends any stroke in progress first. A tap that lands mid-stroke should not be joined to it
+    /// by a line from wherever the pen last was.
+    /// </para>
+    /// </remarks>
+    public void DrawTestPattern(Point pos, CanvasRole role)
+    {
+        EndStroke();
+
+        var surface = SurfaceFor(role);
+        if (surface.Canvas is not { } canvas) return;
+
+        TestPattern.Draw(canvas, pos, BlackStroke);
+
+        if (role == CanvasRole.Raw) _rawDirty = true;
+        else _processedDirty = true;
+    }
+
     /// <summary>End the segment in progress without clearing anything that was drawn.</summary>
     public void EndStroke()
     {

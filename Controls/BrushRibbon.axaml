@@ -1,4 +1,4 @@
-﻿<UserControl xmlns="https://github.com/avaloniaui"
+<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="PenDynamicsLab.Controls.BrushRibbon">
     <!-- One 32px control band on a single baseline. Labels sit beside their control
@@ -10,11 +10,16 @@
         <Button x:Name="ClearButton" DockPanel.Dock="Right" Content="Clear canvas"
                 Height="32" Padding="14,0" VerticalAlignment="Center"
                 VerticalContentAlignment="Center" Margin="20,0,0,0" />
-        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="20">
+        <!-- ClipToBounds because this is a DockPanel's fill child: it is given whatever width
+             Clear leaves, and a StackPanel that wants more than that paints straight over the
+             button rather than stopping. Clipping turns "too narrow" into a visibly cut-off row
+             instead of two controls occupying the same pixels. -->
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="14"
+                    ClipToBounds="True">
 
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
                 <TextBlock Text="Size" Classes="fieldLabel" VerticalAlignment="Center" />
-                <Slider x:Name="BrushSizeSlider" Width="132" Height="32" VerticalAlignment="Center"
+                <Slider x:Name="BrushSizeSlider" Width="112" Height="32" VerticalAlignment="Center"
                         Minimum="1" Maximum="200" Value="40"
                         IsSnapToTickEnabled="True" TickFrequency="1" />
                 <TextBlock x:Name="BrushSizeLabel" Width="42" VerticalAlignment="Center" />
@@ -22,15 +27,21 @@
 
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
                 <TextBlock Text="Color" Classes="fieldLabel" VerticalAlignment="Center" />
-                <ComboBox x:Name="ColorModeCombo" Width="118" Height="32" VerticalAlignment="Center" />
+                <ComboBox x:Name="ColorModeCombo" Width="108" Height="32" VerticalAlignment="Center" />
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
                 <TextBlock Text="Pressure drives" Classes="fieldLabel" VerticalAlignment="Center" />
-                <ComboBox x:Name="PressureControlCombo" Width="118" Height="32" VerticalAlignment="Center" />
+                <ComboBox x:Name="PressureControlCombo" Width="108" Height="32" VerticalAlignment="Center" />
             </StackPanel>
 
             <CheckBox x:Name="DrawZeroPressureCheck" Content="Draw at zero pressure"
+                      Height="32" VerticalAlignment="Center" VerticalContentAlignment="Center" />
+
+            <!-- Diagnostic mode rather than a brush setting, which is why it reports through its
+                 own event instead of riding along in BrushSettings. -->
+            <CheckBox x:Name="TapTestCheck" Content="Tap test"
+                      ToolTip.Tip="Tap the canvas to stamp a ring of circles instead of drawing. Checks that the surface scales and rasterizes correctly, with no stroke in the way."
                       Height="32" VerticalAlignment="Center" VerticalContentAlignment="Center" />
         </StackPanel>
       </DockPanel>
