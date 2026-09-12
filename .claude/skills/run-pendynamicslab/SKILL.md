@@ -24,11 +24,21 @@ To draw, inject a synthetic **pen** device: `CreateSyntheticPointerDevice(PT_PEN
 
 Mouse input **does** work for ordinary chrome — tabs, combo boxes, buttons, sliders. Use the mouse for those and pen injection only for the canvas.
 
-## Trap 2: PowerShell is DPI-unaware by default
+## Trap 2: PowerShell gets the wrong DPI awareness twice over
 
-On a scaled display (this machine reports 216 DPI = 2.25×), a DPI-unaware process sees *virtualized* coordinates: `GetWindowRect` returns logical pixels, and `PrintWindow` renders a partial, cropped frame that looks like a genuine screenshot of a smaller window. You will read coordinates off that frame, click confidently, and hit the wrong control.
+A DPI-unaware process sees *virtualized* coordinates: `GetWindowRect` returns logical pixels, and `PrintWindow` renders a partial, cropped frame that looks like a genuine screenshot of a smaller window. You will read coordinates off that frame, click confidently, and hit the wrong control.
 
-`scripts/win.ps1` calls `SetProcessDPIAware()` on load. **Dot-source it in every PowerShell call** — process-level DPI awareness does not persist between tool invocations.
+`SetProcessDPIAware()` is **not** enough to fix this, and reaching for it is the second half of the trap. It asks for *System* awareness, which is only correct while the window sits on a monitor running at the system DPI. This machine has three monitors and they do not agree:
+
+```
+PRIMARY     (0,0)–(3840,2160)       216 dpi  (2.25x)
+secondary   (3840,0)–(7680,2160)    216 dpi  (2.25x)
+secondary   (2151,2160)–(4711,3600) 168 dpi  (1.75x)
+```
+
+System DPI is 216, so on the 168 dpi panel a system-aware process is handed a fictional coordinate space scaled by 216/168 = 1.2857, and every measurement is wrong by that factor without looking wrong. In one session `GetWindowRect` reported the app's window 1.2857× larger than it was, `PrintWindow` rendered the real window into that oversized bitmap, and the blank margin covered 22% of the frame — which reads exactly like the application failing to paint part of itself, and was reported as a rendering bug before the harness turned out to be the thing at fault.
+
+`scripts/win.ps1` now requests **PerMonitorV2**, which gets true physical coordinates on every monitor, and warns if it could not. **Dot-source it in every PowerShell call, before anything else touches DPI** — process awareness does not persist between tool invocations, and it can only be set once per process, so whoever asks first wins.
 
 ## Trap 3: a window hanging off its monitor silently eats input
 
