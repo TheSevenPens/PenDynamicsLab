@@ -74,12 +74,24 @@ public class BrushSettingsTests
     }
 
     [Fact]
-    public void WidthNeverFallsBelowOneDip()
+    public void WidthFallsToAHairlineButNotToNothing()
     {
-        // A zero-width stroke draws nothing, so the lightest touch would silently skip.
+        // Zero would draw nothing, so the lightest touch would silently skip. The floor exists
+        // for that and nothing else - it must not be thick enough to be a width in its own right.
         var b = BrushSettings.Default with { Size = 100, PressureDrives = PressureControl.Size };
-        Assert.Equal(1f, b.StrokeWidthFor(0.0), 4);
-        Assert.Equal(1f, b.StrokeWidthFor(0.001), 4);
+        Assert.Equal(BrushSettings.MinStrokeWidth, b.StrokeWidthFor(0.0), 4);
+        Assert.Equal(BrushSettings.MinStrokeWidth, b.StrokeWidthFor(0.001), 4);
+        Assert.True(BrushSettings.MinStrokeWidth > 0);
+    }
+
+    [Fact]
+    public void AStrokeCanTaperBelowOneDip()
+    {
+        // The point of removing the old 1 DIP floor: on a 168 dpi display that was 1.75 physical
+        // pixels, so every stroke ended at a visible width instead of fading out.
+        var b = BrushSettings.Default with { Size = 40, PressureDrives = PressureControl.Size };
+        Assert.True(b.StrokeWidthFor(0.02) < 1f);
+        Assert.Equal(0.8f, b.StrokeWidthFor(0.02), 4);
     }
 
     [Fact]
