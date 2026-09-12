@@ -63,6 +63,9 @@ public partial class MainWindow : Window
     // starts rather than as every sample the pen spends down.
     private bool _penWasDown;
 
+    // Raw pen capture, for replaying a stroke later under settings it was never drawn under.
+    private readonly Diagnostics.StrokeRecorder _recorder = new();
+
     // The brush configuration. Drawing reads this record, never the ribbon's controls — the
     // ribbon is a view over it and pushes edits back through SettingsChanged.
     private BrushSettings _brush = BrushSettings.Default;
@@ -175,6 +178,20 @@ public partial class MainWindow : Window
             // Leaving a stroke open across the switch would join the next mark to wherever the
             // pen last was, in whichever mode that happened to be.
             ResetStrokeState();
+        };
+
+        BrushRibbon.RecordChanged += (_, on) =>
+        {
+            if (on)
+            {
+                _recorder.Start();
+                BrushRibbon.SetRecordStatus("recording...");
+                return;
+            }
+
+            BrushRibbon.SetRecordStatus(SaveRecording() is { } path
+                ? Path.GetFileName(path)
+                : "nothing captured");
         };
         BrushRibbon.SettingsChanged += (_, next) => _brush = next;
         BrushRibbon.Settings = _brush;
@@ -1053,6 +1070,36 @@ public partial class MainWindow : Window
         _renderTimer.Start();
     }
 
+    /// <summary>
+    /// Write what the recorder has collected, returning the file path or null.
+    /// </summary>
+    /// <remarks>
+    /// The canvas geometry goes in with it. Desktop coordinates alone are not replayable — where
+    /// the canvas was on screen is what turns them back into canvas-local positions.
+    /// </remarks>
+    private string? SaveRecording()
+    {
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel is null) return null;
+
+        double scale = topLevel.RenderScaling;
+        var clientOrigin = topLevel.PointToScreen(new Point(0, 0));
+
+        var originDip = new Point(0, 0);
+        var sizeDip = new Size(0, 0);
+        _session.TryGetCanvasGeometry(topLevel, out originDip, out sizeDip);
+
+        var originPhysical = new Point(
+            clientOrigin.X + originDip.X * scale,
+            clientOrigin.Y + originDip.Y * scale);
+
+        string api = _apis.Count > 0 && ApiCombo.SelectedIndex >= 0
+            ? _apis[ApiCombo.SelectedIndex].ToString()
+            : "";
+
+        return _recorder.StopAndSave(api, _penSession?.MaxPressure ?? 0, scale, originPhysical, sizeDip);
+    }
+
     private void ResetStrokeState()
     {
         _penWasDown = false;
@@ -1099,6 +1146,8 @@ public partial class MainWindow : Window
 
         foreach (var pt in points)
         {
+            _recorder.Add(pt);
+
             // Determine which sub-canvas the pen is over by translating screen coords into each
             // host's local frame. The host where local Y ∈ [0, height] wins.
             Point clientPt;

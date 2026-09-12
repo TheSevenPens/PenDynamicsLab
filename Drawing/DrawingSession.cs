@@ -150,6 +150,31 @@ public sealed class DrawingSession : IDisposable
     }
 
     /// <summary>
+    /// The visible canvas's offset within <paramref name="topLevel"/> and its size, both in DIPs.
+    /// </summary>
+    /// <remarks>
+    /// For recording: a replay needs to know where the canvas was in order to reconstruct
+    /// canvas-local positions from the desktop coordinates the device reported.
+    /// </remarks>
+    public bool TryGetCanvasGeometry(TopLevel topLevel, out Point originDip, out Size sizeDip)
+    {
+        foreach (var t in _targets)
+        {
+            if (t.Role != CanvasRole.Processed || !t.Host.IsEffectivelyVisible) continue;
+            if (t.Host.Bounds.Width <= 0 || t.Host.Bounds.Height <= 0) continue;
+            if (t.Host.TranslatePoint(new Point(0, 0), topLevel) is not { } o) continue;
+
+            originDip = o;
+            sizeDip = new Size(t.Host.Bounds.Width, t.Host.Bounds.Height);
+            return true;
+        }
+
+        originDip = default;
+        sizeDip = default;
+        return false;
+    }
+
+    /// <summary>
     /// Record which canvas the pen is over, returning true if that is a change.
     /// </summary>
     /// <remarks>

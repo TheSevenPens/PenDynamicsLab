@@ -10,10 +10,21 @@
         <Button x:Name="ClearButton" DockPanel.Dock="Right" Content="Clear canvas"
                 Height="32" Padding="14,0" VerticalAlignment="Center"
                 VerticalContentAlignment="Center" Margin="20,0,0,0" />
+        <!-- Recording sits beside Clear rather than in the settings run: it is a diagnostic
+             control, and docking it reserves its width so the row cannot paint over the button. -->
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8"
+                    VerticalAlignment="Center" Margin="20,0,0,0">
+            <CheckBox x:Name="RecordCheck" Content="Record"
+                      ToolTip.Tip="Capture raw pen samples to a file, for replaying this stroke later under different settings."
+                      Height="32" VerticalAlignment="Center" VerticalContentAlignment="Center" />
+            <TextBlock x:Name="RecordStatus" VerticalAlignment="Center" FontSize="12"
+                       Foreground="{DynamicResource Pdl.Muted}" />
+        </StackPanel>
+
         <!-- ClipToBounds because this is a DockPanel's fill child: it is given whatever width
-             Clear leaves, and a StackPanel that wants more than that paints straight over the
-             button rather than stopping. Clipping turns "too narrow" into a visibly cut-off row
-             instead of two controls occupying the same pixels. -->
+             Clear and Record leave, and a StackPanel that wants more than that paints straight
+             over them rather than stopping. Clipping turns "too narrow" into a visibly cut-off
+             row instead of controls occupying the same pixels. -->
         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="14"
                     ClipToBounds="True">
 
@@ -27,12 +38,12 @@
 
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
                 <TextBlock Text="Color" Classes="fieldLabel" VerticalAlignment="Center" />
-                <ComboBox x:Name="ColorModeCombo" Width="108" Height="32" VerticalAlignment="Center" />
+                <ComboBox x:Name="ColorModeCombo" Width="104" Height="32" VerticalAlignment="Center" />
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
                 <TextBlock Text="Pressure drives" Classes="fieldLabel" VerticalAlignment="Center" />
-                <ComboBox x:Name="PressureControlCombo" Width="108" Height="32" VerticalAlignment="Center" />
+                <ComboBox x:Name="PressureControlCombo" Width="104" Height="32" VerticalAlignment="Center" />
             </StackPanel>
 
             <CheckBox x:Name="DrawZeroPressureCheck" Content="Draw at zero pressure"
