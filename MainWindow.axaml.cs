@@ -201,6 +201,13 @@ public partial class MainWindow : Window
         InitializeResponseSection();
         RebuildUserPresetList();
 
+        // Moving to a monitor with a different scale resizes the window - Avalonia keeps the
+        // DIP size, so the physical size changes - and the new size is not necessarily one the
+        // new monitor's work area can hold. Clamping here does not introduce a resize; it
+        // constrains one Windows is already performing at that instant.
+        ScalingChanged += (_, _) => Dispatcher.UIThread.Post(ClampToWorkArea,
+                                                             DispatcherPriority.Loaded);
+
         Opened += (_, _) =>
         {
             ClampToWorkArea();
@@ -300,9 +307,24 @@ public partial class MainWindow : Window
     /// produced nothing while identical strokes higher up worked.</para>
     /// <para>Only ever shrinks. On a display where the declared size fits, this changes
     /// nothing - it does not override a preferred size, it declines an impossible one.</para>
+    /// <para>Runs at <c>Opened</c> and on every scaling change. The second matters more than
+    /// it sounds: this window opens on the primary display and gets dragged to the one being
+    /// drawn on, and Avalonia preserves the DIP size across the DPI change - so a window that
+    /// fitted a 3840x2052 work area arrives on the next monitor at 2909x1596 against
+    /// 2560x1356. A maximised window fits by definition, so only the restored case is
+    /// affected, but that is the case where the bottom of the canvas quietly stops accepting
+    /// input.</para>
+    /// <para>A move between two monitors of the same scale but different size is not covered,
+    /// deliberately. Catching it would mean clamping on position, which fires continuously
+    /// while the user is dragging the window - resizing it under their cursor, with no
+    /// OS-initiated resize to piggyback on.</para>
     /// </remarks>
     private void ClampToWorkArea()
     {
+        // A maximised window already occupies exactly the work area, and assigning Width or
+        // Height while maximised fights the window manager for no gain.
+        if (WindowState != WindowState.Normal) return;
+
         var screen = Screens.ScreenFromWindow(this) ?? Screens.Primary;
         if (screen is null) return;
 
