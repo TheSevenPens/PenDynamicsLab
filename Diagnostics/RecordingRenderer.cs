@@ -55,7 +55,8 @@ public static class RecordingRenderer
         SmoothingOrder order = SmoothingOrder.SmoothThenCurve,
         BrushSettings? brush = null,
         CoordinateMode coords = CoordinateMode.Exact,
-        double? scale = null)
+        double? scale = null,
+        double positionSmoothing = 0)
     {
         curve ??= PressureCurveParams.Default;
         brush ??= BrushSettings.Default;
@@ -75,6 +76,14 @@ public static class RecordingRenderer
         Point? last = null;
         double lastPressure = 0;
 
+        // Position smoothing, which the app does not have at all: the pipeline filters pressure
+        // and has channels for tilt and twist, but the path is drawn through raw sample positions.
+        // An EMA here is the crudest possible stand-in for the spline fitting a paint program
+        // does, and exists to answer whether the roughness is the pen's jitter being drawn
+        // faithfully - not as a proposal for how to fix it.
+        double smooth = Math.Clamp(positionSmoothing, 0, 0.95);
+        Point? filtered = null;
+
         foreach (var pt in recording.Points)
         {
             double raw = recording.MaxPressure > 0 ? (double)pt.Pressure / recording.MaxPressure : 0;
@@ -83,10 +92,19 @@ public static class RecordingRenderer
             if (raw <= 0)
             {
                 last = null;
+                filtered = null;
                 continue;
             }
 
             var pos = ToCanvas(recording, pt, coords, s);
+
+            if (smooth > 0)
+            {
+                filtered = filtered is { } f
+                    ? new Point(f.X + (pos.X - f.X) * (1 - smooth), f.Y + (pos.Y - f.Y) * (1 - smooth))
+                    : pos;
+                pos = filtered.Value;
+            }
 
             if (last is null)
             {
@@ -136,9 +154,10 @@ public static class RecordingRenderer
         BrushSettings? brush = null,
         CoordinateMode coords = CoordinateMode.Exact,
         double? scale = null,
-        int zoom = 1)
+        int zoom = 1,
+        double positionSmoothing = 0)
     {
-        using var bitmap = Render(recording, curve, order, brush, coords, scale);
+        using var bitmap = Render(recording, curve, order, brush, coords, scale, positionSmoothing);
         using var shown = zoom <= 1 ? null : Magnify(bitmap, zoom);
         using var image = SKImage.FromBitmap(shown ?? bitmap);
         using var data = image.Encode(SKEncodedImageFormat.Png, 100);

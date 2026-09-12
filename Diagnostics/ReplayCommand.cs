@@ -23,6 +23,7 @@ public static class ReplayCommand
           --drives size|opacity      what pressure controls (default size)
           --scale <factor>           override the recorded display scaling
           --zoom <n>                 nearest-neighbour magnification of the output
+          --pos-smooth <0..0.95>     EMA on POSITION, which the app itself has none of
         """;
 
     public static int Run(string[] args)
@@ -35,6 +36,7 @@ public static class ReplayCommand
         var drives = PressureControl.Size;
         double? scale = null;
         int zoom = 1;
+        double posSmooth = 0;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -56,6 +58,7 @@ public static class ReplayCommand
                     break;
                 case "--scale": scale = double.Parse(Next() ?? "0"); break;
                 case "--zoom": zoom = int.Parse(Next() ?? "1"); break;
+                case "--pos-smooth": posSmooth = double.Parse(Next() ?? "0"); break;
             }
         }
 
@@ -76,7 +79,7 @@ public static class ReplayCommand
         var brush = BrushSettings.Default with { Size = size, PressureDrives = drives };
 
         RecordingRenderer.RenderToFile(recording, output, curve,
-            SmoothingOrder.SmoothThenCurve, brush, coords, scale, zoom);
+            SmoothingOrder.SmoothThenCurve, brush, coords, scale, zoom, posSmooth);
 
         Console.WriteLine(
             $"{recording.Points.Count} points, {recording.Duration:F2}s, api={recording.Api}, " +
