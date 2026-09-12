@@ -843,8 +843,37 @@ public partial class MainWindow : Window
         });
         if (file is null) return;
 
-        await using var stream = await file.OpenWriteAsync();
-        await stream.WriteAsync(png);
+        await WritePngAsync(file, stream => stream.WriteAsync(png).AsTask());
+    }
+
+    /// <summary>
+    /// Write to the chosen file and say what happened, in the same place Copy says it.
+    /// </summary>
+    /// <remarks>
+    /// <para>Both save paths used to write and return. A path the process cannot open — a file
+    /// another application holds, a directory it has no permission for — produced no file and
+    /// no message, while copying the same image reported the problem. Both handlers are
+    /// <c>async void</c> event subscriptions, so nothing else in the window saw the exception
+    /// either.</para>
+    /// <para>The stream is disposed inside the <c>try</c>, because that is where the write is
+    /// finished: a buffered write can fail on flush, and a disposal outside would throw past
+    /// the <c>catch</c> that exists to report it.</para>
+    /// </remarks>
+    private async Task WritePngAsync(IStorageFile file, Func<Stream, Task> write)
+    {
+        try
+        {
+            await using (var stream = await file.OpenWriteAsync())
+                await write(stream);
+
+            FlashChartStatus($"Saved {file.Name}");
+        }
+        catch
+        {
+            // The reason is not shown. The label holds one short line beside the chart, and
+            // an exception message is neither short nor written for this reader.
+            FlashChartStatus("Save failed");
+        }
     }
 
     private async Task CopyChartPngAsync<TChart>(TChart chart, bool cropToPlot)
@@ -916,8 +945,7 @@ public partial class MainWindow : Window
         });
         if (file is null) return;
 
-        await using var stream = await file.OpenWriteAsync();
-        surface.SavePng(stream);
+        await WritePngAsync(file, stream => { surface.SavePng(stream); return Task.CompletedTask; });
     }
 
     // ── Driver tip ──────────────────────────────────────────────
