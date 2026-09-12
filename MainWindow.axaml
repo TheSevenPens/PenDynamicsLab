@@ -305,7 +305,12 @@
                                 <StackPanel x:Name="PresetList" Spacing="2" />
                                 <!-- Only shown for a rename; saving generates a name and needs no prompt. -->
                                 <StackPanel x:Name="PresetNameRow" Spacing="4" IsVisible="False">
-                                    <TextBox x:Name="PresetNameInput" Height="32" Watermark="Preset name..." />
+                                    <TextBox x:Name="PresetNameInput" Height="32" Watermark="Preset name..."
+                                             TextChanged="PresetNameInput_TextChanged" />
+                                    <!-- Says why a rename did not happen. Hidden until one does not. -->
+                                    <TextBlock x:Name="PresetNameMessage" IsVisible="False"
+                                               FontSize="12" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource Pdl.AdvisoryInk}" />
                                     <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
                                         <Button x:Name="PresetCancelButton" Content="Cancel"
                                                 Click="PresetCancel_Click" />

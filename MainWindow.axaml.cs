@@ -583,6 +583,7 @@ public partial class MainWindow : Window
     {
         _renamingPreset = name;
         PresetNameRow.IsVisible = true;
+        PresetNameMessage.IsVisible = false;
         PresetSaveButton.IsVisible = false;
         PresetNameInput.Text = name;
         PresetNameInput.SelectAll();
@@ -591,14 +592,50 @@ public partial class MainWindow : Window
 
     private void PresetCancel_Click(object? sender, RoutedEventArgs e) => HidePresetNameRow();
 
+    /// <summary>
+    /// A rename the store refuses leaves the row open with the reason under the box, so the
+    /// name can be corrected. Closing on a refusal is what made the failure look like success:
+    /// the box shut, the list rebuilt, and the old name was still on the preset.
+    /// </summary>
     private void PresetConfirm_Click(object? sender, RoutedEventArgs e)
     {
         var name = PresetNameInput.Text?.Trim() ?? "";
-        if (name.Length > 0 && _renamingPreset is { } original)
-            _presetStore.Rename(original, name);
+        if (_renamingPreset is not { } original) { HidePresetNameRow(); return; }
 
-        HidePresetNameRow();
-        RebuildUserPresetList();
+        switch (_presetStore.Rename(original, name))
+        {
+            case RenameOutcome.Renamed:
+            case RenameOutcome.Unchanged:
+                HidePresetNameRow();
+                RebuildUserPresetList();
+                return;
+
+            case RenameOutcome.NameBlank:
+                ShowPresetNameMessage("A preset needs a name.");
+                return;
+
+            case RenameOutcome.NameTaken:
+                ShowPresetNameMessage($"“{name}” is already the name of another preset.");
+                return;
+
+            // The preset went away between opening this row and confirming — deleted from the
+            // list behind it. Nothing to rename, and nothing the name box can fix.
+            case RenameOutcome.NoSuchPreset:
+                HidePresetNameRow();
+                RebuildUserPresetList();
+                return;
+        }
+    }
+
+    /// <summary>Stale the moment the name changes, so typing clears it.</summary>
+    private void PresetNameInput_TextChanged(object? sender, TextChangedEventArgs e) =>
+        PresetNameMessage.IsVisible = false;
+
+    private void ShowPresetNameMessage(string text)
+    {
+        PresetNameMessage.Text = text;
+        PresetNameMessage.IsVisible = true;
+        PresetNameInput.Focus();
     }
 
     private void HidePresetNameRow()
@@ -607,6 +644,7 @@ public partial class MainWindow : Window
         PresetNameRow.IsVisible = false;
         PresetSaveButton.IsVisible = true;
         PresetNameInput.Text = "";
+        PresetNameMessage.IsVisible = false;
     }
 
     // ── Pressure response section ───────────────────────────────
