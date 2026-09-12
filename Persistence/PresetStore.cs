@@ -8,6 +8,33 @@ namespace PenDynamicsLab.Persistence;
 public sealed record UserPreset(string Name, PressureCurveParams Params);
 
 /// <summary>
+/// What <see cref="PresetStore.Rename"/> did, and when it did nothing, why.
+/// </summary>
+/// <remarks>
+/// A bool cannot carry this. The caller has to tell the three refusals apart to say anything
+/// useful about them, and it has to tell <see cref="Unchanged"/> — a confirmed rename to the
+/// name the preset already has — apart from a refusal, because that one is not a mistake and
+/// the caller should close its name box rather than report an error.
+/// </remarks>
+public enum RenameOutcome
+{
+    /// <summary>The preset now carries the new name, and the file has been written.</summary>
+    Renamed,
+
+    /// <summary>The new name equals the old one. Nothing to do, and nothing wrong.</summary>
+    Unchanged,
+
+    /// <summary>The new name is empty once trimmed.</summary>
+    NameBlank,
+
+    /// <summary>Another preset already has the new name.</summary>
+    NameTaken,
+
+    /// <summary>No preset carries the old name.</summary>
+    NoSuchPreset,
+}
+
+/// <summary>
 /// Persists user-saved curve presets as JSON in
 /// <c>%LOCALAPPDATA%\PenDynamicsLab\presets.json</c>. Mirrors WebPressureExplorer's
 /// localStorage-based preset store.
@@ -81,21 +108,29 @@ public sealed class PresetStore
     }
 
     /// <summary>
-    /// Rename a preset in place, keeping its position in the list. No-ops when the old
-    /// name is unknown, the new name is blank, or the new name is already taken.
+    /// Rename a preset in place, keeping its position in the list. Returns what happened, so a
+    /// caller can report a refusal rather than present one as a rename that took.
     /// </summary>
-    public bool Rename(string oldName, string newName)
+    /// <remarks>
+    /// Names are the identity here — <see cref="Save"/> and <see cref="Get"/> both match on
+    /// them — so two presets may not share one.
+    /// </remarks>
+    public RenameOutcome Rename(string oldName, string newName)
     {
         newName = newName.Trim();
-        if (newName.Length == 0 || newName == oldName) return false;
-        if (_presets.Any(p => p.Name == newName)) return false;
+        if (newName.Length == 0) return RenameOutcome.NameBlank;
 
         int index = _presets.FindIndex(p => p.Name == oldName);
-        if (index < 0) return false;
+        if (index < 0) return RenameOutcome.NoSuchPreset;
+
+        // Checked after the lookup so that confirming the existing name reads as Unchanged
+        // rather than NameTaken. The preset it collides with is itself.
+        if (newName == oldName) return RenameOutcome.Unchanged;
+        if (_presets.Any(p => p.Name == newName)) return RenameOutcome.NameTaken;
 
         _presets[index] = _presets[index] with { Name = newName };
         Persist();
-        return true;
+        return RenameOutcome.Renamed;
     }
 
     /// <summary>
