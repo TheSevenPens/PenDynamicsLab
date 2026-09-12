@@ -1,0 +1,67 @@
+name: Build
+
+# Nothing verified pull requests to this repo before this workflow existed - only a
+# tag-triggered release build. Every PR was merged on the strength of a local build.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      # This repo does not build alone. It has ProjectReferences into the sibling WinPenKit
+      # checkout, and links its reference stroke from there, so both have to be laid out as
+      # siblings exactly as they are on a development machine.
+      - uses: actions/checkout@v4
+        with:
+          path: PenDynamicsLab
+
+      # Tracks WinPenKit's main rather than pinning a ref. That means a breaking change there
+      # surfaces here, which is the honest reflection of the coupling: the two repos ship
+      # together and a green build against a stale pin would be worth less than it looks.
+      - uses: actions/checkout@v4
+        with:
+          repository: TheSevenPens/WinPenKit
+          path: WinPenKit
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: 'preview'
+
+      - name: Build
+        working-directory: PenDynamicsLab
+        run: dotnet build PenDynamicsLab.slnx -c Release
+
+      - name: Test
+        working-directory: PenDynamicsLab
+        run: dotnet test PenDynamicsLab.slnx -c Release --no-build
+
+      # The acceptance checks, as a gate rather than something to remember to run. Levels 0
+      # and 1 cover the environment and the drawing surface; levels 2 and 3 replay a recorded
+      # stroke through the coordinate conversion. None of it needs a tablet or a person, which
+      # is the whole reason it can live here.
+      #
+      # It does need a window: every level 1 check is about a surface that does not exist
+      # until the first layout pass. A hosted runner's desktop is 1024x768, far smaller than
+      # the window's declared size - which is exactly what the work-area clamp is for, so this
+      # step also exercises that on hardware no developer here has.
+      - name: Self-test
+        working-directory: PenDynamicsLab
+        run: |
+          $exe = Get-ChildItem -Recurse -Filter PenDynamicsLab.exe bin/Release | Select-Object -First 1
+          if (-not $exe) { throw "PenDynamicsLab.exe not found" }
+
+          # Start-Process -Wait, not the call operator. This is a GUI subsystem binary, so
+          # PowerShell does not wait for it and $LASTEXITCODE comes back empty - a gate that
+          # would silently pass no matter what the checks reported. Redirecting stdout is the
+          # price of waiting: the report has to be read back from the file to reach the log.
+          $out = Join-Path $env:RUNNER_TEMP 'selftest.txt'
+          $proc = Start-Process -FilePath $exe.FullName -ArgumentList '--selftest' `
+                                -Wait -PassThru -RedirectStandardOutput $out
+          if (Test-Path $out) { Get-Content $out }
+          if ($proc.ExitCode -ne 0) { throw "self-test failed with exit code $($proc.ExitCode)" }
