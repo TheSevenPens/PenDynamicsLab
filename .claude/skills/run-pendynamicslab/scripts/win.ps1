@@ -12,6 +12,9 @@ public class W {
   [DllImport("user32.dll")] public static extern void mouse_event(uint f,int dx,int dy,uint d,IntPtr e);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
   [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+  [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr c);
+  [DllImport("user32.dll")] public static extern IntPtr GetThreadDpiAwarenessContext();
+  [DllImport("user32.dll")] public static extern uint GetAwarenessFromDpiAwarenessContext(IntPtr c);
   [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr h);
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
   [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h,IntPtr a,int x,int y,int cx,int cy,uint f);
@@ -20,7 +23,30 @@ public class W {
   [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X,Y; }
 }
 "@
-[void][W]::SetProcessDPIAware()
+# Per-monitor-v2, not SetProcessDPIAware.
+#
+# SetProcessDPIAware asks for SYSTEM awareness, which is only correct while the window is on a
+# monitor running at the system DPI. On any other monitor Windows hands a system-aware process
+# virtualized coordinates - a fictional screen space scaled by systemDpi/monitorDpi - and every
+# measurement taken here is wrong by that factor without looking wrong.
+#
+# It cost real time to find. On a 168 dpi panel beside two 216 dpi ones, GetWindowRect reported
+# the app's window 1.2857x larger than it was, so PrintWindow rendered the real window into an
+# oversized bitmap and left blank margins covering 22% of the frame. That reads exactly like the
+# application failing to paint part of itself, and was reported as such before the harness turned
+# out to be the thing at fault.
+#
+# PerMonitorV2 (context -4) gets true physical coordinates on every monitor. Process DPI awareness
+# can only be set once, so this must run before anything else asks for it.
+if (-not [W]::SetProcessDpiAwarenessContext([IntPtr](-4))) {
+  # Already set by the host process, or too old to know the call. Fall back, then verify.
+  [void][W]::SetProcessDPIAware()
+}
+$script:DpiAwareness = [W]::GetAwarenessFromDpiAwarenessContext([W]::GetThreadDpiAwarenessContext())
+if ($script:DpiAwareness -ne 2) {
+  Write-Warning ("win.ps1: DPI awareness is {0} (2 = per-monitor). Coordinates and captures will " -f $script:DpiAwareness +
+                 "be wrong on any monitor whose DPI differs from the system DPI.")
+}
 
 function Get-AppHwnd { param($ProcName='PenDynamicsLab')
   $p = Get-Process -Name $ProcName -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
