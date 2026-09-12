@@ -203,6 +203,8 @@ public partial class MainWindow : Window
 
         Opened += (_, _) =>
         {
+            ClampToWorkArea();
+
             // WM_POINTER subclassing doesn't receive events in Avalonia.
             var apiList = PenSessionFactory.GetAvailableApis()
                 .Where(a => a != InputApi.WmPointer).ToList();
@@ -282,6 +284,52 @@ public partial class MainWindow : Window
     /// Read the scaling every time — it changes when the window is dragged to a monitor with
     /// different DPI, and no Bounds change fires for that.
     /// </remarks>
+    /// <summary>
+    /// Shrinks and nudges the window so its whole frame sits inside the monitor's work area.
+    /// </summary>
+    /// <remarks>
+    /// <para>The declared size is in DIPs, so its physical height is multiplied by the display
+    /// scale - and a size that is comfortable at 1x does not necessarily exist at 2.25x. 900
+    /// DIPs is 2025px on a 4K display against a 2052px work area, and 1575px on the 1440p one
+    /// against 1356px, where it simply cannot fit.</para>
+    /// <para>This is not cosmetic. Pen input is delivered by absolute screen position, so a
+    /// window region below the work area receives nothing at all - no points, no telemetry, no
+    /// error. The app keeps running and painting and the lower canvas just does not draw,
+    /// which reads as a bug in whatever is being tested rather than as a placement problem.
+    /// That cost real time earlier: strokes in the bottom 162px of a badly placed window
+    /// produced nothing while identical strokes higher up worked.</para>
+    /// <para>Only ever shrinks. On a display where the declared size fits, this changes
+    /// nothing - it does not override a preferred size, it declines an impossible one.</para>
+    /// </remarks>
+    private void ClampToWorkArea()
+    {
+        var screen = Screens.ScreenFromWindow(this) ?? Screens.Primary;
+        if (screen is null) return;
+
+        var work = screen.WorkingArea;          // physical pixels
+        double scale = screen.Scaling;
+        if (scale <= 0 || double.IsNaN(scale)) scale = 1;
+
+        // Decorations count: the work area has to hold the frame, not just the client area.
+        var frame = FrameSize ?? new Size(Width, Height);
+        double chromeW = Math.Max(0, frame.Width - Width);
+        double chromeH = Math.Max(0, frame.Height - Height);
+
+        double maxW = work.Width / scale - chromeW;
+        double maxH = work.Height / scale - chromeH;
+
+        if (Width > maxW) Width = maxW;
+        if (Height > maxH) Height = maxH;
+
+        // Then bring it fully inside. Shrinking a window whose top-left is already low enough
+        // leaves it overhanging, so the size alone is not enough.
+        int wPx = (int)Math.Ceiling((Width + chromeW) * scale);
+        int hPx = (int)Math.Ceiling((Height + chromeH) * scale);
+        Position = new PixelPoint(
+            Math.Clamp(Position.X, work.X, Math.Max(work.X, work.Right - wPx)),
+            Math.Clamp(Position.Y, work.Y, Math.Max(work.Y, work.Bottom - hPx)));
+    }
+
     private void EnsureSurfaces() => _session.EnsureSurfaces(RenderScaling);
 
     /// <summary>
