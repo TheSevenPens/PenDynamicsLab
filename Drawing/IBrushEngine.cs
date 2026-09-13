@@ -29,6 +29,31 @@ namespace PenDynamicsLab.Drawing;
 /// </remarks>
 public interface IBrushEngine : IDisposable
 {
+    /// <summary>A stroke is starting. Clear anything carried between segments.</summary>
+    /// <remarks>
+    /// <para>
+    /// <see cref="RoundBrushEngine"/> carries nothing and does nothing here. An engine that places
+    /// marks by accumulated distance or elapsed time does, and without this its accumulator would
+    /// run on from the previous stroke -- every mark after the first would land in the wrong place,
+    /// for the rest of the session.
+    /// </para>
+    /// <para>
+    /// <b>State must be kept per <see cref="PressureChannel"/>, not per engine.</b> One gesture
+    /// draws both surfaces through the same engine instance, alternating: processed, raw,
+    /// processed, raw. A single accumulator would be advanced by both streams and describe
+    /// neither. This method resets every channel, because a stroke begins for all of them at once
+    /// -- it is the per-mark <c>channel</c> argument that separates them, not this.
+    /// </para>
+    /// </remarks>
+    void BeginStroke();
+
+    /// <summary>The stroke has ended. Nothing further will be drawn until the next one begins.</summary>
+    /// <remarks>
+    /// Separate from <see cref="BeginStroke"/> so an engine that defers work -- compositing a
+    /// stroke into its own layer, say -- has somewhere to finish it. See issue 68.
+    /// </remarks>
+    void EndStroke();
+
     /// <summary>Draw from <paramref name="from"/> to <paramref name="to"/> on the canvas.</summary>
     /// <param name="brush">
     /// The settings in force for this stroke. <see cref="BrushSettings.StrokeWidthFor"/> and
@@ -69,6 +94,16 @@ public sealed class RoundBrushEngine : IBrushEngine
     };
 
     private readonly SKPath _path = new();
+
+    /// <summary>Nothing to reset: every mark is decided by the two samples it is drawn from.</summary>
+    /// <remarks>
+    /// Empty on purpose rather than absent. That this engine needs no per-stroke state is a
+    /// property of a swept taper, not of brush engines, and the next one will need both.
+    /// </remarks>
+    public void BeginStroke() { }
+
+    /// <inheritdoc cref="BeginStroke"/>
+    public void EndStroke() { }
 
     public void DrawSegment(SKCanvas canvas, in StrokeSample from, in StrokeSample to,
         BrushSettings brush, SKColor color, PressureChannel channel)

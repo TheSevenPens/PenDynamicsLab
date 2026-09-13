@@ -195,7 +195,11 @@ public sealed class DrawingSession : IDisposable
     {
         if (over is not { } role || role == _active) return false;
         _active = role;
-        _lastSample = null;
+
+        // Crossing to the other canvas ends the segment, and the next sample starts a new stroke.
+        // The engine has to be told, or it would be given a second BeginStroke with no end between
+        // them and carry the first stroke's state into the second.
+        CloseEngineStroke();
         return true;
     }
 
@@ -220,6 +224,7 @@ public sealed class DrawingSession : IDisposable
         {
             PickStrokeColor(brush.ColorMode);
             History.BeginStroke(brush, _strokeColor);
+            _engine.BeginStroke();
         }
 
         // Built once, and used for both the history and the engine. The two used to be assembled
@@ -281,10 +286,26 @@ public sealed class DrawingSession : IDisposable
         else _processedDirty = true;
     }
 
+    /// <summary>
+    /// Close the engine's stroke, if one is open, and forget the previous sample.
+    /// </summary>
+    /// <remarks>
+    /// Guarded, so <see cref="IBrushEngine.BeginStroke"/> and <see cref="IBrushEngine.EndStroke"/>
+    /// arrive strictly in pairs. Without the guard a hovering pen would emit an unmatched end on
+    /// every sample -- <see cref="AddSample"/> ends the stroke whenever pressure is zero, and a
+    /// pen resting above the tablet reports that at the device's full rate.
+    /// </remarks>
+    private void CloseEngineStroke()
+    {
+        if (_lastSample is null) return;
+        _lastSample = null;
+        _engine.EndStroke();
+    }
+
     /// <summary>End the segment in progress without clearing anything that was drawn.</summary>
     public void EndStroke()
     {
-        _lastSample = null;
+        CloseEngineStroke();
         History.EndStroke();
 
         // Bake anything the cap pushed out into the baseline before losing the samples.
@@ -319,6 +340,9 @@ public sealed class DrawingSession : IDisposable
             // Samples are in DIPs; the baseline is physical pixels, same as the surface it mirrors.
             canvas.Scale((float)surface.Scale);
 
+            // Bracketed like any other stroke. A stateful engine replaying one must start from
+            // nothing, or the baseline would be drawn with whatever the live canvas left behind.
+            _engine.BeginStroke();
             var samples = stroke.Samples;
             for (int i = 1; i < samples.Count; i++)
             {
@@ -326,6 +350,7 @@ public sealed class DrawingSession : IDisposable
                 _engine.DrawSegment(canvas, samples[i - 1], samples[i],
                                     stroke.Brush, stroke.Color, channel);
             }
+            _engine.EndStroke();
         }
     }
 
@@ -358,7 +383,7 @@ public sealed class DrawingSession : IDisposable
     public void ResetStroke()
     {
         _active = null;
-        _lastSample = null;
+        CloseEngineStroke();
         History.EndStroke();
     }
 
@@ -401,6 +426,11 @@ public sealed class DrawingSession : IDisposable
         if (stroke.ParamsVersion != History.ParamsVersion && recompute is not null)
             stroke.RecacheOutputs(recompute(stroke), History.ParamsVersion);
 
+        // One pair of brackets for the stroke, not one per surface. Both channels are drawn from
+        // the same gesture and begin together; the per-mark channel argument is what keeps their
+        // state apart inside the engine.
+        _engine.BeginStroke();
+
         var samples = stroke.Samples;
         for (int i = 1; i < samples.Count; i++)
         {
@@ -413,6 +443,8 @@ public sealed class DrawingSession : IDisposable
             if (Raw.Canvas is { } rc)
                 _engine.DrawSegment(rc, prev, s, stroke.Brush, stroke.Color, PressureChannel.Raw);
         }
+
+        _engine.EndStroke();
     }
 
     private void PickStrokeColor(ColorMode mode)
