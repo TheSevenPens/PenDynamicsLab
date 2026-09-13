@@ -27,7 +27,10 @@ public class StrokeRecorderContextTests
         new(DesktopX: x, DesktopY: 0, RawX: 0, RawY: 0, Pressure: pressure,
             Azimuth: 0, Altitude: 0, Twist: 0, TiltX: 0, TiltY: 0, Z: 0,
             Status: 0, Buttons: 0, Cursor: PenCursorType.PenTip,
-            Source: InputApi.WintabDigitizer);
+            Source: InputApi.WintabDigitizer,
+            // These tests are about what a recording carries with it, not about time. A
+            // constant keeps every sample identical on that axis.
+            TimestampMicroseconds: 0);
 
     private static StrokeRecording SaveAndRead(StrokeRecorder r)
     {
