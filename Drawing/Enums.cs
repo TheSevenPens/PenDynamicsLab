@@ -15,6 +15,30 @@ public enum ColorMode
     Random,
 }
 
+/// <summary>Which of a sample's two pressures a mark is being drawn from.</summary>
+/// <remarks>
+/// <para>
+/// One gesture draws two surfaces: the processed one takes the pipeline's output, the raw one
+/// takes the untouched device reading, and comparing them is the point of the application. Both
+/// values live on the same <see cref="StrokeSample"/>, so anything handed a sample has to be told
+/// which of them applies.
+/// </para>
+/// <para>
+/// This exists because <see cref="IBrushEngine"/> now receives samples rather than a width that
+/// was computed for it. The choice could have been made by passing the selected pressure
+/// alongside the sample, which would have put the reduction back one field later and left the
+/// engine unable to see anything else the sample carries.
+/// </para>
+/// </remarks>
+public enum PressureChannel
+{
+    /// <summary>The pipeline's output. Drives the processed surface.</summary>
+    Processed,
+
+    /// <summary>The device reading, before any curve or smoothing. Drives the raw surface.</summary>
+    Raw,
+}
+
 /// <summary>Which property of the mark the pressure signal drives.</summary>
 public enum PressureControl
 {

@@ -73,8 +73,9 @@ public static class RecordingRenderer
         using var engine = new RoundBrushEngine();
         var pipeline = new DynamicsPipeline();
 
-        Point? last = null;
-        double lastPressure = 0;
+        // The whole previous sample rather than its position and pressure separately, because
+        // the engine is handed both endpoints and decides the mark itself.
+        StrokeSample? last = null;
 
         // Position smoothing, which the app does not have at all: the pipeline filters pressure
         // and has channels for tilt and twist, but the path is drawn through raw sample positions.
@@ -106,23 +107,28 @@ public static class RecordingRenderer
                 pos = filtered.Value;
             }
 
+            // Everything the recording carries about this point, not only what the taper engine
+            // happens to need. The orientation and the pen's own clock are both recorded and both
+            // reach an engine that wants them.
+            var sample = new StrokeSample(
+                pos,
+                raw,
+                new PenOrientation(pt.Azimuth, pt.Altitude, pt.Twist, pt.TiltX, pt.TiltY),
+                result.Output,
+                pt.PenTimeUs);
+
             if (last is null)
             {
-                last = pos;
-                lastPressure = result.Output;
+                last = sample;
                 continue;
             }
 
+            // Only the processed channel is drawn here. This renders what the pipeline produced,
+            // which is the question it exists to answer; the raw comparison is the live canvas's job.
             if (brush.DrawAtZeroPressure || result.Output > 0)
-            {
-                engine.DrawSegment(canvas, last.Value, pos, Ink,
-                    brush.StrokeWidthFor(lastPressure),
-                    brush.StrokeWidthFor(result.Output),
-                    brush.OpacityFor(result.Output));
-            }
+                engine.DrawSegment(canvas, last.Value, sample, brush, Ink, PressureChannel.Processed);
 
-            last = pos;
-            lastPressure = result.Output;
+            last = sample;
         }
 
         return bitmap;
