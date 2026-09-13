@@ -72,8 +72,15 @@ public sealed class StrokeHistory
         => _current = new Stroke(brush, color, ParamsVersion);
 
     /// <summary>Record one sample into the stroke in progress, if there is one.</summary>
-    public void AddSample(Point position, double rawPressure, PenOrientation orientation, double processedPressure)
-        => _current?.Add(new StrokeSample(position, rawPressure, orientation, processedPressure));
+    /// <param name="timestampMicroseconds">
+    /// The pen's own clock. Defaulted so that callers with no pen point -- tests, and the test
+    /// pattern -- need not invent one; zero then means the same thing it means everywhere else,
+    /// which is that no clock was reported.
+    /// </param>
+    public void AddSample(Point position, double rawPressure, PenOrientation orientation,
+                          double processedPressure, long timestampMicroseconds = 0)
+        => _current?.Add(new StrokeSample(position, rawPressure, orientation, processedPressure,
+                                          timestampMicroseconds));
 
     /// <summary>
     /// Finish the stroke in progress and keep it, unless it never got a sample.

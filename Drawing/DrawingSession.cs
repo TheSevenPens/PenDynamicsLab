@@ -194,7 +194,8 @@ public sealed class DrawingSession : IDisposable
     /// <summary>Add one pen sample to the stroke in progress, starting one if needed.</summary>
     /// <param name="rawPressure">Pressure before the pipeline, which drives the raw surface.</param>
     /// <param name="processedPressure">The pipeline's output, which drives the processed surface.</param>
-    public void AddSample(Point pos, double rawPressure, double processedPressure, BrushSettings brush, PenOrientation orientation = default)
+    public void AddSample(Point pos, double rawPressure, double processedPressure, BrushSettings brush,
+                          PenOrientation orientation = default, long timestampMicroseconds = 0)
     {
         if (rawPressure <= 0)
         {
@@ -219,7 +220,7 @@ public sealed class DrawingSession : IDisposable
             _lastProcessedPressure = processedPressure;
         }
 
-        History.AddSample(pos, rawPressure, orientation, processedPressure);
+        History.AddSample(pos, rawPressure, orientation, processedPressure, timestampMicroseconds);
 
         if (_lastDrawPos is { } from)
         {

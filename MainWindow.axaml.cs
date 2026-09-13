@@ -1315,7 +1315,12 @@ public partial class MainWindow : Window
             ? _apis[ApiCombo.SelectedIndex].ToString()
             : "";
 
-        return new RecordingContext(api, _penSession?.MaxPressure ?? 0, scale, originPhysical, sizeDip);
+        // Named at capture rather than at save, for the reason StrokeRecorder.Start documents:
+        // the pen API can change while a recording is running, and the clock changes with it.
+        string timestampSource = _penSession?.Conventions.Timestamp.ToString() ?? "";
+
+        return new RecordingContext(api, _penSession?.MaxPressure ?? 0, scale, originPhysical, sizeDip,
+                                    timestampSource);
     }
 
     private string? SaveRecording() => _recorder.StopAndSave();
@@ -1487,7 +1492,8 @@ public partial class MainWindow : Window
             }
 
             _session.AddSample(localPt, rawPressure, pipeline.Output, _brush,
-                new PenOrientation(pt.Azimuth, pt.Altitude, pt.Twist, pt.TiltX, pt.TiltY));
+                new PenOrientation(pt.Azimuth, pt.Altitude, pt.Twist, pt.TiltX, pt.TiltY),
+                pt.TimestampMicroseconds);
         }
 
         _session.PresentDirty();

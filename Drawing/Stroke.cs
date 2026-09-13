@@ -39,11 +39,23 @@ public readonly record struct PenOrientation(
 /// </para>
 /// </remarks>
 /// <param name="Position">Canvas-local position in DIPs.</param>
+/// <param name="TimestampMicroseconds">
+/// The pen's own clock, as <c>PenPoint.TimestampMicroseconds</c> reported it. Differences are the
+/// contract; the origin is unspecified and differs by backend. Zero when the backend supplied no
+/// clock, which means none was reported rather than that no time passed.
+/// </param>
+/// <remarks>
+/// Nothing consumes the timestamp yet. It is carried because a brush engine that places marks by
+/// elapsed time -- libmypaint's <c>stroke_to</c> takes a <c>dtime</c>, and three of its nine
+/// dynamic inputs are derived from it -- cannot be given one after the fact if the sample never
+/// held it. See PenDynamicsLab issue 64.
+/// </remarks>
 public readonly record struct StrokeSample(
     Point Position,
     double RawPressure,
     PenOrientation Orientation,
-    double ProcessedPressure);
+    double ProcessedPressure,
+    long TimestampMicroseconds = 0);
 
 /// <summary>
 /// One stroke: the samples, and the state that was in force while it was drawn.

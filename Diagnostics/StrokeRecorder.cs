@@ -21,7 +21,8 @@ namespace PenDynamicsLab.Diagnostics;
 public sealed class StrokeRecorder
 {
     private readonly List<RecordedPoint> _points = [];
-    private DateTime _start;
+    private DateTime? _start;
+    private long _penOrigin;
     private RecordingContext _context;
 
     /// <summary>Whether samples are currently being collected.</summary>
@@ -48,18 +49,33 @@ public sealed class StrokeRecorder
     public void Start(RecordingContext context)
     {
         _points.Clear();
-        _start = DateTime.UtcNow;
+        _start = null;                // both origins come from the first sample, not from here
+        _penOrigin = long.MinValue;
         _context = context;
         IsRecording = true;
     }
 
     /// <summary>Add one sample, if recording.</summary>
+    /// <remarks>
+    /// Both clocks are zeroed on the first sample that arrives rather than on <see cref="Start"/>.
+    /// Arming the recorder and then reaching for the pen used to put that wait into the tick
+    /// column -- a recording started 26 seconds before first contact opened at T=26.28 while the
+    /// pen column opened at 0. <see cref="StrokeRecording.Duration"/> subtracted it out and so
+    /// never showed it, but the two columns could not be compared against each other, which is
+    /// the only reason to keep both.
+    /// </remarks>
     public void Add(PenPoint pt)
     {
         if (!IsRecording) return;
 
+        if (_start is null)
+        {
+            _start = DateTime.UtcNow;
+            _penOrigin = pt.TimestampMicroseconds;
+        }
+
         _points.Add(new RecordedPoint(
-            T: (DateTime.UtcNow - _start).TotalSeconds,
+            T: (DateTime.UtcNow - _start.Value).TotalSeconds,
             DesktopX: pt.DesktopX,
             DesktopY: pt.DesktopY,
             Pressure: pt.Pressure,
@@ -67,7 +83,8 @@ public sealed class StrokeRecorder
             Altitude: pt.Altitude,
             Twist: pt.Twist,
             TiltX: pt.TiltX,
-            TiltY: pt.TiltY));
+            TiltY: pt.TiltY,
+            PenTimeUs: pt.TimestampMicroseconds - _penOrigin));
     }
 
     /// <summary>
@@ -82,6 +99,7 @@ public sealed class StrokeRecorder
         var recording = new StrokeRecording
         {
             Api = _context.Api,
+            TimestampSource = _context.TimestampSource,
             MaxPressure = _context.MaxPressure,
             RenderScaling = _context.RenderScaling,
             CanvasOriginX = _context.CanvasOriginPhysical.X,
@@ -92,10 +110,30 @@ public sealed class StrokeRecorder
         };
 
         Directory.CreateDirectory(Folder);
-        string path = Path.Combine(Folder, $"stroke-{DateTime.Now:yyyyMMdd-HHmmss}.json");
+        string path = NextFreePath();
         recording.Save(path);
 
         _points.Clear();
+        return path;
+    }
+
+    /// <summary>
+    /// A path in <see cref="Folder"/> that no file occupies yet.
+    /// </summary>
+    /// <remarks>
+    /// The name used to be the timestamp alone, to the second. Two recordings saved inside the
+    /// same second then landed on one path, and the second one overwrote the first with no error
+    /// and no sign that anything had been lost — stop, start, stop is quick enough to do by hand.
+    /// The suffix only appears when it is needed, so the ordinary case reads as it always did.
+    /// </remarks>
+    private static string NextFreePath()
+    {
+        string stem = Path.Combine(Folder, $"stroke-{DateTime.Now:yyyyMMdd-HHmmss}");
+        string path = stem + ".json";
+
+        for (int n = 2; File.Exists(path); n++)
+            path = $"{stem}-{n}.json";
+
         return path;
     }
 }
@@ -114,4 +152,5 @@ public readonly record struct RecordingContext(
     int MaxPressure,
     double RenderScaling,
     Point CanvasOriginPhysical,
-    Size CanvasSizeDip);
+    Size CanvasSizeDip,
+    string TimestampSource = "");
