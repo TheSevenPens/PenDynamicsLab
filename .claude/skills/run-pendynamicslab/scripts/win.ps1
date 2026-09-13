@@ -19,8 +19,17 @@ public class W {
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
   [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h,IntPtr a,int x,int y,int cx,int cy,uint f);
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h,int nCmdShow);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern bool EnumDisplaySettingsW(string dev, int mode, ref DEVMODE dm);
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L,T,R,B; }
   [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X,Y; }
+  [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)] public struct DEVMODE {
+    [MarshalAs(UnmanagedType.ByValTStr, SizeConst=32)] public string dmDeviceName;
+    public ushort dmSpecVersion, dmDriverVersion, dmSize, dmDriverExtra; public uint dmFields;
+    public int dmPositionX, dmPositionY; public uint dmDisplayOrientation, dmDisplayFixedOutput;
+    public short dmColor, dmDuplex, dmYResolution, dmTTOption, dmCollate;
+    [MarshalAs(UnmanagedType.ByValTStr, SizeConst=32)] public string dmFormName;
+    public ushort dmLogPixels; public uint dmBitsPerPel, dmPelsWidth, dmPelsHeight,
+    dmDisplayFlags, dmDisplayFrequency; }
 }
 "@
 # Per-monitor-v2, not SetProcessDPIAware.
@@ -185,4 +194,34 @@ function Set-WindowDrawable { param([IntPtr]$Hwnd)
            $after.Monitor,$after.WorkLeft,$after.WorkTop,$after.WorkRight,$after.WorkBottom)
   }
   return $after
+}
+
+function Get-MonitorModes {
+  # True device modes, in real physical pixels, whatever this process's DPI awareness is.
+  #
+  # Use this and not Get-Geom or EnumDisplayMonitors when the question is "where is monitor X".
+  # Those answer in the caller's coordinate space, which on this machine is system-aware and
+  # therefore fiction on any monitor that is not running at the system DPI - see Trap 2. This
+  # reads each display device's own mode, which no coordinate virtualization touches.
+  #
+  # Device names are scanned rather than enumerated: EnumDisplayDevices wants a NULL first
+  # argument and PowerShell marshals $null into an empty string, which that API rejects.
+  # Scanning needs no such argument.
+  $out = @()
+  foreach ($i in 1..16) {
+    $dev = "\\.\DISPLAY$i"
+    $dm = New-Object W+DEVMODE
+    $dm.dmSize = [System.Runtime.InteropServices.Marshal]::SizeOf($dm)
+    # -1 = ENUM_CURRENT_SETTINGS. Fails for a device number nothing is attached to.
+    if (-not [W]::EnumDisplaySettingsW($dev, -1, [ref]$dm)) { continue }
+    if ($dm.dmPelsWidth -eq 0) { continue }
+    $out += [pscustomobject]@{
+      Device = $dev
+      Width  = [int]$dm.dmPelsWidth
+      Height = [int]$dm.dmPelsHeight
+      X      = $dm.dmPositionX
+      Y      = $dm.dmPositionY
+    }
+  }
+  return $out
 }

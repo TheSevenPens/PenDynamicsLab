@@ -1,6 +1,6 @@
 ---
 name: run-pendynamicslab
-description: Launch and drive the PenDynamicsLab app on Windows to verify a change visually — capture the window, click its chrome, and draw real strokes on the canvas via synthetic pen injection. Use this whenever you need to see the app actually working rather than trusting tests or reading code: screenshotting the UI, checking a theme or layout change, reproducing a drawing/canvas/DrawSurface bug, testing tab switching or window resizing, or confirming anything about how a stroke renders. Reach for it even if the request just says "run the app", "show me", "does this actually work", or "check it on screen" — driving this app has two non-obvious traps (synthetic mouse input is silently ignored on the canvas, and PowerShell defaults to DPI-unaware coordinates) that will waste a lot of time if rediscovered.
+description: Launch and drive the PenDynamicsLab app on Windows to verify a change visually — capture the window, click its chrome, and draw real strokes on the canvas via synthetic pen injection. Use this whenever you need to see the app actually working rather than trusting tests or reading code: screenshotting the UI, checking a theme or layout change, reproducing a drawing/canvas/DrawSurface bug, testing tab switching or window resizing, or confirming anything about how a stroke renders. Reach for it even if the request just says "run the app", "show me", "does this actually work", or "check it on screen" — driving this app has two non-obvious traps (synthetic mouse input is silently ignored on the canvas, and PowerShell cannot be made per-monitor DPI aware, so its coordinates are fiction on any monitor not running at the system DPI) that will waste a lot of time if rediscovered.
 ---
 
 # Running and driving PenDynamicsLab
@@ -38,7 +38,40 @@ secondary   (2151,2160)–(4711,3600) 168 dpi  (1.75x)
 
 System DPI is 216, so on the 168 dpi panel a system-aware process is handed a fictional coordinate space scaled by 216/168 = 1.2857, and every measurement is wrong by that factor without looking wrong. In one session `GetWindowRect` reported the app's window 1.2857× larger than it was, `PrintWindow` rendered the real window into that oversized bitmap, and the blank margin covered 22% of the frame — which reads exactly like the application failing to paint part of itself, and was reported as a rendering bug before the harness turned out to be the thing at fault.
 
-`scripts/win.ps1` now requests **PerMonitorV2**, which gets true physical coordinates on every monitor, and warns if it could not. **Dot-source it in every PowerShell call, before anything else touches DPI** — process awareness does not persist between tool invocations, and it can only be set once per process, so whoever asks first wins.
+`scripts/win.ps1` requests **PerMonitorV2** on load and warns if it could not. **Dot-source it in every PowerShell call** — process awareness does not persist between tool invocations.
+
+### The request is always refused, so plan for system awareness
+
+Asking first does not win. PowerShell 7 sets its own DPI awareness before the first line of your script runs, and awareness can only be set once per process, so `SetProcessDpiAwarenessContext(PERMONITORAWARE_V2)` returns **False with `GetLastError` 5 (ERROR_ACCESS_DENIED)** and `GetThreadDpiAwarenessContext` stays `SYSTEM_AWARE`. The warning fires on every single run. Treat it as a standing condition, not a problem to solve.
+
+What that means in practice, measured on this machine:
+
+| | real device mode | what a system-aware PowerShell sees |
+| --- | --- | --- |
+| PRIMARY | 3840x2160 at 0,0 | 3840x2160 at 0,0 — correct |
+| secondary 4K | 3840x2160 at 3840,0 | 3840x2160 at **4937,0** — size right, origin wrong |
+| Wacom DTH246 | **2560x1440** at 2151,2160 | **3291x1851** at **2766,2777** — both wrong |
+
+So coordinates are exact on the primary monitor and fiction everywhere else, which is why this trap keeps looking like an application bug.
+
+### Three things that work anyway
+
+**True monitor geometry: `Get-MonitorModes`.** It reads each display's own device mode through `EnumDisplaySettings`, which no coordinate virtualization touches, and returns real physical size and position:
+
+```
+Device       Width Height    X    Y
+\\.\DISPLAY1  3840   2160    0    0
+\\.\DISPLAY2  3840   2160 3840    0
+\\.\DISPLAY3  2560   1440 2151 2160
+```
+
+`GetMonitorInfo` and `EnumDisplayMonitors` answer in the caller's coordinate space instead, which is the table above only for the primary monitor.
+
+`Get-Geom`'s `Scale` is trustworthy even when its rect is not — it comes from `GetDpiForWindow`, which is per-window and exact. A window reporting `Scale : 1.75` is on the 168 dpi panel whatever its coordinates claim, which makes it a cheap way to confirm which monitor a window ended up on.
+
+**Putting a window on a particular monitor: pick the monitor, then let Windows place it.** The virtualized space is self-consistent *per monitor*, so a point inside a monitor's virtualized bounds really is on that monitor. Use that to choose, never to compute a rect. Nudge the window into the target monitor's virtualized bounds, then call `Set-WindowDrawable`, which maximizes — and the window manager computes a maximize in true per-monitor coordinates. Hand-rolled `MoveWindow` with a computed rect lands off the monitor on anything but the primary; that is how two attempts to put Scribble.Qt on the Wacom ended up overhanging it.
+
+**Asking the application where it is.** Every Scribble sample and PenDynamicsLab is PerMonitorV2, so `--selftest` prints `L0.window-placement` in true physical coordinates. When the harness and the application disagree, the application is right.
 
 ## Trap 3: a window hanging off its monitor silently eats input
 
