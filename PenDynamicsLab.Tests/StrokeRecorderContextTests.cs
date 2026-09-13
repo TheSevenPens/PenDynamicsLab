@@ -14,7 +14,14 @@ namespace PenDynamicsLab.Tests;
 /// mid-recording then wrote the new session's <see cref="StrokeRecording.MaxPressure"/> over
 /// samples scaled to the old device's range, so every replayed pressure came out wrong;
 /// changing tab wrote the visible pane's geometry over points drawn on another.
+/// <para>
+/// Shares a collection with the other recorder tests so the two classes do not run at the same
+/// time. They write into one folder and the file name is a timestamp, so concurrent saves race
+/// for a path. That is a fact about this test harness, not about the recorder: the application
+/// has one recorder on one thread, and nothing here claims it is safe to share.
+/// </para>
 /// </remarks>
+[Collection("StrokeRecorder files")]
 public class StrokeRecorderContextTests
 {
     private static readonly RecordingContext Wintab =
