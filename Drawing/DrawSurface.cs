@@ -76,7 +76,43 @@ public sealed class DrawSurface : IDisposable
     {
         if (_hosts.Contains(host)) return;
         _hosts.Add(host);
+
+        // The presentation bitmap is allocated for hosts, so a surface that had none until now
+        // has not made one yet. Sizing already happened or it has not; either way this host gets
+        // pointed at a bitmap if there is anything to point it at.
+        EnsurePresentationBitmap();
         if (_avBitmap != null) ApplyToHost(host);
+    }
+
+    /// <summary>
+    /// Create the Avalonia bitmap the hosts display, if there is a drawing surface to show and
+    /// anything to show it in.
+    /// </summary>
+    /// <remarks>
+    /// Separate from the SkiaSharp bitmap because the two exist for different reasons. The Skia
+    /// one is where marks are drawn and is always needed; this one only carries those pixels to
+    /// the screen, so a surface with no host never needs it — which is also what makes the
+    /// drawing session testable without a windowing platform behind it.
+    /// </remarks>
+    private void EnsurePresentationBitmap()
+    {
+        if (_hosts.Count == 0 || _skBitmap == null) return;
+        if (_avBitmap != null && _avBitmap.PixelSize.Width == Width
+                              && _avBitmap.PixelSize.Height == Height) return;
+
+        var old = _avBitmap;
+
+        _avBitmap = new WriteableBitmap(
+            new PixelSize(Width, Height),
+            new Vector(96, 96),
+            global::Avalonia.Platform.PixelFormat.Bgra8888,
+            global::Avalonia.Platform.AlphaFormat.Premul);
+
+        // Hosts still point at the old bitmap until ApplyToHost runs, so the dispose has to wait
+        // until after they have been repointed.
+        CopyToAvBitmap();
+        foreach (var host in _hosts) ApplyToHost(host);
+        old?.Dispose();
     }
 
     /// <summary>
@@ -177,23 +213,11 @@ public sealed class DrawSurface : IDisposable
         // the whole host. Leaving it at 96 keeps Bitmap.Size == PixelSize, so the full
         // bitmap is the source; the DIP size is carried by the hosts' explicit
         // Width/Height instead. See ApplyToHost.
-        // Dispose the outgoing bitmap rather than letting the GC find it. The managed
-        // wrapper is tiny and the backing store is unmanaged, so the collector sees
-        // almost no pressure while the real footprint is whatever w * h * 4 was — and
-        // a resize drag reallocates on every mouse move.
-        var oldAvBitmap = _avBitmap;
-
-        _avBitmap = new WriteableBitmap(
-            new PixelSize(w, h),
-            new Vector(96, 96),
-            global::Avalonia.Platform.PixelFormat.Bgra8888,
-            global::Avalonia.Platform.AlphaFormat.Premul);
-
-        // Hosts still point at the old bitmap until ApplyToHost runs below, so the
-        // dispose has to wait until after they have been repointed.
-        CopyToAvBitmap();
-        foreach (var host in _hosts) ApplyToHost(host);
-        oldAvBitmap?.Dispose();
+        // Disposes the outgoing bitmap rather than letting the GC find it. The managed wrapper
+        // is tiny and the backing store is unmanaged, so the collector sees almost no pressure
+        // while the real footprint is whatever w * h * 4 was — and a resize drag reallocates on
+        // every mouse move.
+        EnsurePresentationBitmap();
     }
 
     /// <summary>

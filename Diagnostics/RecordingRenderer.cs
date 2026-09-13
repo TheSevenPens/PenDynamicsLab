@@ -71,6 +71,9 @@ public static class RecordingRenderer
         canvas.Scale((float)s);
 
         using var engine = new RoundBrushEngine();
+        // A recording is one stroke as far as an engine is concerned. Bracketing it matters for
+        // any engine carrying state between segments, even though this one carries none.
+        engine.BeginStroke();
         var pipeline = new DynamicsPipeline();
 
         // The whole previous sample rather than its position and pressure separately, because
@@ -131,6 +134,7 @@ public static class RecordingRenderer
             last = sample;
         }
 
+        engine.EndStroke();
         return bitmap;
     }
 
