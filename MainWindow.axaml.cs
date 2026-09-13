@@ -43,6 +43,16 @@ public partial class MainWindow : Window
     // Owns the surfaces, the hit-testing, the stroke colour, and the brush engine. The window
     // drains points and runs the charts; it does not know what an SKPaint is.
     private readonly DrawingSession _session;
+
+    /// <summary>
+    /// The Paint tab's document. Its own session, its own history, its own undo stack -- see
+    /// issue 72. Nothing here is shared with <see cref="_session"/> but the pen input and the
+    /// dynamics pipeline that shapes it.
+    /// </summary>
+    private readonly PenDynamicsLab.Paint.PaintSession _paint;
+
+    /// <summary>Whether the document has been fitted to the viewport since the tab first showed.</summary>
+    private bool _paintFitted;
     private readonly DispatcherTimer _renderTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
 
     private IReadOnlyList<InputApi> _apis = [];
@@ -105,6 +115,25 @@ public partial class MainWindow : Window
             new CanvasTarget(CompareProcessedView.Host, CompareProcessedView.Image, CanvasRole.Processed),
             new CanvasTarget(CompareRawView.Host, CompareRawView.Image, CanvasRole.Raw),
         ]);
+
+        // A document has a size of its own. 1500 x 1000 is a working area rather than a decision
+        // about what a document should be; nothing depends on the number, and it is the first
+        // thing a document-properties dialog would take over.
+        _paint = new PenDynamicsLab.Paint.PaintSession(1500, 1000);
+        PaintView.Session = _paint;
+        PaintView.UndoRequested += (_, _) => { _paint.Undo(); PaintView.Invalidate(); };
+        PaintView.ClearRequested += (_, _) => { _paint.Clear(); PaintView.Invalidate(); };
+
+        // Fitted the first time the tab is shown rather than at construction, because the viewport
+        // has no size until it has been laid out and fitting to nothing would leave the document
+        // off-screen at whatever zoom the clamp allowed.
+        PaintView.Host.PropertyChanged += (_, e) =>
+        {
+            if (e.Property.Name != "Bounds") return;
+            if (_paintFitted || PaintView.Host.Bounds.Width <= 0) return;
+            _paintFitted = true;
+            PaintView.Fit();
+        };
 
         // Resize bitmaps to follow whichever host is currently visible (the active tab's).
         StrokeView.Host.PropertyChanged += (_, e) =>
@@ -1385,6 +1414,12 @@ public partial class MainWindow : Window
 
     private void RenderTimer_Tick(object? sender, EventArgs e)
     {
+        // Before every early return below. The Paint viewport has to repaint for reasons that have
+        // nothing to do with pen input -- a zoom, a pan, the first layout pass -- and the rest of
+        // this method returns as soon as there are no points to drain. It costs a comparison when
+        // nothing has changed.
+        PaintView.PresentIfNeeded();
+
         if (_penSession == null) return;
 
         var points = _penSession.DrainPoints();
@@ -1473,6 +1508,39 @@ public partial class MainWindow : Window
             ResponseChart.LiveRawPressure = pipeline.Raw;
             ResponseChart.LivePressure = pipeline.PreCurve;
 
+            // Paint is a mode rather than a third simultaneous surface. While its tab is showing,
+            // samples go to the document and the stroke surfaces are left alone -- drawing to all
+            // three every sample would cost two renders nobody is looking at, and would tangle the
+            // two-surface loop the stroke tabs depend on.
+            if (PaintTab.IsSelected)
+            {
+                _session.EndStroke();
+
+                if (!PaintView.Host.IsEffectivelyVisible ||
+                    PaintView.Host.TranslatePoint(new Point(0, 0), topLevel) is not { } paintOrigin)
+                {
+                    _paint.EndStroke();
+                    continue;
+                }
+
+                var inPaint = new Point(clientPt.X - paintOrigin.X, clientPt.Y - paintOrigin.Y);
+                if (!PaintView.HitTest(inPaint))
+                {
+                    _paint.EndStroke();
+                    continue;
+                }
+
+                // Mapped here, at the edge, and read live. Everything below this point works in
+                // document coordinates and knows nothing about zoom or pan, which is what makes a
+                // stroke the same set of document positions whatever the view was doing while it
+                // was drawn.
+                var (docX, docY) = PaintView.ToDocument(inPaint);
+                _paint.AddSample(docX, docY, rawPressure, pipeline.Output, _brush,
+                    new PenOrientation(pt.Azimuth, pt.Altitude, pt.Twist, pt.TiltX, pt.TiltY),
+                    pt.TimestampMicroseconds);
+                continue;
+            }
+
             // Drawing requires the pen to be over a stroke canvas.
             if (over is null)
             {
@@ -1497,6 +1565,7 @@ public partial class MainWindow : Window
         }
 
         _session.PresentDirty();
+        PaintView.PresentIfNeeded();
 
         _lastPointTime = DateTime.UtcNow;
     }

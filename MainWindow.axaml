@@ -423,6 +423,14 @@
                         <controls:PressureResponseChartControl x:Name="ResponseChart" />
                     </DockPanel>
                 </TabItem>
+
+                <!-- Paint is deliberately not more features on the stroke tabs. Those verify the
+                     basics and their value comes from having few variables; this one has a
+                     document with a size of its own behind a viewport, its own history, and no
+                     raw comparison. See issue 72. -->
+                <TabItem x:Name="PaintTab" Header="Paint">
+                    <controls:PaintCanvasView x:Name="PaintView" />
+                </TabItem>
                 </TabControl>
             </DockPanel>
         </Grid>
