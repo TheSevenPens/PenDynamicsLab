@@ -79,8 +79,16 @@ public sealed class StrokeHistory
     /// </param>
     public void AddSample(Point position, double rawPressure, PenOrientation orientation,
                           double processedPressure, long timestampMicroseconds = 0)
-        => _current?.Add(new StrokeSample(position, rawPressure, orientation, processedPressure,
-                                          timestampMicroseconds));
+        => AddSample(new StrokeSample(position, rawPressure, orientation, processedPressure,
+                                      timestampMicroseconds));
+
+    /// <summary>Record one sample into the stroke in progress, if there is one.</summary>
+    /// <remarks>
+    /// The overload a caller that already holds a sample should use. <c>DrawingSession</c> builds
+    /// one per pen point to hand to the brush engine, and building a second here from the same
+    /// values would be two objects that have to agree.
+    /// </remarks>
+    public void AddSample(in StrokeSample sample) => _current?.Add(sample);
 
     /// <summary>
     /// Finish the stroke in progress and keep it, unless it never got a sample.

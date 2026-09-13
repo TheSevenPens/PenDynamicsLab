@@ -62,11 +62,19 @@ public sealed class DrawingSession : IDisposable
     private int _lastColorIndex = -1;
 
     private CanvasRole? _active;
-    private Point? _lastDrawPos;
+    /// <summary>
+    /// The previous sample of the segment in progress, and the flag for whether there is one.
+    /// Null between strokes and after the pen crosses to the other canvas.
+    /// </summary>
+    /// <remarks>
+    /// This used to be the previous position alone, with the two pressures beside it in their own
+    /// fields. Keeping the whole sample means the engine can be handed both endpoints, which is
+    /// what lets it decide the mark for itself rather than being told a width.
+    /// </remarks>
+    private StrokeSample? _lastSample;
 
     // The pressures the previous sample was drawn at. A segment needs the width at both of its
     // ends to taper, and only one of them belongs to the sample now arriving.
-    private double _lastRawPressure, _lastProcessedPressure;
     private bool _processedDirty, _rawDirty;
 
     /// <summary>
@@ -187,7 +195,7 @@ public sealed class DrawingSession : IDisposable
     {
         if (over is not { } role || role == _active) return false;
         _active = role;
-        _lastDrawPos = null;
+        _lastSample = null;
         return true;
     }
 
@@ -208,43 +216,38 @@ public sealed class DrawingSession : IDisposable
         // missed the common case — hovering over the canvas consumes the change at zero pressure,
         // so pressing down afterwards never picked a colour and every stroke stayed the initial
         // black.
-        if (_lastDrawPos is null)
+        if (_lastSample is null)
         {
             PickStrokeColor(brush.ColorMode);
             History.BeginStroke(brush, _strokeColor);
-
-            // No predecessor to ramp from. Seeding with this sample's own pressure makes the
-            // first segment start at the width it ends at, rather than opening from the width
-            // the previous stroke happened to finish on.
-            _lastRawPressure = rawPressure;
-            _lastProcessedPressure = processedPressure;
         }
 
-        History.AddSample(pos, rawPressure, orientation, processedPressure, timestampMicroseconds);
+        // Built once, and used for both the history and the engine. The two used to be assembled
+        // separately from the same arguments, which is two objects that have to agree.
+        var sample = new StrokeSample(pos, rawPressure, orientation, processedPressure,
+                                      timestampMicroseconds);
+        History.AddSample(sample);
 
-        if (_lastDrawPos is { } from)
+        // No predecessor to ramp from on the first sample of a stroke, so the segment is skipped
+        // entirely -- there is nothing to draw from. The width the previous stroke finished on
+        // never enters this one, because the previous sample is cleared when a stroke ends.
+        if (_lastSample is { } from)
         {
             // Both surfaces are drawn on every segment. The processed one takes the pipeline
             // output; the raw one takes unprocessed pressure, which is the comparison.
             if (Processed.Canvas is { } pc && (brush.DrawAtZeroPressure || processedPressure > 0))
             {
-                _engine.DrawSegment(pc, from, pos, _strokeColor,
-                    brush.StrokeWidthFor(_lastProcessedPressure), brush.StrokeWidthFor(processedPressure),
-                    brush.OpacityFor(processedPressure));
+                _engine.DrawSegment(pc, from, sample, brush, _strokeColor, PressureChannel.Processed);
                 _processedDirty = true;
             }
             if (Raw.Canvas is { } rc)
             {
-                _engine.DrawSegment(rc, from, pos, _strokeColor,
-                    brush.StrokeWidthFor(_lastRawPressure), brush.StrokeWidthFor(rawPressure),
-                    brush.OpacityFor(rawPressure));
+                _engine.DrawSegment(rc, from, sample, brush, _strokeColor, PressureChannel.Raw);
                 _rawDirty = true;
             }
         }
 
-        _lastDrawPos = pos;
-        _lastRawPressure = rawPressure;
-        _lastProcessedPressure = processedPressure;
+        _lastSample = sample;
     }
 
     /// <summary>
@@ -281,7 +284,7 @@ public sealed class DrawingSession : IDisposable
     /// <summary>End the segment in progress without clearing anything that was drawn.</summary>
     public void EndStroke()
     {
-        _lastDrawPos = null;
+        _lastSample = null;
         History.EndStroke();
 
         // Bake anything the cap pushed out into the baseline before losing the samples.
@@ -291,10 +294,10 @@ public sealed class DrawingSession : IDisposable
     /// <summary>Render an evicted stroke into the baseline so undo can still restore it.</summary>
     private void BakeIntoBaseline(Stroke stroke)
     {
-        Bake(Processed, ref _processedBaseline, s => s.ProcessedPressure);
-        Bake(Raw, ref _rawBaseline, s => s.RawPressure);
+        Bake(Processed, ref _processedBaseline, PressureChannel.Processed);
+        Bake(Raw, ref _rawBaseline, PressureChannel.Raw);
 
-        void Bake(DrawSurface surface, ref SKBitmap? baseline, Func<StrokeSample, double> pressure)
+        void Bake(DrawSurface surface, ref SKBitmap? baseline, PressureChannel channel)
         {
             if (surface.Width <= 0 || surface.Height <= 0) return;
 
@@ -319,12 +322,9 @@ public sealed class DrawingSession : IDisposable
             var samples = stroke.Samples;
             for (int i = 1; i < samples.Count; i++)
             {
-                double p = pressure(samples[i]);
-                if (!stroke.Brush.DrawAtZeroPressure && p <= 0) continue;
-                _engine.DrawSegment(canvas, samples[i - 1].Position, samples[i].Position, stroke.Color,
-                    stroke.Brush.StrokeWidthFor(pressure(samples[i - 1])),
-                    stroke.Brush.StrokeWidthFor(p),
-                    stroke.Brush.OpacityFor(p));
+                if (!stroke.Brush.DrawAtZeroPressure && samples[i].PressureFor(channel) <= 0) continue;
+                _engine.DrawSegment(canvas, samples[i - 1], samples[i],
+                                    stroke.Brush, stroke.Color, channel);
             }
         }
     }
@@ -358,7 +358,7 @@ public sealed class DrawingSession : IDisposable
     public void ResetStroke()
     {
         _active = null;
-        _lastDrawPos = null;
+        _lastSample = null;
         History.EndStroke();
     }
 
@@ -404,25 +404,14 @@ public sealed class DrawingSession : IDisposable
         var samples = stroke.Samples;
         for (int i = 1; i < samples.Count; i++)
         {
-            var from = samples[i - 1].Position;
-            var to = samples[i].Position;
-            var s = samples[i];
             var prev = samples[i - 1];
+            var s = samples[i];
 
             if (Processed.Canvas is { } pc && (stroke.Brush.DrawAtZeroPressure || s.ProcessedPressure > 0))
-            {
-                _engine.DrawSegment(pc, from, to, stroke.Color,
-                    stroke.Brush.StrokeWidthFor(prev.ProcessedPressure),
-                    stroke.Brush.StrokeWidthFor(s.ProcessedPressure),
-                    stroke.Brush.OpacityFor(s.ProcessedPressure));
-            }
+                _engine.DrawSegment(pc, prev, s, stroke.Brush, stroke.Color, PressureChannel.Processed);
+
             if (Raw.Canvas is { } rc)
-            {
-                _engine.DrawSegment(rc, from, to, stroke.Color,
-                    stroke.Brush.StrokeWidthFor(prev.RawPressure),
-                    stroke.Brush.StrokeWidthFor(s.RawPressure),
-                    stroke.Brush.OpacityFor(s.RawPressure));
-            }
+                _engine.DrawSegment(rc, prev, s, stroke.Brush, stroke.Color, PressureChannel.Raw);
         }
     }
 

@@ -14,6 +14,15 @@ namespace PenDynamicsLab.Drawing;
 /// filling a taper, and nothing above it needs to know.
 /// </para>
 /// <para>
+/// <b>Engines receive samples, not geometry.</b> The width and opacity a mark is drawn at are
+/// computed here rather than by the caller, because an engine that places marks by distance or by
+/// elapsed time needs the things a width has already thrown away. A dab engine needs pressure per
+/// dab, since spacing depends on dab size which depends on pressure; anything driven by time needs
+/// <see cref="StrokeSample.TimestampMicroseconds"/>; libmypaint wants tilt and barrel rotation and
+/// decides radius itself. A caller that reduced pressure to a number first would foreclose all of
+/// that, which is what this interface used to do.
+/// </para>
+/// <para>
 /// Coordinates are DIPs. <c>DrawSurface</c>'s canvas transform converts to physical pixels, and
 /// is the only place that knows the display scaling.
 /// </para>
@@ -21,11 +30,17 @@ namespace PenDynamicsLab.Drawing;
 public interface IBrushEngine : IDisposable
 {
     /// <summary>Draw from <paramref name="from"/> to <paramref name="to"/> on the canvas.</summary>
-    /// <param name="widthFrom">Width in DIPs at the start of the segment.</param>
-    /// <param name="widthTo">Width in DIPs at the end of the segment.</param>
-    /// <param name="opacity">0-1; applied to <paramref name="color"/>'s alpha.</param>
-    void DrawSegment(SKCanvas canvas, Point from, Point to, SKColor color,
-        float widthFrom, float widthTo, float opacity);
+    /// <param name="brush">
+    /// The settings in force for this stroke. <see cref="BrushSettings.StrokeWidthFor"/> and
+    /// <see cref="BrushSettings.OpacityFor"/> turn a pressure into a mark, and it is the engine's
+    /// business when and how often to call them.
+    /// </param>
+    /// <param name="channel">
+    /// Which of the two pressures on the samples applies. One gesture draws both surfaces, so the
+    /// sample alone does not say.
+    /// </param>
+    void DrawSegment(SKCanvas canvas, in StrokeSample from, in StrokeSample to,
+        BrushSettings brush, SKColor color, PressureChannel channel);
 }
 
 /// <summary>An antialiased taper between two round ends.</summary>
@@ -55,15 +70,26 @@ public sealed class RoundBrushEngine : IBrushEngine
 
     private readonly SKPath _path = new();
 
-    public void DrawSegment(SKCanvas canvas, Point from, Point to, SKColor color,
-        float widthFrom, float widthTo, float opacity)
+    public void DrawSegment(SKCanvas canvas, in StrokeSample from, in StrokeSample to,
+        BrushSettings brush, SKColor color, PressureChannel channel)
     {
-        byte alpha = (byte)Math.Clamp(opacity * 255, 0, 255);
+        // The reduction the caller used to perform. Doing it here changes nothing about the mark
+        // and is the whole point of the interface taking samples: an engine that wanted pressure
+        // per dab rather than per segment could call these as often as it liked.
+        double pressureFrom = from.PressureFor(channel);
+        double pressureTo = to.PressureFor(channel);
+
+        float widthFrom = brush.StrokeWidthFor(pressureFrom);
+        float widthTo = brush.StrokeWidthFor(pressureTo);
+
+        // Opacity comes from the end of the segment, as it always has. A taper has one alpha for
+        // the whole filled path, so there is nothing to ramp it across.
+        byte alpha = (byte)Math.Clamp(brush.OpacityFor(pressureTo) * 255, 0, 255);
         _paint.Color = color.WithAlpha(alpha);
 
         BuildTaper(_path,
-            new SKPoint((float)from.X, (float)from.Y), widthFrom / 2f,
-            new SKPoint((float)to.X, (float)to.Y), widthTo / 2f);
+            new SKPoint((float)from.Position.X, (float)from.Position.Y), widthFrom / 2f,
+            new SKPoint((float)to.Position.X, (float)to.Position.Y), widthTo / 2f);
 
         canvas.DrawPath(_path, _paint);
     }

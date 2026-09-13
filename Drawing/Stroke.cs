@@ -55,7 +55,12 @@ public readonly record struct StrokeSample(
     double RawPressure,
     PenOrientation Orientation,
     double ProcessedPressure,
-    long TimestampMicroseconds = 0);
+    long TimestampMicroseconds = 0)
+{
+    /// <summary>Whichever of the two pressures <paramref name="channel"/> names.</summary>
+    public double PressureFor(PressureChannel channel) =>
+        channel == PressureChannel.Raw ? RawPressure : ProcessedPressure;
+}
 
 /// <summary>
 /// One stroke: the samples, and the state that was in force while it was drawn.
