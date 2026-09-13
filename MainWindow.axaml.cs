@@ -1540,7 +1540,15 @@ public partial class MainWindow : Window
         ApplyProximity(inRange: true);
         CursorLabel.Text = pt.Cursor.ToString();
 
-        RawPosLabel.Text = $"{pt.RawX}, {pt.RawY}";
+        // RawX means a different thing on each backend -- tablet units, screen pixels,
+        // hundredths of a millimetre -- and on the Avalonia, WPF and WinUI paths it means
+        // nothing at all, so the session is asked and the unit travels with the reading.
+        // Printing the pair alone was readable as a position in the same space as Screen,
+        // which it is not, and would now print "0, 0" for a value that does not exist.
+        var rawUnits = _penSession?.Conventions.RawUnits ?? PenRawUnits.None;
+        RawPosLabel.Text = rawUnits == PenRawUnits.None
+            ? "--"
+            : $"{pt.RawX}, {pt.RawY} ({rawUnits.Label()})";
         // A readout has to resolve finer than one device pixel, or it cannot show the fault
         // it exists to show. F0 resolves 1.0 at every display scale, which is never finer
         // than a device pixel, so a quantized coordinate and a good one print the same.
