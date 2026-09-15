@@ -16,20 +16,20 @@ jobs:
 
     steps:
       - name: Check out PenDynamicsLab
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: PenDynamicsLab
 
       # The csproj references ../WinPenKit/WinPenKit/*.csproj — clone it as a
       # sibling so ProjectReferences resolve.
       - name: Check out WinPenKit (sibling)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: TheSevenPens/WinPenKit
           path: WinPenKit
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
 
