@@ -16,19 +16,19 @@ jobs:
       # This repo does not build alone. It has ProjectReferences into the sibling WinPenKit
       # checkout, and links its reference stroke from there, so both have to be laid out as
       # siblings exactly as they are on a development machine.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           path: PenDynamicsLab
 
       # Tracks WinPenKit's main rather than pinning a ref. That means a breaking change there
       # surfaces here, which is the honest reflection of the coupling: the two repos ship
       # together and a green build against a stale pin would be worth less than it looks.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: TheSevenPens/WinPenKit
           path: WinPenKit
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
           dotnet-quality: 'preview'
