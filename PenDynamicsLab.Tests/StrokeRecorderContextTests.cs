@@ -52,7 +52,7 @@ public class StrokeRecorderContextTests
     {
         var r = new StrokeRecorder();
         r.Start(Wintab);
-        r.Add(Sample(10, 4096));
+        r.Add(Sample(10, 4096), 6_200);
 
         var saved = SaveAndRead(r);
 
@@ -71,11 +71,11 @@ public class StrokeRecorderContextTests
         // changes, and it takes the samples with it.
         var r = new StrokeRecorder();
         r.Start(Wintab);
-        r.Add(Sample(10, 4096));
-        r.Add(Sample(11, 4097));
+        r.Add(Sample(10, 4096), 12_400);
+        r.Add(Sample(11, 4097), 18_600);
 
         r.Start(Pointer);
-        r.Add(Sample(20, 512));
+        r.Add(Sample(20, 512), 24_800);
 
         var saved = SaveAndRead(r);
 
@@ -99,7 +99,7 @@ public class StrokeRecorderContextTests
     public void Samples_are_ignored_unless_recording()
     {
         var r = new StrokeRecorder();
-        r.Add(Sample(10, 4096));
+        r.Add(Sample(10, 4096), 31_000);
 
         Assert.Equal(0, r.Count);
     }

@@ -7,6 +7,10 @@ using Avalonia.Threading;
 using System.Linq;
 using WinPenKit;
 using WinPenKit.Avalonia;
+// Aliased rather than imported whole: StrokeKit.Strokes has a Stroke and so does
+// PenDynamicsLab.Drawing, and they are different things. Deciding which one this
+// application means is part of adopting the kit properly, and is not this change.
+using Draining = StrokeKit.Strokes.Draining;
 using PenDynamicsLab.Controls;
 using PenDynamicsLab.Curves;
 using PenDynamicsLab.Diagnostics;
@@ -66,6 +70,14 @@ public partial class MainWindow : Window
 
     // Raw pen capture, for replaying a stroke later under settings it was never drawn under.
     private readonly Diagnostics.StrokeRecorder _recorder = new();
+
+    /// <summary>Takes a batch off the session and stamps when it was taken.</summary>
+    /// <remarks>
+    /// StrokeKit's, rather than a DrainPoints call and a clock read of this window's own. The
+    /// part that is easy to get subtly wrong -- when a batch is stamped, and whether every
+    /// reading in one shares that stamp -- is checked there without a tablet or a window.
+    /// </remarks>
+    private readonly Draining _draining = new();
 
     // The brush configuration. Drawing reads this record, never the ribbon's controls — the
     // ribbon is a view over it and pushes edits back through SettingsChanged.
@@ -1387,8 +1399,14 @@ public partial class MainWindow : Window
     {
         if (_penSession == null) return;
 
-        var points = _penSession.DrainPoints();
-        if (points.Length == 0)
+        // Through StrokeKit rather than DrainPoints directly: Draining takes the batch and
+        // stamps it on the line after, before anything here is given the chance to run. The
+        // whole batch carries one arrival, which is what makes two packets that came over
+        // together comparable by equality.
+        var batch = _draining.Took(_penSession);
+        var points = batch.Points;
+
+        if (points.Count == 0)
         {
             if ((DateTime.UtcNow - _lastPointTime).TotalMilliseconds > 200)
             {
@@ -1410,7 +1428,7 @@ public partial class MainWindow : Window
 
         foreach (var pt in points)
         {
-            _recorder.Add(pt);
+            _recorder.Add(pt, batch.Arrived);
 
             // Determine which sub-canvas the pen is over by translating screen coords into each
             // host's local frame. The host where local Y ∈ [0, height] wins.

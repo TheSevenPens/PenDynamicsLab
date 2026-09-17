@@ -72,24 +72,38 @@ Nor do the controls: `CurveEditorView`, the three chart controls, `BrushRibbon`,
 raw-versus-processed comparison. Nor `PressureChannel` — one gesture drawing two surfaces
 through one engine — which the kit has no notion of at all.
 
-## The one real gain
+## Done: the batch clock
 
-**This application has no host clock.** It records `PenPoint.TimestampMicroseconds` and nothing
-else (`Diagnostics/StrokeRecorder.cs`), so every interval it reports is on the pen's own clock.
+**A correction first.** An earlier draft of this file said this application had no host clock.
+That was wrong. `StrokeRecorder` has always written two columns — `T` from
+`DateTime.UtcNow` and `PenTimeUs` from the pen — and its own remarks say the two existing
+to be compared against each other is the only reason to keep both.
 
-On the hardware StrokeFieldGuide measured, that clock is a **packet counter rather than a
-clock**: it advances a flat 4.166 ms per packet delivered, runs at 0.673 of real time, and
-resynchronises at every contact transition. A single clock cannot tell "the device stopped
-sending" from "the device stamped late", and five explanations for a gap in recorded data died
-on that before a second clock existed.
+A second guess was also wrong: that `DateTime.UtcNow` would be too coarse. Measured on this
+machine, both it and `Stopwatch` report a median step of **1 microsecond**. Resolution was
+never the difference.
 
-`Draining` stamps each drained batch on a monotonic host clock, and hands over the packets and
-the converted readings together. Adopting it would give this application the distinction it
-currently cannot make — which matters more here than anywhere, because this is the one that
-exists to measure dynamics.
+What was actually wrong is narrower and worse. `Add` read the wall clock **once per sample,
+from inside the loop over a drained batch**. Packets the driver handed over in a single
+`DrainPoints()` call were therefore stamped microseconds apart — and what separated them was
+how long this application took to convert coordinates and draw the preceding ones. The column
+conflated when the pen reported with what the program was doing at the time, in an instrument
+whose subject is timing.
 
-It is also the smallest self-contained migration of the four, which makes it the obvious first
-one.
+The tick now drains through `Draining`, which stamps the batch on the line after taking it and
+before anything here runs. `Add` is given that arrival rather than reading a clock, so every
+sample from one poll carries the same `T` exactly. It is also monotonic, which a wall clock is
+not — that, rather than resolution, is the second reason to prefer it.
+
+`One_batch_is_one_tick_time` pins it, and was watched failing against the old behaviour before
+being trusted. An existing test, `Both_columns_open_at_zero_on_the_first_sample`, fails against
+it too: it used to pass because two `UtcNow` reads a line apart are nearly equal, and now
+passes because the first sample's `T` is exactly zero.
+
+**One thing this turned up for later.** `StrokeKit.Strokes` has a `Stroke` and so does
+`PenDynamicsLab.Drawing`, and they are different things. `Draining` is aliased rather than the
+namespace imported, to avoid deciding which one this application means. Deciding that is part
+of adopting the kit properly.
 
 ## Where the kit is pinned
 
