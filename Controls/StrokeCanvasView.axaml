@@ -36,7 +36,7 @@
 
                  DragPans is off and the view stays at 1:1: this is a bench showing a stroke
                  at its true size, not a document to navigate. -->
-            <kit:SurfaceView x:Name="CanvasSurface" DragPans="False" />
+            <kit:SurfaceView x:Name="CanvasSurface" DragPans="False" KeepsCentre="False" />
         </Border>
     </DockPanel>
 </UserControl>

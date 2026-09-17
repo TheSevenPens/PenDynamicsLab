@@ -128,6 +128,25 @@ public sealed class DrawingSession : IDisposable
 
     private static void Wipe(Surface? art) => art?.Canvas.Clear(Paper);
 
+    /// <summary>
+    /// Puts a surface's canvas into this application's units.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A StrokeKit surface draws in pixels.</b> Its logical size is metadata for the view
+    /// that presents it, not a transform on its canvas -- which is right for a kit that has
+    /// consumers in both units, and is the opposite of what DrawSurface did. Everything here
+    /// is in DIPs, from the samples to the brush engine, so the transform has to be applied
+    /// once per surface, here, where the convention is.
+    /// </para>
+    /// <para>
+    /// Missing it does not fail: it draws everything at 1/scale of the distance from the
+    /// origin, so a mark is correct in the top-left corner and drifts further from the pen the
+    /// further out it goes. That is what it did.
+    /// </para>
+    /// </remarks>
+    private static void InDips(Surface art, double scale) => art.Canvas.Scale((float)scale);
+
     /// <summary>Hands a role's surface to every view that shows it.</summary>
     /// <remarks>
     /// Two views can show one surface: the Stroke tab and the Compare tab are both Processed,
@@ -192,33 +211,80 @@ public sealed class DrawingSession : IDisposable
         if (wide <= 0 || high <= 0) return;
 
         var art = SurfaceFor(role);
+        var was = ScaleOf(role);
 
-        if (art is null)
+        // A change of scale reallocates whatever the pixel count says, and it may say fewer.
+        // The surface's canvas carries the transform that puts this application's DIPs into
+        // its pixels, so a surface made at one scale and presented at another draws every mark
+        // short or long by the ratio -- correct at the origin and drifting further out the
+        // further it goes. Moving the window to a display with different scaling does it.
+        if (art is not null && scale != was)
         {
-            art = Surface.CreateExactly(wide, high, wide / scale, high / scale);
-        }
-        else if (wide > art.PixelWidth || high > art.PixelHeight)
-        {
-            var grown = art.Grown(wide, high, wide / scale, high / scale);
+            var moved = Surface.CreateExactly(wide, high, wide / scale, high / scale);
 
-            // Shown before the old one goes: a view holding a disposed surface would render
-            // from freed memory on its next frame.
-            if (role == CanvasRole.Raw) Raw = grown; else Processed = grown;
+            InDips(moved, scale);
 
-            Showing(role, grown);
+            // The old content at the size it looked, not the pixels it occupied: it was drawn
+            // in DIPs and should stay where those DIPs are.
+            using (var image = art.Snapshot())
+            {
+                moved.Canvas.Save();
+                moved.Canvas.ResetMatrix();
+                moved.Canvas.DrawImage(image,
+                    new SKRect(0, 0, (float)(art.PixelWidth * scale / was),
+                                     (float)(art.PixelHeight * scale / was)));
+                moved.Canvas.Restore();
+            }
+
+            Remember(role, moved, scale);
+            Showing(role, moved);
             art.Dispose();
 
             return;
         }
-        else
+
+        if (art is null)
         {
+            var made = Surface.CreateExactly(wide, high, wide / scale, high / scale);
+
+            InDips(made, scale);
+            Remember(role, made, scale);
+            Showing(role, made);
+
             return;
         }
 
-        if (role == CanvasRole.Raw) Raw = art; else Processed = art;
+        if (wide <= art.PixelWidth && high <= art.PixelHeight) return;
 
-        Showing(role, art);
+        var grown = art.Grown(wide, high, wide / scale, high / scale);
+
+        // After the blit, which Grown does in pixels.
+        InDips(grown, scale);
+
+        // Shown before the old one goes: a view holding a disposed surface would render from
+        // freed memory on its next frame.
+        Remember(role, grown, scale);
+        Showing(role, grown);
+        art.Dispose();
     }
+
+    private double ScaleOf(CanvasRole role) => role == CanvasRole.Raw ? _rawScale : _processedScale;
+
+    private void Remember(CanvasRole role, Surface art, double scale)
+    {
+        if (role == CanvasRole.Raw) { Raw = art; _rawScale = scale; }
+        else { Processed = art; _processedScale = scale; }
+    }
+
+    /// <summary>The scale each surface's canvas transform was built for.</summary>
+    /// <remarks>
+    /// Kept because a StrokeKit surface does not know: its canvas is in pixels and the
+    /// transform on it is this application's doing, so this application is what has to notice
+    /// when the display it is being shown on stops matching.
+    /// </remarks>
+    private double _processedScale = 1;
+
+    private double _rawScale = 1;
 
     /// <summary>
     /// Which canvas the pen is over, and where in that canvas, or null if it is over neither.
