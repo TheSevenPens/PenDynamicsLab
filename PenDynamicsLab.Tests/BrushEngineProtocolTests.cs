@@ -73,8 +73,8 @@ public class BrushEngineProtocolTests
     {
         var spy = new Spy();
         var session = new DrawingSession([], spy);
-        session.Processed.EnsureSize(100, 100, 1);
-        session.Raw.EnsureSize(100, 100, 1);
+        session.EnsureAtLeast(CanvasRole.Processed, 100, 100, 1);
+        session.EnsureAtLeast(CanvasRole.Raw, 100, 100, 1);
         return (session, spy);
     }
 

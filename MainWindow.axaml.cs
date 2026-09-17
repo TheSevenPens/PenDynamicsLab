@@ -12,6 +12,7 @@ using WinPenKit.Avalonia;
 // application means is part of adopting the kit properly, and is not this change.
 using Batch = StrokeKit.Strokes.Batch;
 using PenStream = StrokeKit.Avalonia.PenStream;
+using Surface = StrokeKit.Surfaces.Surface;
 using PenDynamicsLab.Controls;
 using PenDynamicsLab.Curves;
 using PenDynamicsLab.Diagnostics;
@@ -114,9 +115,9 @@ public partial class MainWindow : Window
         // compare tab.
         _session = new DrawingSession(
         [
-            new CanvasTarget(StrokeView.Host, StrokeView.Image, CanvasRole.Processed),
-            new CanvasTarget(CompareProcessedView.Host, CompareProcessedView.Image, CanvasRole.Processed),
-            new CanvasTarget(CompareRawView.Host, CompareRawView.Image, CanvasRole.Raw),
+            new CanvasTarget(StrokeView.Host, StrokeView.View, CanvasRole.Processed),
+            new CanvasTarget(CompareProcessedView.Host, CompareProcessedView.View, CanvasRole.Processed),
+            new CanvasTarget(CompareRawView.Host, CompareRawView.View, CanvasRole.Raw),
         ]);
 
         // Resize bitmaps to follow whichever host is currently visible (the active tab's).
@@ -389,7 +390,18 @@ public partial class MainWindow : Window
             size = s;
         }
 
-        return SelfTestCommand.Run(this, _session.Processed, origin, size, strokePath);
+        // No surface means no window has been laid out yet, which the checks below cannot
+        // say anything useful about. Reported as a failure rather than crashed on.
+        if (_session.Processed is not { } art)
+        {
+            var missing = new WinPenKit.Diagnostics.SelfTest { AppName = "PenDynamicsLab" };
+
+            missing.Skip("L1.surface-physical", "no surface: the canvas has not been laid out");
+
+            return missing;
+        }
+
+        return SelfTestCommand.Run(this, art, origin, size, strokePath);
     }
 
     // ── Brush controls ──────────────────────────────────────────
@@ -874,6 +886,20 @@ public partial class MainWindow : Window
     /// finished: a buffered write can fail on flush, and a disposal outside would throw past
     /// the <c>catch</c> that exists to report it.</para>
     /// </remarks>
+    /// <summary>Encodes a surface as a PNG into a stream.</summary>
+    /// <remarks>
+    /// A Surface snapshots rather than saving: what a caller does with the image is the
+    /// caller's business, and the kit has no opinion about file formats. This is that
+    /// opinion, held here, where it belongs.
+    /// </remarks>
+    private static void WritePng(Surface surface, Stream stream)
+    {
+        using var image = surface.Snapshot();
+        using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+
+        data.SaveTo(stream);
+    }
+
     private async Task WritePngAsync(IStorageFile file, Func<Stream, Task> write)
     {
         try
@@ -929,11 +955,11 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Copy a stroke canvas to the clipboard at its full physical resolution.</summary>
-    private async Task CopySurfaceAsync(DrawSurface? surface)
+    private async Task CopySurfaceAsync(Surface? surface)
     {
-        if (surface is null || surface.Width <= 0 || surface.Height <= 0) return;
+        if (surface is null || surface.PixelWidth <= 0 || surface.PixelHeight <= 0) return;
         using var ms = new MemoryStream();
-        surface.SavePng(ms);
+        WritePng(surface, ms);
         await CopyPngToClipboardAsync(ms.ToArray());
     }
 
@@ -944,9 +970,9 @@ public partial class MainWindow : Window
         DispatcherTimer.RunOnce(() => ChartStatusLabel.Text = "", TimeSpan.FromSeconds(2));
     }
 
-    private async Task SaveSurfaceAsPngAsync(DrawSurface? surface, string suggestedName)
+    private async Task SaveSurfaceAsPngAsync(Surface? surface, string suggestedName)
     {
-        if (surface is null || surface.Width <= 0 || surface.Height <= 0) return;
+        if (surface is null || surface.PixelWidth <= 0 || surface.PixelHeight <= 0) return;
         var sp = TopLevel.GetTopLevel(this)?.StorageProvider;
         if (sp is null) return;
 
@@ -960,7 +986,7 @@ public partial class MainWindow : Window
         });
         if (file is null) return;
 
-        await WritePngAsync(file, stream => { surface.SavePng(stream); return Task.CompletedTask; });
+        await WritePngAsync(file, stream => { WritePng(surface, stream); return Task.CompletedTask; });
     }
 
     // ── Driver tip ──────────────────────────────────────────────
@@ -1421,7 +1447,7 @@ public partial class MainWindow : Window
         // null-guarded per-surface below.
         EnsureSurfaces();
 
-        int maxP = _pen.Session.MaxPressure;
+        int maxP = batch.Session.MaxPressure;
         var topLevel = TopLevel.GetTopLevel(this);
         if (topLevel == null) return;
 

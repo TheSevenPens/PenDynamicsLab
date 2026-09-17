@@ -1,6 +1,8 @@
 using Avalonia;
 using Avalonia.Controls;
 
+using StrokeKit.Avalonia;
+
 namespace PenDynamicsLab.Controls;
 
 /// <summary>
@@ -30,7 +32,12 @@ public partial class StrokeCanvasView : UserControl
     public event EventHandler? ClearRequested;
 
     /// <summary>The Image control that should be registered with a DrawSurface.</summary>
-    public Image Image => CanvasImage;
+    /// <summary>The view this canvas draws through. Given its surface by DrawingSession.</summary>
+    /// <remarks>
+    /// Declared in markup, which StrokeKit's view could not be until it was given a
+    /// parameterless constructor. It renders nothing until <c>Show</c> hands it a surface.
+    /// </remarks>
+    public SurfaceView View => CanvasSurface;
 
     /// <summary>The host Border whose bounds drive the surface size.</summary>
     public Border Host => ImageHost;
