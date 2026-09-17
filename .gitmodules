@@ -1,0 +1,3 @@
+[submodule "vendor/StrokeKit"]
+	path = vendor/StrokeKit
+	url = https://github.com/TheSevenPens/StrokeKit.git

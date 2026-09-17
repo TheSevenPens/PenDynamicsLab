@@ -13,8 +13,32 @@
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>
 
+  <!--
+    Nothing under vendor/ belongs to this application.
+
+    The project file sits at the repository root, so every default glob the SDK and Avalonia
+    add reaches into the submodules beneath it. StrokeKit brings WinPenKit nested inside
+    itself, and WinPenKit ships sample applications: without these removes the build tries to
+    compile a WinUI app and to resolve the XAML of an Avalonia one as part of this program.
+  -->
   <ItemGroup>
-    <Compile Include="**\*.cs" Exclude="bin\**;obj\**;PenDynamicsLab.Tests\**" />
+    <Compile Remove="vendor\**" />
+    <AvaloniaResource Remove="vendor\**" />
+    <AvaloniaXaml Remove="vendor\**" />
+    <EmbeddedResource Remove="vendor\**" />
+    <None Remove="vendor\**" />
+    <Page Remove="vendor\**" />
+    <ApplicationDefinition Remove="vendor\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      vendor\** because the project file sits at the repository root, so this glob reaches
+      into every submodule beneath it. StrokeKit brings WinPenKit nested inside itself, and
+      without this the build tries to compile WinPenKit's WinUI and WPF samples as part of
+      this application.
+    -->
+    <Compile Include="**\*.cs" Exclude="bin\**;obj\**;PenDynamicsLab.Tests\**;vendor\**" />
     <EmbeddedResource Include="Persistence\SampleResponses\*.json" />
   </ItemGroup>
 
@@ -42,8 +66,17 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\WinPenKit\WinPenKit\WinPenKit.csproj" />
-    <ProjectReference Include="..\WinPenKit\WinPenKit.Avalonia\WinPenKit.Avalonia.csproj" />
+    <!--
+      WinPenKit is not referenced directly any more. StrokeKit references it and it arrives
+      transitively, both halves, at the commit StrokeKit pins.
+
+      Referencing it directly as well put two different checkouts of the same assembly in one
+      build graph: the sibling ..\WinPenKit and the one nested inside StrokeKit. Both were
+      compiled and one won the race to be copied, which is a thing to find out about now
+      rather than from a type identity error later.
+    -->
+    <ProjectReference Include="vendor\StrokeKit\src\StrokeKit\StrokeKit.csproj" />
+    <ProjectReference Include="vendor\StrokeKit\src\StrokeKit.Avalonia\StrokeKit.Avalonia.csproj" />
   </ItemGroup>
 
   <!-- Linked, not copied: this is the yardstick both repos are measured by, and two
