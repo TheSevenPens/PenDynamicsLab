@@ -15,18 +15,13 @@ jobs:
     runs-on: windows-latest
 
     steps:
+      # One checkout, recursive. This used to need WinPenKit beside it; it stands on
+      # StrokeKit now, and WinPenKit is a submodule of the kit, so both arrive pinned with
+      # the clone. recursive, because the kit's own submodule is a level further down.
       - name: Check out PenDynamicsLab
         uses: actions/checkout@v5
         with:
-          path: PenDynamicsLab
-
-      # The csproj references ../WinPenKit/WinPenKit/*.csproj — clone it as a
-      # sibling so ProjectReferences resolve.
-      - name: Check out WinPenKit (sibling)
-        uses: actions/checkout@v5
-        with:
-          repository: TheSevenPens/WinPenKit
-          path: WinPenKit
+          submodules: recursive
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
@@ -34,11 +29,9 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Restore
-        working-directory: PenDynamicsLab
         run: dotnet restore PenDynamicsLab.csproj
 
       - name: Publish (win-x64, self-contained)
-        working-directory: PenDynamicsLab
         run: >
           dotnet publish PenDynamicsLab.csproj
           -c Release
@@ -49,7 +42,6 @@ jobs:
           -o publish
 
       - name: Zip publish output
-        working-directory: PenDynamicsLab
         shell: pwsh
         run: |
           $tag = "${{ github.ref_name }}"
@@ -58,7 +50,6 @@ jobs:
           "ASSET=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Create release and upload asset
-        working-directory: PenDynamicsLab
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh

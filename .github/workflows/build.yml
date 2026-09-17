@@ -13,20 +13,16 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      # This repo does not build alone. It has ProjectReferences into the sibling WinPenKit
-      # checkout, and links its reference stroke from there, so both have to be laid out as
-      # siblings exactly as they are on a development machine.
+      # One checkout, recursive.
+      #
+      # This repository used to need WinPenKit checked out beside it, because it referenced
+      # that project by a sibling path. It stands on StrokeKit now, WinPenKit is a submodule
+      # of the kit, and both arrive here pinned — so the layout this workflow used to build
+      # by hand comes with the clone. recursive, because the kit's own submodule is a level
+      # further down.
       - uses: actions/checkout@v5
         with:
-          path: PenDynamicsLab
-
-      # Tracks WinPenKit's main rather than pinning a ref. That means a breaking change there
-      # surfaces here, which is the honest reflection of the coupling: the two repos ship
-      # together and a green build against a stale pin would be worth less than it looks.
-      - uses: actions/checkout@v5
-        with:
-          repository: TheSevenPens/WinPenKit
-          path: WinPenKit
+          submodules: recursive
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -34,11 +30,9 @@ jobs:
           dotnet-quality: 'preview'
 
       - name: Build
-        working-directory: PenDynamicsLab
         run: dotnet build PenDynamicsLab.slnx -c Release
 
       - name: Test
-        working-directory: PenDynamicsLab
         run: dotnet test PenDynamicsLab.slnx -c Release --no-build
 
       # The acceptance checks, as a gate rather than something to remember to run. Levels 0
@@ -51,7 +45,6 @@ jobs:
       # the window's declared size - which is exactly what the work-area clamp is for, so this
       # step also exercises that on hardware no developer here has.
       - name: Self-test
-        working-directory: PenDynamicsLab
         run: |
           $exe = Get-ChildItem -Recurse -Filter PenDynamicsLab.exe bin/Release | Select-Object -First 1
           if (-not $exe) { throw "PenDynamicsLab.exe not found" }

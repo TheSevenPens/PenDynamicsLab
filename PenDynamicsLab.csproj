@@ -80,9 +80,14 @@
   </ItemGroup>
 
   <!-- Linked, not copied: this is the yardstick both repos are measured by, and two
-       copies of a yardstick is one too many. -->
+       copies of a yardstick is one too many.
+
+       From the pinned WinPenKit inside StrokeKit rather than from a sibling checkout, for
+       the same reason the project references moved: there is one WinPenKit in this build
+       now, and the yardstick should be the one that belongs to it. It also means this
+       repository no longer needs anything checked out beside it. -->
   <ItemGroup>
-    <Content Include="..\WinPenKit\testdata\reference-stroke.csv"
+    <Content Include="vendor\StrokeKit\vendor\WinPenKit\testdata\reference-stroke.csv"
              Link="testdata\reference-stroke.csv"
              CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
