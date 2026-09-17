@@ -57,12 +57,13 @@ public class StrokeRecorderTimeTests
         var r = new StrokeRecorder();
         r.Start(Wintab);
 
-        // A 180 Hz device on a millisecond clock: 5, 6, 5, 6 ms apart. Added with no delay, so
-        // this process's own clock advances by microseconds across the whole loop.
-        r.Add(At(9_000_000));
-        r.Add(At(9_005_000));
-        r.Add(At(9_011_000));
-        r.Add(At(9_016_000));
+        // A 180 Hz device on a millisecond clock: 5, 6, 5, 6 ms apart. The arrivals are a poll
+        // apart, which is what the host clock would say; the point is that the pen column is
+        // the pen's spacing and not that one.
+        r.Add(At(9_000_000), 6_200);
+        r.Add(At(9_005_000), 12_400);
+        r.Add(At(9_011_000), 18_600);
+        r.Add(At(9_016_000), 24_800);
 
         var saved = SaveAndRead(r);
 
@@ -76,8 +77,8 @@ public class StrokeRecorderTimeTests
         // Nearly four days of uptime on the pen clock. None of it belongs in the file.
         var r = new StrokeRecorder();
         r.Start(Wintab);
-        r.Add(At(330_000_000_000));
-        r.Add(At(330_000_005_000));
+        r.Add(At(330_000_000_000), 6_200);
+        r.Add(At(330_000_005_000), 12_400);
 
         var saved = SaveAndRead(r);
 
@@ -92,8 +93,8 @@ public class StrokeRecorderTimeTests
         // stroke, and writing it into the file would show as a long flat lead-in.
         var r = new StrokeRecorder();
         r.Start(Wintab);
-        r.Add(At(50_000_000));   // first contact, whenever it came
-        r.Add(At(50_006_000));
+        r.Add(At(50_000_000), 6_200);   // first contact, whenever it came
+        r.Add(At(50_006_000), 12_400);
 
         var saved = SaveAndRead(r);
 
@@ -106,11 +107,11 @@ public class StrokeRecorderTimeTests
     {
         var r = new StrokeRecorder();
         r.Start(Wintab);
-        r.Add(At(1_000_000));
+        r.Add(At(1_000_000), 6_200);
 
         r.Start(Wintab);           // discards the first stroke
-        r.Add(At(77_000_000));
-        r.Add(At(77_004_000));
+        r.Add(At(77_000_000), 12_400);
+        r.Add(At(77_004_000), 18_600);
 
         var saved = SaveAndRead(r);
 
@@ -126,7 +127,7 @@ public class StrokeRecorderTimeTests
         // computing velocity has to be able to tell which clock it is holding.
         var r = new StrokeRecorder();
         r.Start(Wintab);
-        r.Add(At(1_000_000));
+        r.Add(At(1_000_000), 6_200);
 
         Assert.Equal("DeviceTicks", SaveAndRead(r).TimestampSource);
     }
@@ -136,8 +137,8 @@ public class StrokeRecorderTimeTests
     {
         var r = new StrokeRecorder();
         r.Start(Wintab);
-        r.Add(At(2_000_000));
-        r.Add(At(3_500_000));      // 1.5 s later on the pen's clock
+        r.Add(At(2_000_000), 6_200);
+        r.Add(At(3_500_000), 12_400);      // 1.5 s later on the pen's clock
 
         var saved = SaveAndRead(r);
 
@@ -159,8 +160,8 @@ public class StrokeRecorderTimeTests
         var r = new StrokeRecorder();
         r.Start(Wintab);
         Thread.Sleep(60);              // the wait before the pen arrives
-        r.Add(At(4_000_000));
-        r.Add(At(4_005_000));
+        r.Add(At(4_000_000), 6_200);
+        r.Add(At(4_005_000), 12_400);
 
         var saved = SaveAndRead(r);
 
@@ -176,8 +177,49 @@ public class StrokeRecorderTimeTests
         // from a backend that reported no clock. The version is how a consumer tells those apart.
         var r = new StrokeRecorder();
         r.Start(Wintab);
-        r.Add(At(1_000_000));
+        r.Add(At(1_000_000), 6_200);
 
         Assert.Equal(2, SaveAndRead(r).Version);
+    }
+
+    /// <summary>
+    /// Samples that came over in one drain share a tick time, exactly.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the property the second clock exists for, and the one the recorder did not have.
+    /// It called <c>DateTime.UtcNow</c> once per sample from inside the loop over a drained
+    /// batch, so packets the driver handed over together were stamped microseconds apart — and
+    /// what separated them was how long this application took to draw the preceding ones.
+    /// </para>
+    /// <para>
+    /// Exactly, not nearly. "Did these two reach the application in the same poll" should be an
+    /// equality check rather than an argument about how long a loop body takes.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void One_batch_is_one_tick_time()
+    {
+        var r = new StrokeRecorder();
+        r.Start(Wintab);
+
+        // Three packets, one drain: the pen stamped them 4.166 ms apart, the application took
+        // them off the queue in a single call.
+        r.Add(At(1_000_000), 500_000);
+        r.Add(At(1_004_166), 500_000);
+        r.Add(At(1_008_332), 500_000);
+
+        // And the next poll, 16 ms later.
+        r.Add(At(1_012_498), 516_000);
+
+        var saved = SaveAndRead(r);
+
+        Assert.Equal(saved.Points[0].T, saved.Points[1].T);
+        Assert.Equal(saved.Points[0].T, saved.Points[2].T);
+        Assert.NotEqual(saved.Points[0].T, saved.Points[3].T);
+
+        // The pen column still separates them, which is the whole reason to keep two.
+        Assert.Equal([0L, 4_166L, 8_332L, 12_498L],
+                     saved.Points.Select(p => p.PenTimeUs).ToArray());
     }
 }

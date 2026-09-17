@@ -2,6 +2,11 @@ using Avalonia;
 using Avalonia.Controls;
 using SkiaSharp;
 
+// Aliased rather than imported whole: StrokeKit.Strokes has a Stroke and so does this
+// namespace, and they are different things.
+using Surface = StrokeKit.Surfaces.Surface;
+using SurfaceView = StrokeKit.Avalonia.SurfaceView;
+
 namespace PenDynamicsLab.Drawing;
 
 /// <summary>Which of the two surfaces a canvas shows.</summary>
@@ -17,7 +22,7 @@ public enum CanvasRole
 /// <summary>One on-screen canvas: the border that defines its bounds, and the image that shows it.</summary>
 /// <param name="Host">Used for hit-testing and sizing. Its <c>Bounds</c> are DIPs.</param>
 /// <param name="Image">Registered with the surface for this role.</param>
-public readonly record struct CanvasTarget(Border Host, Image Image, CanvasRole Role);
+public readonly record struct CanvasTarget(Border Host, SurfaceView View, CanvasRole Role);
 
 /// <summary>
 /// Owns the stroke surfaces and puts marks on them.
@@ -91,21 +96,70 @@ public sealed class DrawingSession : IDisposable
     private SKBitmap? _processedBaseline, _rawBaseline;
 
     /// <summary>The processed surface. Exposed for PNG export, not for drawing.</summary>
-    public DrawSurface Processed { get; } = new();
+    /// <summary>
+    /// The processed document, shown by every view whose role is Processed.
+    /// </summary>
+    /// <remarks>
+    /// Replaced rather than resized, because a <see cref="Surface"/> has a fixed size. Growth
+    /// keeps the old content at the origin; see <see cref="EnsureSurfaces"/>.
+    /// </remarks>
+    public Surface? Processed { get; private set; }
 
     /// <summary>The raw surface. Exposed for PNG export, not for drawing.</summary>
-    public DrawSurface Raw { get; } = new();
+    /// <summary>The raw document, shown by every view whose role is Raw.</summary>
+    public Surface? Raw { get; private set; }
 
     public DrawingSession(IEnumerable<CanvasTarget> targets, IBrushEngine? engine = null)
     {
         _targets = [.. targets];
         _engine = engine ?? new RoundBrushEngine();
 
-        foreach (var t in _targets)
-            SurfaceFor(t.Role).AddHost(t.Image);
     }
 
-    private DrawSurface SurfaceFor(CanvasRole role) => role == CanvasRole.Raw ? Raw : Processed;
+    private Surface? SurfaceFor(CanvasRole role) => role == CanvasRole.Raw ? Raw : Processed;
+
+    /// <summary>The paper a cleared canvas shows.</summary>
+    /// <remarks>
+    /// Held here rather than by the surface. A StrokeKit surface is a raster and has no opinion
+    /// about what empty looks like, which is right: the guide's own pads clear to transparent
+    /// and this bench clears to paper, and neither is the kit's business.
+    /// </remarks>
+    private static readonly SKColor Paper = new(0xF7, 0xF7, 0xF4);
+
+    private static void Wipe(Surface? art) => art?.Canvas.Clear(Paper);
+
+    /// <summary>
+    /// Puts a surface's canvas into this application's units.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A StrokeKit surface draws in pixels.</b> Its logical size is metadata for the view
+    /// that presents it, not a transform on its canvas -- which is right for a kit that has
+    /// consumers in both units, and is the opposite of what DrawSurface did. Everything here
+    /// is in DIPs, from the samples to the brush engine, so the transform has to be applied
+    /// once per surface, here, where the convention is.
+    /// </para>
+    /// <para>
+    /// Missing it does not fail: it draws everything at 1/scale of the distance from the
+    /// origin, so a mark is correct in the top-left corner and drifts further from the pen the
+    /// further out it goes. That is what it did.
+    /// </para>
+    /// </remarks>
+    private static void InDips(Surface art, double scale) => art.Canvas.Scale((float)scale);
+
+    /// <summary>Hands a role's surface to every view that shows it.</summary>
+    /// <remarks>
+    /// Two views can show one surface: the Stroke tab and the Compare tab are both Processed,
+    /// and each sizes its own presentation bitmap to its own viewport. The surface is read
+    /// during a frame and never written by a view, so sharing one is safe.
+    /// </remarks>
+    private void Showing(CanvasRole role, Surface art)
+    {
+        foreach (var t in _targets)
+        {
+            if (t.Role == role) t.View.Show(art);
+        }
+    }
 
     /// <summary>
     /// Size each surface to the visible host for its role.
@@ -124,11 +178,113 @@ public sealed class DrawingSession : IDisposable
                 if (t.Role != role || !t.Host.IsEffectivelyVisible) continue;
                 if (t.Host.Bounds.Width <= 0 || t.Host.Bounds.Height <= 0) continue;
 
-                SurfaceFor(role).EnsureSize(t.Host.Bounds.Width, t.Host.Bounds.Height, renderScaling);
+                EnsureAtLeast(role, t.Host.Bounds.Width, t.Host.Bounds.Height, renderScaling);
                 break;
             }
         }
     }
+
+    /// <summary>
+    /// Makes a role's surface at least large enough for the host asking, keeping what is on it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Never smaller.</b> Growth copies the old content in at the origin, so allocating
+    /// smaller would discard whatever fell outside -- permanently, since growing back cannot
+    /// recover it. Shrinking the window and restoring it used to truncate the mark at the
+    /// smaller height, and a resize drag does that on every step. <see cref="Surface.Grown"/>
+    /// takes the maximum of each dimension for exactly that reason.
+    /// </para>
+    /// <para>
+    /// Growth is monotonic within a session and bounded by screen size, which is a stated
+    /// consequence rather than a leak.
+    /// </para>
+    /// </remarks>
+    public void EnsureAtLeast(CanvasRole role, double dipWidth, double dipHeight, double scale)
+    {
+        if (dipWidth <= 0 || dipHeight <= 0) return;
+        if (scale <= 0 || double.IsNaN(scale)) scale = 1;
+
+        var wide = (int)Math.Round(dipWidth * scale);
+        var high = (int)Math.Round(dipHeight * scale);
+
+        if (wide <= 0 || high <= 0) return;
+
+        var art = SurfaceFor(role);
+        var was = ScaleOf(role);
+
+        // A change of scale reallocates whatever the pixel count says, and it may say fewer.
+        // The surface's canvas carries the transform that puts this application's DIPs into
+        // its pixels, so a surface made at one scale and presented at another draws every mark
+        // short or long by the ratio -- correct at the origin and drifting further out the
+        // further it goes. Moving the window to a display with different scaling does it.
+        if (art is not null && scale != was)
+        {
+            var moved = Surface.CreateExactly(wide, high, wide / scale, high / scale);
+
+            InDips(moved, scale);
+
+            // The old content at the size it looked, not the pixels it occupied: it was drawn
+            // in DIPs and should stay where those DIPs are.
+            using (var image = art.Snapshot())
+            {
+                moved.Canvas.Save();
+                moved.Canvas.ResetMatrix();
+                moved.Canvas.DrawImage(image,
+                    new SKRect(0, 0, (float)(art.PixelWidth * scale / was),
+                                     (float)(art.PixelHeight * scale / was)));
+                moved.Canvas.Restore();
+            }
+
+            Remember(role, moved, scale);
+            Showing(role, moved);
+            art.Dispose();
+
+            return;
+        }
+
+        if (art is null)
+        {
+            var made = Surface.CreateExactly(wide, high, wide / scale, high / scale);
+
+            InDips(made, scale);
+            Remember(role, made, scale);
+            Showing(role, made);
+
+            return;
+        }
+
+        if (wide <= art.PixelWidth && high <= art.PixelHeight) return;
+
+        var grown = art.Grown(wide, high, wide / scale, high / scale);
+
+        // After the blit, which Grown does in pixels.
+        InDips(grown, scale);
+
+        // Shown before the old one goes: a view holding a disposed surface would render from
+        // freed memory on its next frame.
+        Remember(role, grown, scale);
+        Showing(role, grown);
+        art.Dispose();
+    }
+
+    private double ScaleOf(CanvasRole role) => role == CanvasRole.Raw ? _rawScale : _processedScale;
+
+    private void Remember(CanvasRole role, Surface art, double scale)
+    {
+        if (role == CanvasRole.Raw) { Raw = art; _rawScale = scale; }
+        else { Processed = art; _processedScale = scale; }
+    }
+
+    /// <summary>The scale each surface's canvas transform was built for.</summary>
+    /// <remarks>
+    /// Kept because a StrokeKit surface does not know: its canvas is in pixels and the
+    /// transform on it is this application's doing, so this application is what has to notice
+    /// when the display it is being shown on stops matching.
+    /// </remarks>
+    private double _processedScale = 1;
+
+    private double _rawScale = 1;
 
     /// <summary>
     /// Which canvas the pen is over, and where in that canvas, or null if it is over neither.
@@ -240,12 +396,12 @@ public sealed class DrawingSession : IDisposable
         {
             // Both surfaces are drawn on every segment. The processed one takes the pipeline
             // output; the raw one takes unprocessed pressure, which is the comparison.
-            if (Processed.Canvas is { } pc && (brush.DrawAtZeroPressure || processedPressure > 0))
+            if (Processed?.Canvas is { } pc && (brush.DrawAtZeroPressure || processedPressure > 0))
             {
                 _engine.DrawSegment(pc, from, sample, brush, _strokeColor, PressureChannel.Processed);
                 _processedDirty = true;
             }
-            if (Raw.Canvas is { } rc)
+            if (Raw?.Canvas is { } rc)
             {
                 _engine.DrawSegment(rc, from, sample, brush, _strokeColor, PressureChannel.Raw);
                 _rawDirty = true;
@@ -278,7 +434,7 @@ public sealed class DrawingSession : IDisposable
         EndStroke();
 
         var surface = SurfaceFor(role);
-        if (surface.Canvas is not { } canvas) return;
+        if (surface?.Canvas is not { } canvas) return;
 
         TestPattern.Draw(canvas, pos, BlackStroke);
 
@@ -318,15 +474,15 @@ public sealed class DrawingSession : IDisposable
         Bake(Processed, ref _processedBaseline, PressureChannel.Processed);
         Bake(Raw, ref _rawBaseline, PressureChannel.Raw);
 
-        void Bake(DrawSurface surface, ref SKBitmap? baseline, PressureChannel channel)
+        void Bake(Surface? surface, ref SKBitmap? baseline, PressureChannel channel)
         {
-            if (surface.Width <= 0 || surface.Height <= 0) return;
+            if (surface is null || surface.PixelWidth <= 0 || surface.PixelHeight <= 0) return;
 
             // The surface only ever grows, so a baseline from an earlier size is still valid at
             // the origin - copy it into a larger one rather than starting over.
-            if (baseline is null || baseline.Width < surface.Width || baseline.Height < surface.Height)
+            if (baseline is null || baseline.Width < surface.PixelWidth || baseline.Height < surface.PixelHeight)
             {
-                var grown = new SKBitmap(surface.Width, surface.Height, SKColorType.Bgra8888, SKAlphaType.Premul);
+                var grown = new SKBitmap(surface.PixelWidth, surface.PixelHeight, SKColorType.Bgra8888, SKAlphaType.Premul);
                 if (baseline is not null)
                 {
                     using var copy = new SKCanvas(grown);
@@ -338,7 +494,7 @@ public sealed class DrawingSession : IDisposable
 
             using var canvas = new SKCanvas(baseline);
             // Samples are in DIPs; the baseline is physical pixels, same as the surface it mirrors.
-            canvas.Scale((float)surface.Scale);
+            canvas.Scale((float)surface.ScaleX, (float)surface.ScaleY);
 
             // Bracketed like any other stroke. A stateful engine replaying one must start from
             // nothing, or the baseline would be drawn with whatever the live canvas left behind.
@@ -357,8 +513,16 @@ public sealed class DrawingSession : IDisposable
     /// <summary>Push whichever surfaces were drawn on to their hosts.</summary>
     public void PresentDirty()
     {
-        if (_processedDirty) { Processed.Present(); _processedDirty = false; }
-        if (_rawDirty) { Raw.Present(); _rawDirty = false; }
+        if (_processedDirty) { Redraw(CanvasRole.Processed); _processedDirty = false; }
+        if (_rawDirty) { Redraw(CanvasRole.Raw); _rawDirty = false; }
+
+        void Redraw(CanvasRole role)
+        {
+            foreach (var t in _targets)
+            {
+                if (t.Role == role) t.View.InvalidateVisual();
+            }
+        }
     }
 
     /// <summary>
@@ -367,8 +531,8 @@ public sealed class DrawingSession : IDisposable
     /// </summary>
     public void Clear()
     {
-        Processed.Clear();
-        Raw.Clear();
+        Wipe(Processed);
+        Wipe(Raw);
         History.Clear();
         _processedBaseline?.Dispose(); _processedBaseline = null;
         _rawBaseline?.Dispose(); _rawBaseline = null;
@@ -406,12 +570,12 @@ public sealed class DrawingSession : IDisposable
         EndStroke();
         if (!History.RemoveLast()) return false;
 
-        Processed.Clear();
-        Raw.Clear();
+        Wipe(Processed);
+        Wipe(Raw);
         // Evicted strokes first: they are no longer replayable, but they are still on screen and
         // must stay there. Without this the cap would quietly delete work on the next undo.
-        if (_processedBaseline is not null) Processed.DrawSnapshot(_processedBaseline);
-        if (_rawBaseline is not null) Raw.DrawSnapshot(_rawBaseline);
+        if (_processedBaseline is not null) Processed?.Canvas.DrawBitmap(_processedBaseline, 0, 0);
+        if (_rawBaseline is not null) Raw?.Canvas.DrawBitmap(_rawBaseline, 0, 0);
         foreach (var stroke in History.Strokes) Replay(stroke, recompute);
 
         _processedDirty = _rawDirty = true;
@@ -437,10 +601,10 @@ public sealed class DrawingSession : IDisposable
             var prev = samples[i - 1];
             var s = samples[i];
 
-            if (Processed.Canvas is { } pc && (stroke.Brush.DrawAtZeroPressure || s.ProcessedPressure > 0))
+            if (Processed?.Canvas is { } pc && (stroke.Brush.DrawAtZeroPressure || s.ProcessedPressure > 0))
                 _engine.DrawSegment(pc, prev, s, stroke.Brush, stroke.Color, PressureChannel.Processed);
 
-            if (Raw.Canvas is { } rc)
+            if (Raw?.Canvas is { } rc)
                 _engine.DrawSegment(rc, prev, s, stroke.Brush, stroke.Color, PressureChannel.Raw);
         }
 
@@ -461,8 +625,12 @@ public sealed class DrawingSession : IDisposable
     public void Dispose()
     {
         _engine.Dispose();
-        Processed.Dispose();
-        Raw.Dispose();
+
+        // Null where a role's host was never visible: EnsureSurfaces only sizes a surface for
+        // a host that is showing, so a session that never opened the compare tab has no raw
+        // surface at all. That is ordinary, and was a crash on close until it was written down.
+        Processed?.Dispose();
+        Raw?.Dispose();
         _processedBaseline?.Dispose();
         _rawBaseline?.Dispose();
     }

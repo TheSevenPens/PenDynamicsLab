@@ -1,3 +1,7 @@
+// Aliased rather than imported whole: StrokeKit.Strokes has a Stroke and so does
+// PenDynamicsLab.Drawing, and they are different things. Deciding which one this
+// application means is part of adopting the kit properly, and is not this change.
+using Draining = StrokeKit.Strokes.Draining;
 using Avalonia;
 using WinPenKit;
 
@@ -21,7 +25,7 @@ namespace PenDynamicsLab.Diagnostics;
 public sealed class StrokeRecorder
 {
     private readonly List<RecordedPoint> _points = [];
-    private DateTime? _start;
+    private long? _start;
     private long _penOrigin;
     private RecordingContext _context;
 
@@ -56,26 +60,50 @@ public sealed class StrokeRecorder
     }
 
     /// <summary>Add one sample, if recording.</summary>
+    /// <param name="arrivedUs">
+    /// When the batch this sample came over in was taken off the driver's queue, on
+    /// <see cref="Draining.Arrival"/>'s clock. <b>One value for a whole batch.</b>
+    /// </param>
     /// <remarks>
+    /// <para>
     /// Both clocks are zeroed on the first sample that arrives rather than on <see cref="Start"/>.
     /// Arming the recorder and then reaching for the pen used to put that wait into the tick
     /// column -- a recording started 26 seconds before first contact opened at T=26.28 while the
     /// pen column opened at 0. <see cref="StrokeRecording.Duration"/> subtracted it out and so
     /// never showed it, but the two columns could not be compared against each other, which is
     /// the only reason to keep both.
+    /// </para>
+    /// <para>
+    /// <b>The arrival is passed in rather than read here, and that is the point.</b> This used
+    /// to call <c>DateTime.UtcNow</c> once per sample, from inside the loop over a drained
+    /// batch -- so samples that reached this application in the same poll were stamped
+    /// microseconds apart, and what separated them was how long this code took to draw the
+    /// preceding ones. The column conflated when the pen reported with what the application
+    /// was doing at the time, in an instrument whose subject is timing.
+    /// </para>
+    /// <para>
+    /// Every packet handed over in one call genuinely arrived together. Stamping once makes
+    /// "did these two reach the application in the same poll" an equality check rather than an
+    /// argument about a spread the delivery did not have.
+    /// </para>
+    /// <para>
+    /// It is also monotonic where a wall clock is not. Both have microsecond resolution on the
+    /// machine this was measured on, so that was never the difference; a clock that can step
+    /// backwards under NTP is.
+    /// </para>
     /// </remarks>
-    public void Add(PenPoint pt)
+    public void Add(PenPoint pt, long arrivedUs)
     {
         if (!IsRecording) return;
 
         if (_start is null)
         {
-            _start = DateTime.UtcNow;
+            _start = arrivedUs;
             _penOrigin = pt.TimestampMicroseconds;
         }
 
         _points.Add(new RecordedPoint(
-            T: (DateTime.UtcNow - _start.Value).TotalSeconds,
+            T: (arrivedUs - _start.Value) / 1_000_000.0,
             DesktopX: pt.DesktopX,
             DesktopY: pt.DesktopY,
             Pressure: pt.Pressure,

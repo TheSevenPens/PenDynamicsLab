@@ -3,6 +3,8 @@ using Avalonia.Controls;
 using PenDynamicsLab.Drawing;
 using WinPenKit.Diagnostics;
 
+using Surface = StrokeKit.Surfaces.Surface;
+
 namespace PenDynamicsLab.Diagnostics;
 
 /// <summary>
@@ -47,7 +49,7 @@ public static class SelfTestCommand
     /// <param name="canvasOriginDip">Canvas offset within the window, in DIPs.</param>
     /// <param name="canvasSizeDip">Canvas size in DIPs.</param>
     /// <param name="strokePath">Recording for the level 2 and 3 checks, or null to skip them.</param>
-    public static SelfTest Run(Window window, DrawSurface surface,
+    public static SelfTest Run(Window window, Surface surface,
                                Point canvasOriginDip, Size canvasSizeDip, string? strokePath)
     {
         var t = new SelfTest { AppName = "PenDynamicsLab" };
@@ -61,8 +63,8 @@ public static class SelfTestCommand
         // shrinks, so a maximise-then-restore leaves it at the maximum, and the hosts clip. So
         // this is checked against the surface's own DIP size rather than the canvas bounds:
         // what matters is that DipWidth * scale is exactly Width, not that it matches the host.
-        t.CheckSurfacePhysical(surface.Width, surface.Height,
-                               surface.DipWidth, surface.DipHeight, scale);
+        t.CheckSurfacePhysical(surface.PixelWidth, surface.PixelHeight,
+                               surface.LogicalWidth, surface.LogicalHeight, scale);
 
         // Where the canvas actually lands, in device pixels.
         var windowOrigin = window.PointToScreen(new Point(0, 0));
@@ -72,8 +74,8 @@ public static class SelfTestCommand
         // The host is given an explicit DIP size equal to the bitmap's pixel count over the
         // scale, so the bitmap reaches the screen 1:1. That is the arrangement the deliberate
         // 96 dpi tag in DrawSurface exists to preserve, and this is what proves it still holds.
-        t.CheckPresentation1To1(surface.Width, surface.Height,
-                                surface.DipWidth * scale, surface.DipHeight * scale);
+        t.CheckPresentation1To1(surface.PixelWidth, surface.PixelHeight,
+                                surface.LogicalWidth * scale, surface.LogicalHeight * scale);
 
         if (strokePath != null && File.Exists(strokePath))
         {

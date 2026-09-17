@@ -7,6 +7,12 @@ using Avalonia.Threading;
 using System.Linq;
 using WinPenKit;
 using WinPenKit.Avalonia;
+// Aliased rather than imported whole: StrokeKit.Strokes has a Stroke and so does
+// PenDynamicsLab.Drawing, and they are different things. Deciding which one this
+// application means is part of adopting the kit properly, and is not this change.
+using Batch = StrokeKit.Strokes.Batch;
+using PenStream = StrokeKit.Avalonia.PenStream;
+using Surface = StrokeKit.Surfaces.Surface;
 using PenDynamicsLab.Controls;
 using PenDynamicsLab.Curves;
 using PenDynamicsLab.Diagnostics;
@@ -38,12 +44,20 @@ public partial class MainWindow : Window
     /// </summary>
     private bool _penInRange;
 
-    private IPenSession? _penSession;
+    /// <summary>
+    /// The pen: opened, polled, and drained into batches that carry their own arrival.
+    /// </summary>
+    /// <remarks>
+    /// StrokeKit's, in place of an IPenSession and a DispatcherTimer owned here. What this
+    /// window used to do -- pick a backend, construct the right session for it, start it
+    /// against the window handle, run a 16 ms timer, and stop both in the right order -- is
+    /// the same in every application that reads a pen, and was written out longhand in each.
+    /// </remarks>
+    private readonly PenStream _pen = new();
 
     // Owns the surfaces, the hit-testing, the stroke colour, and the brush engine. The window
     // drains points and runs the charts; it does not know what an SKPaint is.
     private readonly DrawingSession _session;
-    private readonly DispatcherTimer _renderTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
 
     private IReadOnlyList<InputApi> _apis = [];
     private DateTime _lastPointTime;
@@ -94,16 +108,16 @@ public partial class MainWindow : Window
 
         InitializeComponent();
 
-        _renderTimer.Tick += RenderTimer_Tick;
+        _pen.Drained += (_, batch) => Took(batch);
 
         // The processed surface is shared across both the Stroke tab and the Stroke compare
         // tab — drawing on either is the same content. The raw surface is unique to the
         // compare tab.
         _session = new DrawingSession(
         [
-            new CanvasTarget(StrokeView.Host, StrokeView.Image, CanvasRole.Processed),
-            new CanvasTarget(CompareProcessedView.Host, CompareProcessedView.Image, CanvasRole.Processed),
-            new CanvasTarget(CompareRawView.Host, CompareRawView.Image, CanvasRole.Raw),
+            new CanvasTarget(StrokeView.Host, StrokeView.View, CanvasRole.Processed),
+            new CanvasTarget(CompareProcessedView.Host, CompareProcessedView.View, CanvasRole.Processed),
+            new CanvasTarget(CompareRawView.Host, CompareRawView.View, CanvasRole.Raw),
         ]);
 
         // Resize bitmaps to follow whichever host is currently visible (the active tab's).
@@ -140,7 +154,7 @@ public partial class MainWindow : Window
         //
         // A no-op for the pointer-based sessions: Windows routes their input by window, so they
         // need nothing. See IPenSession.OnActivated.
-        Activated += (_, _) => _penSession?.OnActivated();
+        Activated += (_, _) => _pen.Session?.OnActivated();
 
         // The effective-chart pill and the proximity chrome are painted from code, so they
         // cannot follow {DynamicResource}. The cards look after themselves — SectionCard has
@@ -242,9 +256,8 @@ public partial class MainWindow : Window
 
         Closing += (_, _) =>
         {
-            _renderTimer.Stop();
-            _penSession?.Stop();
-            _penSession?.Dispose();
+            // Stops polling before closing the session, and does both.
+            _pen.Dispose();
             _session.Dispose();
         };
 
@@ -377,7 +390,18 @@ public partial class MainWindow : Window
             size = s;
         }
 
-        return SelfTestCommand.Run(this, _session.Processed, origin, size, strokePath);
+        // No surface means no window has been laid out yet, which the checks below cannot
+        // say anything useful about. Reported as a failure rather than crashed on.
+        if (_session.Processed is not { } art)
+        {
+            var missing = new WinPenKit.Diagnostics.SelfTest { AppName = "PenDynamicsLab" };
+
+            missing.Skip("L1.surface-physical", "no surface: the canvas has not been laid out");
+
+            return missing;
+        }
+
+        return SelfTestCommand.Run(this, art, origin, size, strokePath);
     }
 
     // ── Brush controls ──────────────────────────────────────────
@@ -862,6 +886,20 @@ public partial class MainWindow : Window
     /// finished: a buffered write can fail on flush, and a disposal outside would throw past
     /// the <c>catch</c> that exists to report it.</para>
     /// </remarks>
+    /// <summary>Encodes a surface as a PNG into a stream.</summary>
+    /// <remarks>
+    /// A Surface snapshots rather than saving: what a caller does with the image is the
+    /// caller's business, and the kit has no opinion about file formats. This is that
+    /// opinion, held here, where it belongs.
+    /// </remarks>
+    private static void WritePng(Surface surface, Stream stream)
+    {
+        using var image = surface.Snapshot();
+        using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+
+        data.SaveTo(stream);
+    }
+
     private async Task WritePngAsync(IStorageFile file, Func<Stream, Task> write)
     {
         try
@@ -917,11 +955,11 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Copy a stroke canvas to the clipboard at its full physical resolution.</summary>
-    private async Task CopySurfaceAsync(DrawSurface? surface)
+    private async Task CopySurfaceAsync(Surface? surface)
     {
-        if (surface is null || surface.Width <= 0 || surface.Height <= 0) return;
+        if (surface is null || surface.PixelWidth <= 0 || surface.PixelHeight <= 0) return;
         using var ms = new MemoryStream();
-        surface.SavePng(ms);
+        WritePng(surface, ms);
         await CopyPngToClipboardAsync(ms.ToArray());
     }
 
@@ -932,9 +970,9 @@ public partial class MainWindow : Window
         DispatcherTimer.RunOnce(() => ChartStatusLabel.Text = "", TimeSpan.FromSeconds(2));
     }
 
-    private async Task SaveSurfaceAsPngAsync(DrawSurface? surface, string suggestedName)
+    private async Task SaveSurfaceAsPngAsync(Surface? surface, string suggestedName)
     {
-        if (surface is null || surface.Width <= 0 || surface.Height <= 0) return;
+        if (surface is null || surface.PixelWidth <= 0 || surface.PixelHeight <= 0) return;
         var sp = TopLevel.GetTopLevel(this)?.StorageProvider;
         if (sp is null) return;
 
@@ -948,7 +986,7 @@ public partial class MainWindow : Window
         });
         if (file is null) return;
 
-        await WritePngAsync(file, stream => { surface.SavePng(stream); return Task.CompletedTask; });
+        await WritePngAsync(file, stream => { WritePng(surface, stream); return Task.CompletedTask; });
     }
 
     // ── Driver tip ──────────────────────────────────────────────
@@ -1238,8 +1276,8 @@ public partial class MainWindow : Window
     {
         if (_apis.Count == 0 || ApiCombo.SelectedIndex < 0) return;
 
-        _penSession?.Stop();
-        _penSession?.Dispose();
+        _pen.Session?.Stop();
+        _pen.Session?.Dispose();
 
         // A recording in progress belongs to the session being torn down. Its samples were
         // scaled to that device's pressure range, so carrying them into the next session would
@@ -1260,9 +1298,6 @@ public partial class MainWindow : Window
         // switch never shows another device's readings as if they were current.
         ClearTelemetryReadouts();
 
-        _penSession = api == InputApi.AvaloniaPointer
-            ? new AvaloniaPointerSession(CanvasArea)
-            : PenSessionFactory.Create(api);
         ResetStrokeState();
 
         EnsureSurfaces();
@@ -1271,17 +1306,21 @@ public partial class MainWindow : Window
         if (TryGetPlatformHandle() is { } handle)
             hwnd = handle.Handle;
 
-        var error = _penSession.Start(hwnd);
+        // The canvas rather than the window, which is what this application has always given
+        // a framework session and what it needs: the drawing area is always on screen here.
+        // The kit's own advice is to pass the window, because its pad is only shown on one
+        // step of a wizard and a session bound to an off-screen control hears nothing while
+        // reporting no error. Both are right for their application; the difference is worth
+        // knowing rather than copying.
+        var error = _pen.Start(api, CanvasArea, hwnd);
+
         if (error != null)
         {
             Title = $"PenDynamicsLab - {error}";
-            _penSession.Dispose();
-            _penSession = null;
             return;
         }
 
         Title = "PenDynamicsLab";
-        _renderTimer.Start();
     }
 
     /// <summary>
@@ -1317,9 +1356,9 @@ public partial class MainWindow : Window
 
         // Named at capture rather than at save, for the reason StrokeRecorder.Start documents:
         // the pen API can change while a recording is running, and the clock changes with it.
-        string timestampSource = _penSession?.Conventions.Timestamp.ToString() ?? "";
+        string timestampSource = _pen.Session?.Conventions.Timestamp.ToString() ?? "";
 
-        return new RecordingContext(api, _penSession?.MaxPressure ?? 0, scale, originPhysical, sizeDip,
+        return new RecordingContext(api, _pen.Session?.MaxPressure ?? 0, scale, originPhysical, sizeDip,
                                     timestampSource);
     }
 
@@ -1383,12 +1422,16 @@ public partial class MainWindow : Window
 
     // ── Render timer ─────────────────────────────────────────────
 
-    private void RenderTimer_Tick(object? sender, EventArgs e)
+    /// <summary>One drained batch, already stamped when it was taken off the queue.</summary>
+    /// <remarks>
+    /// A subscriber rather than a timer tick, so there is nowhere left for this window to put
+    /// work between the drain and the stamp. See StrokeRecorder.Add.
+    /// </remarks>
+    private void Took(Batch batch)
     {
-        if (_penSession == null) return;
+        var points = batch.Points;
 
-        var points = _penSession.DrainPoints();
-        if (points.Length == 0)
+        if (points.Count == 0)
         {
             if ((DateTime.UtcNow - _lastPointTime).TotalMilliseconds > 200)
             {
@@ -1404,13 +1447,13 @@ public partial class MainWindow : Window
         // null-guarded per-surface below.
         EnsureSurfaces();
 
-        int maxP = _penSession.MaxPressure;
+        int maxP = batch.Session.MaxPressure;
         var topLevel = TopLevel.GetTopLevel(this);
         if (topLevel == null) return;
 
         foreach (var pt in points)
         {
-            _recorder.Add(pt);
+            _recorder.Add(pt, batch.Arrived);
 
             // Determine which sub-canvas the pen is over by translating screen coords into each
             // host's local frame. The host where local Y ∈ [0, height] wins.
@@ -1551,7 +1594,7 @@ public partial class MainWindow : Window
         // nothing at all, so the session is asked and the unit travels with the reading.
         // Printing the pair alone was readable as a position in the same space as Screen,
         // which it is not, and would now print "0, 0" for a value that does not exist.
-        var rawUnits = _penSession?.Conventions.RawUnits ?? PenRawUnits.None;
+        var rawUnits = _pen.Session?.Conventions.RawUnits ?? PenRawUnits.None;
         RawPosLabel.Text = rawUnits == PenRawUnits.None
             ? "--"
             : $"{pt.RawX}, {pt.RawY} ({rawUnits.Label()})";
