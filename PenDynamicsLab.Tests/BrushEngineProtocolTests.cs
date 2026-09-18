@@ -1,6 +1,7 @@
 using Avalonia;
 using PenDynamicsLab.Drawing;
 using SkiaSharp;
+using StrokeKit.Surfaces;
 using Xunit;
 
 namespace PenDynamicsLab.Tests;
@@ -59,7 +60,7 @@ public class BrushEngineProtocolTests
             Calls.Add("end");
         }
 
-        public void DrawSegment(SKCanvas canvas, in StrokeSample from, in StrokeSample to,
+        public void DrawSegment(Surface surface, in StrokeSample from, in StrokeSample to,
             BrushSettings brush, SKColor color, PressureChannel channel)
         {
             if (_open == 0) Unbracketed++;

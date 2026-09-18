@@ -1,5 +1,6 @@
 using Avalonia;
 using SkiaSharp;
+using StrokeKit.Surfaces;
 
 namespace PenDynamicsLab.Drawing;
 
@@ -64,7 +65,7 @@ public interface IBrushEngine : IDisposable
     /// Which of the two pressures on the samples applies. One gesture draws both surfaces, so the
     /// sample alone does not say.
     /// </param>
-    void DrawSegment(SKCanvas canvas, in StrokeSample from, in StrokeSample to,
+    void DrawSegment(Surface surface, in StrokeSample from, in StrokeSample to,
         BrushSettings brush, SKColor color, PressureChannel channel);
 }
 
@@ -105,9 +106,11 @@ public sealed class RoundBrushEngine : IBrushEngine
     /// <inheritdoc cref="BeginStroke"/>
     public void EndStroke() { }
 
-    public void DrawSegment(SKCanvas canvas, in StrokeSample from, in StrokeSample to,
+    public void DrawSegment(Surface surface, in StrokeSample from, in StrokeSample to,
         BrushSettings brush, SKColor color, PressureChannel channel)
     {
+        var canvas = surface.Canvas;
+
         // The reduction the caller used to perform. Doing it here changes nothing about the mark
         // and is the whole point of the interface taking samples: an engine that wanted pressure
         // per dab rather than per segment could call these as often as it liked.

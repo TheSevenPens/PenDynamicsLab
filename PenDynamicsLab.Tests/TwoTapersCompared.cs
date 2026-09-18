@@ -70,7 +70,7 @@ public class TwoTapersCompared
         var to = new StrokeSample(new Point(b.X, b.Y), Fraction(pressureB), default,
                                   Fraction(pressureB), 0);
 
-        engine.DrawSegment(art.Canvas, from, to, Lab(), SKColors.Black,
+        engine.DrawSegment(art, from, to, Lab(), SKColors.Black,
                            PressureChannel.Processed);
 
         engine.EndStroke();
