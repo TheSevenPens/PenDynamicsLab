@@ -212,86 +212,56 @@ public sealed class DrawingSession : IDisposable
         if (dipWidth <= 0 || dipHeight <= 0) return;
         if (scale <= 0 || double.IsNaN(scale)) scale = 1;
 
-        var wide = (int)Math.Round(dipWidth * scale);
-        var high = (int)Math.Round(dipHeight * scale);
-
-        if (wide <= 0 || high <= 0) return;
-
         var art = SurfaceFor(role);
-        var was = ScaleOf(role);
-
-        // A change of scale reallocates whatever the pixel count says, and it may say fewer.
-        // The surface's canvas carries the transform that puts this application's DIPs into
-        // its pixels, so a surface made at one scale and presented at another draws every mark
-        // short or long by the ratio -- correct at the origin and drifting further out the
-        // further it goes. Moving the window to a display with different scaling does it.
-        if (art is not null && scale != was)
-        {
-            var moved = Surface.CreateExactly(wide, high, wide / scale, high / scale);
-
-            InDips(moved, scale);
-
-            // The old content at the size it looked, not the pixels it occupied: it was drawn
-            // in DIPs and should stay where those DIPs are.
-            using (var image = art.Snapshot())
-            {
-                moved.Canvas.Save();
-                moved.Canvas.ResetMatrix();
-                moved.Canvas.DrawImage(image,
-                    new SKRect(0, 0, (float)(art.PixelWidth * scale / was),
-                                     (float)(art.PixelHeight * scale / was)));
-                moved.Canvas.Restore();
-            }
-
-            Remember(role, moved, scale);
-            Showing(role, moved);
-            art.Dispose();
-
-            return;
-        }
 
         if (art is null)
         {
-            var made = Surface.CreateExactly(wide, high, wide / scale, high / scale);
-
-            InDips(made, scale);
-            Remember(role, made, scale);
-            Showing(role, made);
+            Take(role, Surface.Create(dipWidth, dipHeight, scale), scale);
 
             return;
         }
 
-        if (wide <= art.PixelWidth && high <= art.PixelHeight) return;
+        // Keep, grow or rebuild is the kit's decision now, and so is the tolerance it takes to
+        // ask whether the scale has really changed -- which cannot be an equality test, because
+        // a surface built for 2.25 does not report 2.25 back.
+        //
+        // This used to be forty lines here, tracking the scale each surface was built for
+        // because the surface would not say. Keying that off the pixel count alone is what put
+        // the ink off the nib when the window moved to a display that scales differently: fewer
+        // pixels are needed at 1.75 than at 2.25, so nothing was rebuilt and the canvas went on
+        // carrying a transform for a scale it was no longer shown at. See StrokeKit#1.
+        var next = art.Resized(dipWidth, dipHeight, scale);
 
-        var grown = art.Grown(wide, high, wide / scale, high / scale);
+        // The same surface back means there was nothing to do. Anything else and the old one
+        // has been drawn onto the new one already and is finished with.
+        if (ReferenceEquals(next, art)) return;
 
-        // After the blit, which Grown does in pixels.
-        InDips(grown, scale);
+        Take(role, next, scale);
 
-        // Shown before the old one goes: a view holding a disposed surface would render from
-        // freed memory on its next frame.
-        Remember(role, grown, scale);
-        Showing(role, grown);
         art.Dispose();
     }
 
-    private double ScaleOf(CanvasRole role) => role == CanvasRole.Raw ? _rawScale : _processedScale;
-
-    private void Remember(CanvasRole role, Surface art, double scale)
+    /// <summary>Takes a new surface for a role: transform, remember, show.</summary>
+    /// <remarks>
+    /// The transform is applied here and only here, because a surface arrives without one --
+    /// a kit surface draws in pixels and the canvas transform into DIPs is this application's
+    /// doing. Applying it to a surface that was already in use would compound it, which is why
+    /// the caller above checks for the same surface coming back before calling this at all.
+    /// </remarks>
+    private void Take(CanvasRole role, Surface art, double scale)
     {
-        if (role == CanvasRole.Raw) { Raw = art; _rawScale = scale; }
-        else { Processed = art; _processedScale = scale; }
+        InDips(art, scale);
+        Remember(role, art);
+
+        // Shown before the old one goes: a view holding a disposed surface would render from
+        // freed memory on its next frame.
+        Showing(role, art);
     }
 
-    /// <summary>The scale each surface's canvas transform was built for.</summary>
-    /// <remarks>
-    /// Kept because a StrokeKit surface does not know: its canvas is in pixels and the
-    /// transform on it is this application's doing, so this application is what has to notice
-    /// when the display it is being shown on stops matching.
-    /// </remarks>
-    private double _processedScale = 1;
-
-    private double _rawScale = 1;
+    private void Remember(CanvasRole role, Surface art)
+    {
+        if (role == CanvasRole.Raw) Raw = art; else Processed = art;
+    }
 
     /// <summary>
     /// Which canvas the pen is over, and where in that canvas, or null if it is over neither.
