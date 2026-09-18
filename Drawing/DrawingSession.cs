@@ -532,6 +532,18 @@ public sealed class DrawingSession : IDisposable
         _processedBaseline?.Dispose(); _processedBaseline = null;
         _rawBaseline?.Dispose(); _rawBaseline = null;
         ResetStroke();
+
+        // Shown, not merely wiped. Nothing else is going to: PresentDirty runs when a batch of
+        // pen input has been drained and when a stroke is undone, and clearing the canvas is
+        // neither -- so until the next stroke arrived, the reader saw the canvas they had just
+        // asked to be rid of, and then saw it vanish under the first mark of the next one.
+        //
+        // This is a regression from the move onto StrokeKit. DrawSurface.Clear ended with
+        // Present(), so wiping a surface and showing it were one operation; Wipe is a canvas
+        // clear and nothing more, which is right for a surface and leaves this to say so.
+        _processedDirty = _rawDirty = true;
+
+        PresentDirty();
     }
 
     /// <summary>Forget the stroke in progress and which canvas it was on.</summary>
