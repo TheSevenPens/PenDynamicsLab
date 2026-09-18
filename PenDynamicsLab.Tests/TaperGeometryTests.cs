@@ -47,13 +47,19 @@ public class TaperGeometryTests
         Assert.Equal(-20f, b.Left, Tol);
         Assert.Equal(105f, b.Right, Tol);
 
-        // Across the axis it reaches 20*cos(asin((20-5)/100)), not 20. The tangent line to two
-        // unequal circles is not perpendicular to the centre line - it is rotated by that angle -
-        // so the widest point of a taper sits slightly inboard of the radius. Only when the radii
-        // are equal does the angle vanish and the extreme land on the perpendicular.
-        const float widest = 19.7737f;   // 20 * cos(asin(0.15))
-        Assert.Equal(-widest, b.Top, Tol);
-        Assert.Equal(widest, b.Bottom, Tol);
+        // Across the axis it reaches the full radius, because the wide end's cap is an arc of
+        // more than half a circle and so passes through the perpendicular. The tangent points
+        // themselves do sit inboard, at 20*cos(asin(0.15)) = 19.77 - but they are not the
+        // widest part of the shape, the cap between them is.
+        //
+        // This asserted 19.77 until issue 81, with a comment explaining that "the widest point
+        // of a taper sits slightly inboard of the radius". That was true of the shape this
+        // application was drawing and is not true of a taper: the sides were turned the wrong
+        // way and cut across the caps, so the arcs never reached the perpendicular. The test
+        // did not merely miss the defect, it wrote it down as intended - which is the reason
+        // it survived being looked at.
+        Assert.Equal(-20f, b.Top, Tol);
+        Assert.Equal(20f, b.Bottom, Tol);
     }
 
     [Fact]

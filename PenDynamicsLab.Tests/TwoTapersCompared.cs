@@ -168,27 +168,27 @@ public class TwoTapersCompared
     }
 
     /// <summary>
-    /// A segment whose width changes sharply, which is where the two shapes part company.
+    /// A segment whose width changes sharply, now that both draw the same shape.
     /// </summary>
     /// <remarks>
-    /// Recorded rather than asserted to be small. The number this produces is the finding, and
-    /// the reason for it is in <see cref="The_sides_are_tangent_in_one_and_not_the_other"/>.
+    /// This differed at 387 and 436 pixels with alpha gaps of 255 — pixels fully inked in one
+    /// and empty in the other — while the two shapes disagreed. With issue 81 fixed the shapes
+    /// agree and what is left is the edge effect, the same as for an even segment.
     /// </remarks>
     [Fact]
-    public void A_segment_that_changes_width_fast_is_not_drawn_the_same_way()
+    public void A_segment_that_changes_width_fast_now_differs_only_at_the_edges()
     {
         using var lab = FromTheLab(new SKPoint(90, 120), new SKPoint(150, 120), 1000, 120);
         using var kit = FromTheKit(new SKPoint(90, 120), new SKPoint(150, 120), 1000, 120);
 
         var (differing, worst) = Compared(lab, kit);
 
-        // Measured: 387 pixels at 1000->300 and 436 at 1000->120, against 228 for an even
-        // segment. The excess over that floor is the shape, not the edges -- and the worst
-        // alpha gap reaches 255, meaning pixels fully inked in one and empty in the other.
-        Assert.True(differing > 300,
+        Assert.True(differing < 400,
             $"a width-changing segment differed at {differing} pixels, worst alpha gap {worst}");
 
-        Assert.Equal(255, worst);
+        // No pixel is solid in one and absent from the other any more. That is what the shapes
+        // agreeing means, and it was 255 before issue 81.
+        Assert.True(worst < 255, $"worst alpha gap was {worst}");
     }
 
     /// <summary>
@@ -208,10 +208,9 @@ public class TwoTapersCompared
     /// own documentation describes as the result of turning it the other way.
     /// </para>
     /// <para>
-    /// <b>The consequence is that this application draws narrower than it asked for.</b> At a
-    /// pressure asking for 39.1 pixels the wide end spans 36, and 38 where the change is less
-    /// steep. That is a defect in this application rather than a difference of policy, and it
-    /// is filed separately.
+    /// <b>The consequence was that this application drew narrower than it asked for.</b> At a
+    /// pressure asking for 39.1 pixels the wide end spanned 36, and 38 where the change was
+    /// less steep. Fixed in issue 81; this is the regression against it coming back.
     /// </para>
     /// <para>
     /// <b>The wide end is second on purpose.</b> The kit lays a dot at the <i>first</i> reading,
@@ -221,10 +220,9 @@ public class TwoTapersCompared
     /// </para>
     /// </remarks>
     [Theory]
-    [InlineData(120u, 1000u, 36)]
-    [InlineData(300u, 1000u, 38)]
-    public void This_application_draws_the_wide_end_narrower_than_it_asked_for(
-        uint narrow, uint wide, int expected)
+    [InlineData(120u, 1000u)]
+    [InlineData(300u, 1000u)]
+    public void Both_draw_the_wide_end_at_the_full_diameter(uint narrow, uint wide)
     {
         var a = new SKPoint(90, 120);
         var b = new SKPoint(150, 120);
@@ -238,10 +236,11 @@ public class TwoTapersCompared
             $"the kit's wide end should span its full {wanted:F1} pixels, and spans "
             + $"{Across(kit, (int)b.X)}");
 
-        Assert.Equal(expected, Across(lab, (int)b.X));
+        Assert.True(Across(lab, (int)b.X) >= wanted,
+            $"this application's wide end should span its full {wanted:F1} pixels, and spans "
+            + $"{Across(lab, (int)b.X)} — if this is short again, the tangent normals have been "
+            + "turned the wrong way once more");
 
-        Assert.True(Across(lab, (int)b.X) < wanted - 1,
-            $"this application's wide end is cut into by its own sides: {Across(lab, (int)b.X)} "
-            + $"of {wanted:F1}");
+        Assert.Equal(Across(kit, (int)b.X), Across(lab, (int)b.X));
     }
 }

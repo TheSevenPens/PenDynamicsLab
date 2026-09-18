@@ -170,8 +170,16 @@ public sealed class RoundBrushEngine : IBrushEngine
         float alpha = MathF.Asin(Math.Clamp((ra - rb) / d, -1f, 1f));
 
         // The shared normal of the two external tangent lines, one on each side of the axis.
-        float up = phi + MathF.PI / 2 + alpha;
-        float down = phi - MathF.PI / 2 - alpha;
+        //
+        // Turned BACK towards the wide end by alpha, which is the whole of the correction made
+        // here: a tangent meets a radius at a right angle, so the tangent point sits on the
+        // normal rotated against the taper rather than with it. Turning it the other way --
+        // which this did until now -- gives a shape that still closes and still looks like a
+        // taper, with sides that cut across the caps instead of leaving them. The mark was then
+        // narrower than the brush asked for wherever the width changed quickly: 36 pixels where
+        // 39.1 were wanted. See issue 81.
+        float up = phi + MathF.PI / 2 - alpha;
+        float down = phi - MathF.PI / 2 + alpha;
 
         float alphaDeg = alpha * 180f / MathF.PI;
 
@@ -179,10 +187,12 @@ public sealed class RoundBrushEngine : IBrushEngine
         path.LineTo(b.X + rb * MathF.Cos(up), b.Y + rb * MathF.Sin(up));
 
         // Round the far end, then the near one. Both sweeps run the same way round so the contour
-        // stays simple; together they account for the full 360 degrees the two caps share.
-        path.ArcTo(Bounds(b, rb), Deg(up), -(180f + 2f * alphaDeg), false);
+        // stays simple; together they account for the full 360 degrees the two caps share, and
+        // the WIDE end takes the larger part of it -- which is the other half of the correction,
+        // and has to move with the normal above or the contour stops closing.
+        path.ArcTo(Bounds(b, rb), Deg(up), -(180f - 2f * alphaDeg), false);
         path.LineTo(a.X + ra * MathF.Cos(down), a.Y + ra * MathF.Sin(down));
-        path.ArcTo(Bounds(a, ra), Deg(down), -(180f - 2f * alphaDeg), false);
+        path.ArcTo(Bounds(a, ra), Deg(down), -(180f + 2f * alphaDeg), false);
 
         path.Close();
 
