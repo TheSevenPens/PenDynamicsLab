@@ -112,8 +112,15 @@ public sealed class DrawingSession : IDisposable
     public DrawingSession(IEnumerable<CanvasTarget> targets, IBrushEngine? engine = null)
     {
         _targets = [.. targets];
-        _engine = engine ?? new RoundBrushEngine();
 
+        // StrokeKit's taper by default, rather than this application's own. The two lay the
+        // same shape -- checked in TwoTapersCompared, which is what found that this one's
+        // sides were turned the wrong way -- so what changes is that there is one
+        // implementation of it instead of two, and it is the kit's.
+        //
+        // RoundBrushEngine stays, and stays tested. It is the thing the kit's is compared
+        // against, and a comparison needs both halves.
+        _engine = engine ?? new SampleTaperEngine();
     }
 
     private Surface? SurfaceFor(CanvasRole role) => role == CanvasRole.Raw ? Raw : Processed;
@@ -398,12 +405,12 @@ public sealed class DrawingSession : IDisposable
             // output; the raw one takes unprocessed pressure, which is the comparison.
             if (Processed?.Canvas is { } pc && (brush.DrawAtZeroPressure || processedPressure > 0))
             {
-                _engine.DrawSegment(pc, from, sample, brush, _strokeColor, PressureChannel.Processed);
+                _engine.DrawSegment(Processed!, from, sample, brush, _strokeColor, PressureChannel.Processed);
                 _processedDirty = true;
             }
             if (Raw?.Canvas is { } rc)
             {
-                _engine.DrawSegment(rc, from, sample, brush, _strokeColor, PressureChannel.Raw);
+                _engine.DrawSegment(Raw!, from, sample, brush, _strokeColor, PressureChannel.Raw);
                 _rawDirty = true;
             }
         }
@@ -492,9 +499,22 @@ public sealed class DrawingSession : IDisposable
                 baseline = grown;
             }
 
-            using var canvas = new SKCanvas(baseline);
-            // Samples are in DIPs; the baseline is physical pixels, same as the surface it mirrors.
-            canvas.Scale((float)surface.ScaleX, (float)surface.ScaleY);
+            // A surface of its own rather than a canvas over the baseline, because an engine
+            // draws onto surfaces. Its logical size carries the scaling that the canvas
+            // transform used to: samples are in DIPs and the baseline is physical pixels.
+            //
+            // One extra composite per eviction, which happens when the undo cap pushes a
+            // stroke out and not otherwise. Source-over composes the same either way, so a
+            // stroke laid here and then drawn on lands where it would have landed directly.
+            using var replay = Surface.CreateExactly(
+                baseline.Width, baseline.Height,
+                baseline.Width / surface.ScaleX, baseline.Height / surface.ScaleY);
+
+            replay.Canvas.Clear(SKColors.Transparent);
+
+            // The same DIP-to-pixel transform the live surfaces carry, because an engine here
+            // expects to be handed a canvas that already has it. See SampleTaperEngine.
+            replay.Canvas.Scale((float)surface.ScaleX, (float)surface.ScaleY);
 
             // Bracketed like any other stroke. A stateful engine replaying one must start from
             // nothing, or the baseline would be drawn with whatever the live canvas left behind.
@@ -503,10 +523,15 @@ public sealed class DrawingSession : IDisposable
             for (int i = 1; i < samples.Count; i++)
             {
                 if (!stroke.Brush.DrawAtZeroPressure && samples[i].PressureFor(channel) <= 0) continue;
-                _engine.DrawSegment(canvas, samples[i - 1], samples[i],
+                _engine.DrawSegment(replay, samples[i - 1], samples[i],
                                     stroke.Brush, stroke.Color, channel);
             }
             _engine.EndStroke();
+
+            using var laid = replay.Snapshot();
+            using var onto = new SKCanvas(baseline);
+
+            onto.DrawImage(laid, 0, 0);
         }
     }
 
@@ -602,10 +627,10 @@ public sealed class DrawingSession : IDisposable
             var s = samples[i];
 
             if (Processed?.Canvas is { } pc && (stroke.Brush.DrawAtZeroPressure || s.ProcessedPressure > 0))
-                _engine.DrawSegment(pc, prev, s, stroke.Brush, stroke.Color, PressureChannel.Processed);
+                _engine.DrawSegment(Processed!, prev, s, stroke.Brush, stroke.Color, PressureChannel.Processed);
 
             if (Raw?.Canvas is { } rc)
-                _engine.DrawSegment(rc, prev, s, stroke.Brush, stroke.Color, PressureChannel.Raw);
+                _engine.DrawSegment(Raw!, prev, s, stroke.Brush, stroke.Color, PressureChannel.Raw);
         }
 
         _engine.EndStroke();

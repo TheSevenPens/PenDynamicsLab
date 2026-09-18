@@ -2,6 +2,7 @@ using Avalonia;
 using PenDynamicsLab.Curves;
 using PenDynamicsLab.Drawing;
 using SkiaSharp;
+using StrokeKit.Surfaces;
 
 namespace PenDynamicsLab.Diagnostics;
 
@@ -65,12 +66,17 @@ public static class RecordingRenderer
         int w = Math.Max(1, (int)Math.Ceiling(recording.CanvasWidth * s));
         int h = Math.Max(1, (int)Math.Ceiling(recording.CanvasHeight * s));
 
-        var bitmap = new SKBitmap(w, h, SKColorType.Bgra8888, SKAlphaType.Premul);
-        using var canvas = new SKCanvas(bitmap);
-        canvas.Clear(Background);
-        canvas.Scale((float)s);
+        // A surface rather than a canvas over the bitmap, because an engine draws onto
+        // surfaces. Its logical size carries the render scaling the canvas transform used to:
+        // samples are in DIPs and this is in physical pixels.
+        using var art = Surface.CreateExactly(w, h, w / s, h / s);
 
-        using var engine = new RoundBrushEngine();
+        art.Canvas.Clear(Background);
+
+        // The DIP-to-pixel transform an engine here expects on the canvas it is handed.
+        art.Canvas.Scale((float)s);
+
+        using var engine = new SampleTaperEngine();
         // A recording is one stroke as far as an engine is concerned. Bracketing it matters for
         // any engine carrying state between segments, even though this one carries none.
         engine.BeginStroke();
@@ -129,12 +135,23 @@ public static class RecordingRenderer
             // Only the processed channel is drawn here. This renders what the pipeline produced,
             // which is the question it exists to answer; the raw comparison is the live canvas's job.
             if (brush.DrawAtZeroPressure || result.Output > 0)
-                engine.DrawSegment(canvas, last.Value, sample, brush, Ink, PressureChannel.Processed);
+                engine.DrawSegment(art, last.Value, sample, brush, Ink, PressureChannel.Processed);
 
             last = sample;
         }
 
         engine.EndStroke();
+
+        // Back to a bitmap, which is what every caller of this wants: it is saved, magnified
+        // and compared as one.
+        var bitmap = new SKBitmap(w, h, SKColorType.Bgra8888, SKAlphaType.Premul);
+
+        using (var onto = new SKCanvas(bitmap))
+        using (var laid = art.Snapshot())
+        {
+            onto.DrawImage(laid, 0, 0);
+        }
+
         return bitmap;
     }
 
