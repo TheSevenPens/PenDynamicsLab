@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <!-- Reading a captured frame's buffer directly, rather than through a PNG round trip. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>PenDynamicsLab.Ui.Tests</RootNamespace>
+    <!-- xunit v3 runs as a program of its own. -->
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      A second test project rather than a UI harness bolted onto the first, because
+      Avalonia.Headless.XUnit depends on xunit v3 and PenDynamicsLab.Tests is on v2. Moving
+      263 tests to v3 to satisfy a package they do not use is the worse trade; StrokeKit
+      reached the same conclusion and runs the same split, and one `dotnet test` over the
+      solution runs both.
+
+      What belongs here is only what needs a window. Everything checkable without one stays
+      where it is.
+    -->
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit.v3" Version="3.2.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageReference Include="Avalonia.Headless" Version="$(AvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Headless.XUnit" Version="$(AvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Skia" Version="$(AvaloniaVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PenDynamicsLab.csproj" />
+  </ItemGroup>
+
+</Project>

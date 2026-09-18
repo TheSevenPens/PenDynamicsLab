@@ -37,8 +37,15 @@
       into every submodule beneath it. StrokeKit brings WinPenKit nested inside itself, and
       without this the build tries to compile WinPenKit's WinUI and WPF samples as part of
       this application.
+
+      Every test project for the same reason, and the failure is worth recognising: files in
+      an unexcluded folder are compiled into THIS project, so they are missing the packages
+      their own project references, and the errors are reported against this csproj rather
+      than theirs. A new test project that has not been added here looks like a test project
+      whose package references did not restore.
     -->
-    <Compile Include="**\*.cs" Exclude="bin\**;obj\**;PenDynamicsLab.Tests\**;vendor\**" />
+    <Compile Include="**\*.cs"
+             Exclude="bin\**;obj\**;PenDynamicsLab.Tests\**;PenDynamicsLab.Ui.Tests\**;vendor\**" />
     <EmbeddedResource Include="Persistence\SampleResponses\*.json" />
   </ItemGroup>
 

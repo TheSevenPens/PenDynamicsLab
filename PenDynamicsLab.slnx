@@ -5,4 +5,5 @@
   </Configurations>
   <Project Path="PenDynamicsLab.csproj" />
   <Project Path="PenDynamicsLab.Tests/PenDynamicsLab.Tests.csproj" />
+  <Project Path="PenDynamicsLab.Ui.Tests/PenDynamicsLab.Ui.Tests.csproj" />
 </Solution>
