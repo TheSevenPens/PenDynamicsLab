@@ -81,7 +81,7 @@ Single source of truth. Owns:
 
 The render timer (16 ms tick) drains pen points from the session, runs them through the pressure pipeline, draws line segments to the surfaces, and updates the live indicators on both charts.
 
-Brush state is *not* stored on `MainWindow` — it's read on demand from `BrushRibbon`'s properties (`BrushSize`, `ColorMode`, `PressureControl`, `DrawZeroPressure`) at draw time. Only `_strokeColor` (the colour in force for the current stroke) lives on the window.
+Brush state is *not* stored on `MainWindow` — it's read on demand from `BrushRibbon`'s properties (`BrushSize`, `ColorMode`, `SizeFrom`, `OpacityFrom`, `DrawZeroPressure`) at draw time. Only `_strokeColor` (the colour in force for the current stroke) lives on the window.
 
 ### `StrokeCanvasView`
 A `UserControl` bundling a header pill and an `Image`. It does **not** own pixel data — it exposes `Image` (register with a `DrawSurface`), `Host` (the `Border` whose bounds drive surface size), a `Header` styled property, and `SaveRequested` / `CopyRequested` / `ClearRequested` events. The `Image` sits inside a `Canvas` pinned at (0, 0) so an oversized shared bitmap doesn't get re-laid-out when it's larger than the current host.
@@ -400,8 +400,9 @@ Both surfaces are drawn on every segment when their canvases exist — the proce
 Every coordinate in this pipeline — `clientPt`, the host-local point, and the stroke widths from `SizeFor` — is in **DIPs**. Nothing here is aware of the display scaling; `DrawSurface`'s canvas transform converts to physical pixels at the point of drawing. See [HiDPI](#hidpi-dips-vs-physical-pixels).
 
 Pressure → stroke parameters (`SizeFor` / `OpacityFor`, both reading `BrushRibbon` live):
-- `PressureControl.Size`: stroke width = `max(1, pressure * brushSize)`, opacity = 1
-- `PressureControl.Opacity`: stroke width = `brushSize`, opacity = `max(0.02, pressure)`
+- `SizeFrom` (a `MarkSource`): `Pressure` gives stroke width = `max(MinStrokeWidth, pressure * brushSize)`; `Constant` gives `brushSize`
+- `OpacityFrom` (a `MarkSource`): `Pressure` gives opacity = `max(0.02, pressure)`; `Constant` gives 1
+- The two are independent: both constant draws a fixed-width, fully opaque stroke, and both can follow pressure at once
 
 Stroke state resets in two parts, with different owners.
 
@@ -542,7 +543,7 @@ Every curve type shares this one record, so fields the active type does not use 
 
 > **`CurveSettings` is a record, so `==` looks like value equality — but `ImmutableArray<T>` compares by reference.** Two settings with identical bezier points, one of them just deserialized, are *not* equal. Compare the points with `SequenceEqual` when it matters.
 
-Brush settings (`ColorMode`, `PressureControl`, brush size, draw-at-zero) are deliberately **not** part of this record — they're view state on `BrushRibbon` and aren't saved with user presets.
+Brush settings (`ColorMode`, `SizeFrom`, `OpacityFrom`, brush size, draw-at-zero) are deliberately **not** part of this record — they're view state on `BrushRibbon` and aren't saved with user presets.
 
 ## Pressure response data schema
 

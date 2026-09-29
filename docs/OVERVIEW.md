@@ -98,7 +98,7 @@ Curves/
   PressureCurveParams.cs        Immutable record holding the full curve configuration
   BezierPoint.cs                Bezier anchor/handle record
   BezierPresets.cs              Built-in bezier preset definitions
-  Enums.cs                      CurveType, MinApproach, HandleMode, SmoothingType, SmoothingOrder, ColorMode, PressureControl
+  Enums.cs                      CurveType, MinApproach, HandleMode, SmoothingType, SmoothingOrder, ColorMode, MarkSource
   EmaConstants.cs               EMA smoothing constants
 
 Drawing/

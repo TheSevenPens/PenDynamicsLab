@@ -78,9 +78,6 @@ public partial class MainWindow : Window
     // starts rather than as every sample the pen spends down.
     private bool _penWasDown;
 
-    // Raw pen capture, for replaying a stroke later under settings it was never drawn under.
-    private readonly Diagnostics.StrokeRecorder _recorder = new();
-
     // The brush configuration. Drawing reads this record, never the ribbon's controls — the
     // ribbon is a view over it and pushes edits back through SettingsChanged.
     private BrushSettings _brush = BrushSettings.Default;
@@ -195,26 +192,6 @@ public partial class MainWindow : Window
             ResetStrokeState();
         };
 
-        BrushRibbon.RecordChanged += (_, on) =>
-        {
-            if (on)
-            {
-                if (CaptureRecordingContext() is not { } context)
-                {
-                    BrushRibbon.SetRecordStatus("cannot record: no window");
-                    BrushRibbon.ClearRecordWithoutNotifying();
-                    return;
-                }
-
-                _recorder.Start(context);
-                BrushRibbon.SetRecordStatus("recording...");
-                return;
-            }
-
-            BrushRibbon.SetRecordStatus(SaveRecording() is { } path
-                ? Path.GetFileName(path)
-                : "nothing captured");
-        };
         BrushRibbon.SettingsChanged += (_, next) => _brush = next;
         BrushRibbon.Settings = _brush;
         InitializeCurveControls();
@@ -1279,19 +1256,6 @@ public partial class MainWindow : Window
         _pen.Session?.Stop();
         _pen.Session?.Dispose();
 
-        // A recording in progress belongs to the session being torn down. Its samples were
-        // scaled to that device's pressure range, so carrying them into the next session would
-        // mean one file describing two devices under one MaxPressure. Save what was captured,
-        // under the context it was captured in, and stop.
-        if (_recorder.IsRecording)
-        {
-            string? saved = SaveRecording();
-            BrushRibbon.ClearRecordWithoutNotifying();
-            BrushRibbon.SetRecordStatus(saved is { } p
-                ? $"{Path.GetFileName(p)} (stopped: API changed)"
-                : "recording discarded: API changed");
-        }
-
         var api = _apis[ApiCombo.SelectedIndex];
         // Whatever the previous session last reported says nothing about this one. The
         // out-of-range path would blank these within 200 ms anyway; doing it here means the
@@ -1322,47 +1286,6 @@ public partial class MainWindow : Window
 
         Title = "PenDynamicsLab";
     }
-
-    /// <summary>
-    /// Write what the recorder has collected, returning the file path or null.
-    /// </summary>
-    /// <remarks>
-    /// The canvas geometry goes in with it. Desktop coordinates alone are not replayable — where
-    /// the canvas was on screen is what turns them back into canvas-local positions.
-    /// </remarks>
-    /// <summary>
-    /// What is true right now: the device, and where the canvas sits on the desktop. Read once
-    /// when recording starts, never at save time.
-    /// </summary>
-    private RecordingContext? CaptureRecordingContext()
-    {
-        var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel is null) return null;
-
-        double scale = topLevel.RenderScaling;
-        var clientOrigin = topLevel.PointToScreen(new Point(0, 0));
-
-        var originDip = new Point(0, 0);
-        var sizeDip = new Size(0, 0);
-        _session.TryGetCanvasGeometry(topLevel, out originDip, out sizeDip);
-
-        var originPhysical = new Point(
-            clientOrigin.X + originDip.X * scale,
-            clientOrigin.Y + originDip.Y * scale);
-
-        string api = _apis.Count > 0 && ApiCombo.SelectedIndex >= 0
-            ? _apis[ApiCombo.SelectedIndex].ToString()
-            : "";
-
-        // Named at capture rather than at save, for the reason StrokeRecorder.Start documents:
-        // the pen API can change while a recording is running, and the clock changes with it.
-        string timestampSource = _pen.Session?.Conventions.Timestamp.ToString() ?? "";
-
-        return new RecordingContext(api, _pen.Session?.MaxPressure ?? 0, scale, originPhysical, sizeDip,
-                                    timestampSource);
-    }
-
-    private string? SaveRecording() => _recorder.StopAndSave();
 
     /// <summary>
     /// Select the input API to start on: Wintab's digitizer context if it is available.
@@ -1425,7 +1348,7 @@ public partial class MainWindow : Window
     /// <summary>One drained batch, already stamped when it was taken off the queue.</summary>
     /// <remarks>
     /// A subscriber rather than a timer tick, so there is nowhere left for this window to put
-    /// work between the drain and the stamp. See StrokeRecorder.Add.
+    /// work between the drain and the stamp.
     /// </remarks>
     private void Took(Batch batch)
     {
@@ -1453,8 +1376,6 @@ public partial class MainWindow : Window
 
         foreach (var pt in points)
         {
-            _recorder.Add(pt, batch.Arrived);
-
             // Determine which sub-canvas the pen is over by translating screen coords into each
             // host's local frame. The host where local Y ∈ [0, height] wins.
             Point clientPt;

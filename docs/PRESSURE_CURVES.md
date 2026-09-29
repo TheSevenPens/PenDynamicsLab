@@ -233,7 +233,7 @@ Raw pen pressure (pt.Pressure / pt.MaxPressure  → 0..1)
 [EMA smoothing]    ← if UiSettings.SmoothingOrder = CurveThenSmooth
   │
   ▼
-Output pressure (0..1)  →  brush size  OR  opacity  (per PressureControl)
+Output pressure (0..1)  →  brush size and/or opacity  (per SizeFrom / OpacityFrom)
 ```
 
 EMA (Exponential Moving Average) smoothing:

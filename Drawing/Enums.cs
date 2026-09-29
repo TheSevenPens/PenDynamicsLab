@@ -2,7 +2,7 @@ namespace PenDynamicsLab.Drawing;
 
 /// <summary>How each new stroke picks its colour.</summary>
 /// <remarks>
-/// This and <see cref="PressureControl"/> used to live in <c>Curves/Enums.cs</c>, next to
+/// This and <see cref="MarkSource"/> used to live in <c>Curves/Enums.cs</c>, next to
 /// curve types they have nothing to do with. They are brush concepts: what a mark looks like,
 /// not how pressure is shaped on the way to it.
 /// </remarks>
@@ -39,12 +39,17 @@ public enum PressureChannel
     Raw,
 }
 
-/// <summary>Which property of the mark the pressure signal drives.</summary>
-public enum PressureControl
+/// <summary>What a property of the mark — its size, or its opacity — follows.</summary>
+/// <remarks>
+/// One per property rather than one for the brush. It replaced a single "pressure drives size
+/// or opacity" choice, which could not say "neither": a constant-width stroke, needed to judge
+/// a line's path on its own, was not expressible. Two independent choices also allow both.
+/// </remarks>
+public enum MarkSource
 {
-    /// <summary>Pressure sets stroke width; opacity stays at 1.</summary>
-    Size,
+    /// <summary>The property stays fixed: the brush size, or full opacity.</summary>
+    Constant,
 
-    /// <summary>Pressure sets opacity; stroke width stays at the brush size.</summary>
-    Opacity,
+    /// <summary>The property follows the pen's pressure.</summary>
+    Pressure,
 }

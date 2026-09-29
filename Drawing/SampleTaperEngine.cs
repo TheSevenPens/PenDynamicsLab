@@ -117,27 +117,18 @@ public sealed class SampleTaperEngine : IBrushEngine
     /// This application's brush, said in the kit's terms.
     /// </summary>
     /// <remarks>
-    /// The two controls are exclusive here exactly as they are in <see cref="BrushSettings"/>:
-    /// pressure drives the width or the ink and never both, so whichever it does not drive is
-    /// given no curve at all rather than a flat one. A null control is the kit's way of saying
-    /// "this does not vary", which is the same thing said once instead of twice.
+    /// Width and ink each follow pressure or stay constant, independently, as they do in
+    /// <see cref="BrushSettings"/>. Whichever stays constant is given no curve at all rather than
+    /// a flat one: a null control is the kit's way of saying "this does not vary", which is the
+    /// same thing said once instead of twice.
     /// </remarks>
     private static KitBrush Kit(BrushSettings brush, SKColor colour) =>
-        brush.PressureDrives == PressureControl.Opacity
-            ? new KitBrush(
-                brush.Size, colour, 1,
-                Buildup: Buildup.PerStamp,
-                Width: null,
-                SpacedBy: SpacedBy.Distance,
-                Flow: new Flow(0, 1, Range, new Response(0, 1, 1)),
-                Engine: Engine.SampleTaper)
-            : new KitBrush(
-                brush.Size, colour, 1,
-                Buildup: Buildup.PerStamp,
-                Width: new Width(0, brush.Size, Range, new Response(0, 1, 1)),
-                SpacedBy: SpacedBy.Distance,
-                Flow: null,
-                Engine: Engine.SampleTaper);
+        new(brush.Size, colour, 1,
+            Buildup: Buildup.PerStamp,
+            Width: brush.SizeFrom == MarkSource.Pressure ? new Width(0, brush.Size, Range, new Response(0, 1, 1)) : null,
+            SpacedBy: SpacedBy.Distance,
+            Flow: brush.OpacityFrom == MarkSource.Pressure ? new Flow(0, 1, Range, new Response(0, 1, 1)) : null,
+            Engine: Engine.SampleTaper);
 
     private void Finish()
     {

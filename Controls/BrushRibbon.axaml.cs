@@ -4,8 +4,8 @@ using PenDynamicsLab.Drawing;
 namespace PenDynamicsLab.Controls;
 
 /// <summary>
-/// Top-of-stroke-area toolbar: brush size, colour mode, pressure target, draw-at-zero toggle,
-/// and Clear.
+/// Top-of-stroke-area toolbar: brush size, what size and opacity follow, colour mode,
+/// draw-at-zero toggle, tap test and Clear.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -60,41 +60,23 @@ public partial class BrushRibbon : UserControl
     /// <summary>Fires when the user toggles tap test, carrying the new state.</summary>
     public event EventHandler<bool>? TapTestChanged;
 
-    /// <summary>Fires when the user toggles recording, carrying the new state.</summary>
-    /// <remarks>
-    /// Kept off <see cref="BrushSettings"/>: recording is not a property of the brush, and a
-    /// preset should not be able to switch it on.
-    /// </remarks>
-    public event EventHandler<bool>? RecordChanged;
-
-    /// <summary>Show a short line beside the Record box — sample count, or where a file went.</summary>
-    public void SetRecordStatus(string text) => RecordStatus.Text = text;
-
-    /// <summary>
-    /// Clear the Record box without raising <see cref="RecordChanged"/>.
-    /// </summary>
-    /// <remarks>
-    /// For when something other than the user ends a recording — switching the pen API, which
-    /// invalidates what is still being captured. Raising the event would run the save path a
-    /// second time and overwrite the status line with "nothing captured".
-    /// </remarks>
-    public void ClearRecordWithoutNotifying()
+    /// <summary>A <see cref="MarkSource"/> as a dropdown shows it.</summary>
+    private sealed record SourceChoice(MarkSource Value)
     {
-        _suppressRecordEvent = true;
-        RecordCheck.IsChecked = false;
-        _suppressRecordEvent = false;
+        public override string ToString() => Value == MarkSource.Pressure ? "From pressure" : "Constant";
     }
 
-    private bool _suppressRecordEvent;
+    private static readonly SourceChoice[] SourceChoices =
+        [.. Enum.GetValues<MarkSource>().Select(v => new SourceChoice(v))];
 
     public BrushRibbon()
     {
         InitializeComponent();
 
-        // The combos hold the enum values themselves, so selection is read by value rather than
-        // by position — inserting a mode in the middle cannot silently repoint the dropdown.
+        // The combos hold the values themselves, so selection is read by value rather than by
+        // position — inserting a mode in the middle cannot silently repoint the dropdown.
         foreach (var m in Enum.GetValues<ColorMode>()) ColorModeCombo.Items.Add(m);
-        foreach (var c in Enum.GetValues<PressureControl>()) PressureControlCombo.Items.Add(c);
+        foreach (var c in SourceChoices) { SizeFromCombo.Items.Add(c); OpacityFromCombo.Items.Add(c); }
 
         SyncToControls();
 
@@ -108,21 +90,19 @@ public partial class BrushRibbon : UserControl
         {
             if (ColorModeCombo.SelectedItem is ColorMode m) Emit(_settings with { ColorMode = m });
         };
-        PressureControlCombo.SelectionChanged += (_, _) =>
+        SizeFromCombo.SelectionChanged += (_, _) =>
         {
-            if (PressureControlCombo.SelectedItem is PressureControl c) Emit(_settings with { PressureDrives = c });
+            if (SizeFromCombo.SelectedItem is SourceChoice c) Emit(_settings with { SizeFrom = c.Value });
+        };
+        OpacityFromCombo.SelectionChanged += (_, _) =>
+        {
+            if (OpacityFromCombo.SelectedItem is SourceChoice c) Emit(_settings with { OpacityFrom = c.Value });
         };
         DrawZeroPressureCheck.IsCheckedChanged += (_, _) =>
             Emit(_settings with { DrawAtZeroPressure = DrawZeroPressureCheck.IsChecked == true });
 
         TapTestCheck.IsCheckedChanged += (_, _) =>
             TapTestChanged?.Invoke(this, TapTestEnabled);
-
-        RecordCheck.IsCheckedChanged += (_, _) =>
-        {
-            if (_suppressRecordEvent) return;
-            RecordChanged?.Invoke(this, RecordCheck.IsChecked == true);
-        };
 
         ClearButton.Click += (_, _) => ClearRequested?.Invoke(this, EventArgs.Empty);
     }
@@ -140,7 +120,8 @@ public partial class BrushRibbon : UserControl
         _suppress = true;
         BrushSizeSlider.Value = _settings.Size;
         ColorModeCombo.SelectedItem = _settings.ColorMode;
-        PressureControlCombo.SelectedItem = _settings.PressureDrives;
+        SizeFromCombo.SelectedItem = SourceChoices.First(c => c.Value == _settings.SizeFrom);
+        OpacityFromCombo.SelectedItem = SourceChoices.First(c => c.Value == _settings.OpacityFrom);
         DrawZeroPressureCheck.IsChecked = _settings.DrawAtZeroPressure;
         _suppress = false;
 

@@ -49,7 +49,8 @@ public class BrushSettingsTests
         var d = BrushSettings.Default;
         Assert.Equal(40, d.Size);
         Assert.Equal(ColorMode.Black, d.ColorMode);
-        Assert.Equal(PressureControl.Size, d.PressureDrives);
+        Assert.Equal(MarkSource.Pressure, d.SizeFrom);
+        Assert.Equal(MarkSource.Constant, d.OpacityFrom);
         Assert.False(d.DrawAtZeroPressure);
     }
 
@@ -58,7 +59,7 @@ public class BrushSettingsTests
     [Fact]
     public void PressureDrivingSizeScalesWidthAndLeavesOpacityAlone()
     {
-        var b = BrushSettings.Default with { Size = 100, PressureDrives = PressureControl.Size };
+        var b = BrushSettings.Default with { Size = 100, SizeFrom = MarkSource.Pressure, OpacityFrom = MarkSource.Constant };
 
         Assert.Equal(50f, b.StrokeWidthFor(0.5), 4);
         Assert.Equal(1f, b.OpacityFor(0.5), 4);
@@ -67,9 +68,29 @@ public class BrushSettingsTests
     [Fact]
     public void PressureDrivingOpacityHoldsWidthAtTheBrushSize()
     {
-        var b = BrushSettings.Default with { Size = 100, PressureDrives = PressureControl.Opacity };
+        var b = BrushSettings.Default with { Size = 100, SizeFrom = MarkSource.Constant, OpacityFrom = MarkSource.Pressure };
 
         Assert.Equal(100f, b.StrokeWidthFor(0.5), 4);
+        Assert.Equal(0.5f, b.OpacityFor(0.5), 4);
+    }
+
+    [Fact]
+    public void ConstantSizeAndOpacityIgnorePressure()
+    {
+        // The case the single "pressure drives size or opacity" choice could not express.
+        var b = BrushSettings.Default with { Size = 30, SizeFrom = MarkSource.Constant, OpacityFrom = MarkSource.Constant };
+
+        Assert.Equal(30f, b.StrokeWidthFor(0.1), 4);
+        Assert.Equal(30f, b.StrokeWidthFor(1.0), 4);
+        Assert.Equal(1f, b.OpacityFor(0.1), 4);
+    }
+
+    [Fact]
+    public void SizeAndOpacityCanBothFollowPressure()
+    {
+        var b = BrushSettings.Default with { Size = 100, SizeFrom = MarkSource.Pressure, OpacityFrom = MarkSource.Pressure };
+
+        Assert.Equal(50f, b.StrokeWidthFor(0.5), 4);
         Assert.Equal(0.5f, b.OpacityFor(0.5), 4);
     }
 
@@ -78,7 +99,7 @@ public class BrushSettingsTests
     {
         // Zero would draw nothing, so the lightest touch would silently skip. The floor exists
         // for that and nothing else - it must not be thick enough to be a width in its own right.
-        var b = BrushSettings.Default with { Size = 100, PressureDrives = PressureControl.Size };
+        var b = BrushSettings.Default with { Size = 100, SizeFrom = MarkSource.Pressure, OpacityFrom = MarkSource.Constant };
         Assert.Equal(BrushSettings.MinStrokeWidth, b.StrokeWidthFor(0.0), 4);
         Assert.Equal(BrushSettings.MinStrokeWidth, b.StrokeWidthFor(0.001), 4);
         Assert.True(BrushSettings.MinStrokeWidth > 0);
@@ -89,7 +110,7 @@ public class BrushSettingsTests
     {
         // The point of removing the old 1 DIP floor: on a 168 dpi display that was 1.75 physical
         // pixels, so every stroke ended at a visible width instead of fading out.
-        var b = BrushSettings.Default with { Size = 40, PressureDrives = PressureControl.Size };
+        var b = BrushSettings.Default with { Size = 40, SizeFrom = MarkSource.Pressure, OpacityFrom = MarkSource.Constant };
         Assert.True(b.StrokeWidthFor(0.02) < 1f);
         Assert.Equal(0.8f, b.StrokeWidthFor(0.02), 4);
     }
@@ -98,7 +119,7 @@ public class BrushSettingsTests
     public void OpacityNeverFallsToFullyTransparent()
     {
         // Same reasoning: invisible is indistinguishable from not drawing.
-        var b = BrushSettings.Default with { PressureDrives = PressureControl.Opacity };
+        var b = BrushSettings.Default with { SizeFrom = MarkSource.Constant, OpacityFrom = MarkSource.Pressure };
         Assert.Equal(0.02f, b.OpacityFor(0.0), 4);
     }
 
@@ -107,7 +128,7 @@ public class BrushSettingsTests
     {
         // The done-when in #12: a second consumer takes the record, not a control. Nothing here
         // touches Avalonia, which is the whole point.
-        var b = new BrushSettings { Size = 20, PressureDrives = PressureControl.Size };
+        var b = new BrushSettings { Size = 20, SizeFrom = MarkSource.Pressure, OpacityFrom = MarkSource.Constant };
         double[] samples = [0.25, 0.5, 1.0];
         float[] widths = [.. samples.Select(b.StrokeWidthFor)];
 
