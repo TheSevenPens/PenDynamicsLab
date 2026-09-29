@@ -21,22 +21,42 @@ namespace PenDynamicsLab.Curves;
 /// </para>
 /// <para>
 /// <b>Units.</b> The signal is normalised pressure, 0 to 1, so the speed is in pressure per
-/// second. That is why <see cref="BetaDefault"/> is far larger than the 0.007 the paper suggests
-/// for a mouse measured in pixels: the same responsiveness needs a much larger multiplier on a
-/// signal whose whole range is 1.
+/// second. Pressure moves several units a second within an ordinary stroke, so a beta of even a
+/// few lifts the cutoff past 10 Hz and the filter all but stops smoothing. The first defaults
+/// (1 Hz, beta 5) did exactly that: at every setting the sliders allowed, the output looked like
+/// the input. The defaults and the range are set so that the effect is visible.
+/// </para>
+/// <para>
+/// <b>Presented as a strength.</b> The cutoff is a frequency, so a higher value smooths
+/// <i>less</i> — the opposite of every other smoothing control in the app. The UI shows a
+/// strength from 0 (lightest) to 1 (heaviest) instead, see <see cref="StrengthToCutoff"/>, and
+/// the parameter keeps the frequency so that the filter and presets say what it is.
 /// </para>
 /// </remarks>
 public sealed class OneEuroFilter
 {
     /// <summary>Smoothing when still, in Hz. Lower is smoother.</summary>
-    public const double MinCutoffDefault = 1.0;
+    public const double MinCutoffDefault = 0.5;
     public const double MinCutoffMin = 0.05;
     public const double MinCutoffMax = 10.0;
 
     /// <summary>How quickly smoothing backs off as pressure changes faster. Higher is less lag.</summary>
-    public const double BetaDefault = 5.0;
+    public const double BetaDefault = 0.5;
     public const double BetaMin = 0.0;
-    public const double BetaMax = 50.0;
+    public const double BetaMax = 5.0;
+
+    /// <summary>
+    /// A smoothing strength, 0 to 1, as the cutoff it stands for: 0 is <see cref="MinCutoffMax"/>
+    /// (lightest), 1 is <see cref="MinCutoffMin"/> (heaviest), evenly spaced on a log scale so
+    /// that each step along the slider changes the smoothing by about the same proportion.
+    /// </summary>
+    public static double StrengthToCutoff(double strength)
+        => MinCutoffMax * Math.Pow(MinCutoffMin / MinCutoffMax, Math.Clamp(strength, 0, 1));
+
+    /// <summary>The inverse of <see cref="StrengthToCutoff"/>.</summary>
+    public static double CutoffToStrength(double cutoffHz)
+        => Math.Clamp(Math.Log(MinCutoffMax / Math.Clamp(cutoffHz, MinCutoffMin, MinCutoffMax))
+                      / Math.Log(MinCutoffMax / MinCutoffMin), 0, 1);
 
     /// <summary>
     /// Cutoff for the speed estimate itself. Fixed at the paper's recommended 1 Hz: it rarely

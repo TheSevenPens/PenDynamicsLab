@@ -382,7 +382,7 @@ public partial class MainWindow : Window
         _suppressCurveControlEvents = true;
         SmoothingTypeCombo.SelectedIndex = (int)_curveParams.SmoothingType;
         PressureEmaSlider.Value = _curveParams.EmaSmoothing;
-        OneEuroMinCutoffSlider.Value = _curveParams.OneEuroMinCutoff;
+        OneEuroSmoothingSlider.Value = OneEuroFilter.CutoffToStrength(_curveParams.OneEuroMinCutoff);
         OneEuroBetaSlider.Value = _curveParams.OneEuroBeta;
         _suppressCurveControlEvents = false;
 
@@ -398,7 +398,7 @@ public partial class MainWindow : Window
         };
 
         WireSlider(PressureEmaSlider, v => p => p with { EmaSmoothing = v });
-        WireSlider(OneEuroMinCutoffSlider, v => p => p with { OneEuroMinCutoff = v });
+        WireSlider(OneEuroSmoothingSlider, v => p => p with { OneEuroMinCutoff = OneEuroFilter.StrengthToCutoff(v) });
         WireSlider(OneEuroBetaSlider, v => p => p with { OneEuroBeta = v });
 
         // The two curve editors and the two editable charts are two views of the same
@@ -440,7 +440,7 @@ public partial class MainWindow : Window
         _suppressCurveControlEvents = true;
         SmoothingTypeCombo.SelectedIndex = (int)_curveParams.SmoothingType;
         PressureEmaSlider.Value = _curveParams.EmaSmoothing;
-        OneEuroMinCutoffSlider.Value = _curveParams.OneEuroMinCutoff;
+        OneEuroSmoothingSlider.Value = OneEuroFilter.CutoffToStrength(_curveParams.OneEuroMinCutoff);
         OneEuroBetaSlider.Value = _curveParams.OneEuroBeta;
         QuantizationCombo.SelectedIndex = Math.Max(0, Array.IndexOf(Quantization.Levels, _curveParams.QuantizationLevels));
         _suppressCurveControlEvents = false;
@@ -488,7 +488,7 @@ public partial class MainWindow : Window
         bool smoothing = _curveParams.SmoothingType != SmoothingType.Passthrough;
         bool oneEuro = _curveParams.SmoothingType == SmoothingType.OneEuro;
         PressureEmaSlider.IsVisible = _curveParams.SmoothingType == SmoothingType.Ema;
-        OneEuroMinCutoffSlider.IsVisible = oneEuro;
+        OneEuroSmoothingSlider.IsVisible = oneEuro;
         OneEuroBetaSlider.IsVisible = oneEuro;
         SmoothingResetButton.IsEnabled = smoothing;
     }

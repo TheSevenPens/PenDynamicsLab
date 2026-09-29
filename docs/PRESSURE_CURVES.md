@@ -251,7 +251,7 @@ cutoff   = OneEuroMinCutoff + OneEuroBeta * |speed|          (Hz)
 alpha    = 1 / (1 + 1 / (2π · cutoff · dt))                   (dt from the pen's timestamps)
 smoothed = smoothed + alpha * (raw - smoothed)
 ```
-It runs on the pen's clock, not on sample count: `dt` comes from `PenPoint.TimestampMicroseconds`, with 5 ms (200 Hz) standing in when two samples share a timestamp or none is known. Defaults are 1 Hz and a beta of 5. Beta is much larger than the paper's 0.007 because the signal is normalised pressure (range 1), not pixels. Like the EMA, it resets on pen lift, so every stroke starts unsmoothed. Its stage pill always reads `On`.
+It runs on the pen's clock, not on sample count: `dt` comes from `PenPoint.TimestampMicroseconds`, with 5 ms (200 Hz) standing in when two samples share a timestamp or none is known. Defaults are 0.5 Hz and a beta of 0.5 (range 0 to 5): pressure moves several units a second in an ordinary stroke, and a larger beta lifts the cutoff so far that nothing is smoothed. The UI shows the cutoff as a *Steady smoothing* strength from 0 (10 Hz, lightest) to 1 (0.05 Hz, heaviest) on a log scale, so higher means smoother as on the EMA slider (`OneEuroFilter.StrengthToCutoff`). Like the EMA, it resets on pen lift, so every stroke starts unsmoothed. Its stage pill always reads `On`.
 
 Setting `SmoothingType` to **Passthrough** skips smoothing regardless of the amount, mirroring `CurveType.Passthrough` on the curve side. It resolves to the same code path as an amount of 0, and the EMA state keeps tracking the input while bypassed, so switching back mid-stroke resumes from the current pressure rather than a stale one. The amount slider is hidden while Passthrough is selected, and the Smoothing card header shows an `Off` pill.
 

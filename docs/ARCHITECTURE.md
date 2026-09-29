@@ -518,8 +518,8 @@ while adding them to the format after strokes exist is a migration.
 | `Curve2` | `CurveSettings` | Shapes what curve 1 produced |
 | `SmoothingType` | `SmoothingType` enum | Passthrough, Ema, OneEuro; Passthrough skips smoothing entirely |
 | `EmaSmoothing` | `double` 0-0.99 | Pressure EMA smoothing amount (ignored when Passthrough) |
-| `OneEuroMinCutoff` | `double` Hz, 0.05-10 | 1€ filter cutoff when pressure is steady (used only by OneEuro) |
-| `OneEuroBeta` | `double` 0-50 | 1€ filter speed coefficient (used only by OneEuro) |
+| `OneEuroMinCutoff` | `double` Hz, 0.05-10 | 1€ filter cutoff when pressure is steady (used only by OneEuro); the UI shows it as a 0-1 strength |
+| `OneEuroBeta` | `double` 0-5 | 1€ filter speed coefficient (used only by OneEuro) |
 
 The smoothing **order** is deliberately not here — it lives on `UiSettings`, for the reasons set out above. A preset therefore cannot change it.
 

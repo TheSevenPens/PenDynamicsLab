@@ -290,14 +290,15 @@
                                 </DockPanel>
                                 <controls:LabeledSlider x:Name="PressureEmaSlider" Label="Smoothing Amount"
                                                         Minimum="0" Maximum="0.99" Value="0" DefaultValue="0" />
-                                <!-- 1€ filter: smoothing when pressure is steady (Hz, lower is smoother), and how
-                                     quickly it backs off as pressure changes faster (higher is less lag). -->
-                                <controls:LabeledSlider x:Name="OneEuroMinCutoffSlider" Label="Steady smoothing (Hz)"
-                                                        Minimum="0.05" Maximum="10" Value="1" DefaultValue="1"
-                                                        ToolTip.Tip="Cutoff frequency while pressure is steady. Lower smooths more." />
+                                <!-- 1€ filter. Steady smoothing is a strength, 0 lightest to 1 heaviest, so it reads the
+                                     same way as the EMA slider; the filter wants a cutoff frequency, which runs the other
+                                     way, and OneEuroFilter.StrengthToCutoff converts. DefaultValue matches a 0.5 Hz cutoff. -->
+                                <controls:LabeledSlider x:Name="OneEuroSmoothingSlider" Label="Steady smoothing"
+                                                        Minimum="0" Maximum="1" Value="0.57" DefaultValue="0.57"
+                                                        ToolTip.Tip="How much steady pressure is smoothed. Higher smooths more." />
                                 <controls:LabeledSlider x:Name="OneEuroBetaSlider" Label="Speed response"
-                                                        Minimum="0" Maximum="50" Value="5" DefaultValue="5"
-                                                        SmallChange="0.5" Decimals="1"
+                                                        Minimum="0" Maximum="5" Value="0.5" DefaultValue="0.5"
+                                                        SmallChange="0.05" Decimals="2"
                                                         ToolTip.Tip="How quickly smoothing backs off as pressure changes faster. Higher follows quick presses more closely." />
                             </StackPanel>
                             </controls:SectionCard.CardContent>

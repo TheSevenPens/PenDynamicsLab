@@ -52,7 +52,7 @@ public class OneEuroFilterTests
     public void AFastChangeIsFollowedCloselyWhereAFixedSlowFilterWouldLag()
     {
         // A press from 0.1 to 0.9 over 40 ms. With beta 0 the filter is a fixed 1 Hz low-pass and
-        // lags far behind; with the default beta it tracks the change.
+        // lags far behind; with a beta of 5 it tracks the change.
         double Track(double beta)
         {
             var f = new OneEuroFilter();
@@ -61,7 +61,7 @@ public class OneEuroFilterTests
             return y;
         }
 
-        double adaptive = Track(OneEuroFilter.BetaDefault);
+        double adaptive = Track(5);
         double fixedSlow = Track(0);
 
         Assert.True(adaptive > fixedSlow + 0.2, $"adaptive {adaptive:F3} vs fixed {fixedSlow:F3}");
@@ -99,6 +99,51 @@ public class OneEuroFilterTests
         g.Filter(0.2, null, 1, 5);
         double z = g.Filter(0.8, null, 1, 5);
         Assert.True(double.IsFinite(z) && z > 0.2 && z < 0.8);
+    }
+
+    [Fact]
+    public void AHigherStrengthMeansALowerCutoffAndSoMoreSmoothing()
+    {
+        // The slider reads as a strength so that higher means smoother, as on the EMA slider. The
+        // first version showed the raw cutoff, where higher meant less smoothing, and its maximum
+        // settings looked exactly like no filter at all.
+        Assert.Equal(OneEuroFilter.MinCutoffMax, OneEuroFilter.StrengthToCutoff(0), 9);
+        Assert.Equal(OneEuroFilter.MinCutoffMin, OneEuroFilter.StrengthToCutoff(1), 9);
+        Assert.True(OneEuroFilter.StrengthToCutoff(0.7) < OneEuroFilter.StrengthToCutoff(0.3));
+
+        foreach (double hz in new[] { 0.05, 0.5, 1.0, 3.0, 10.0 })
+            Assert.Equal(hz, OneEuroFilter.StrengthToCutoff(OneEuroFilter.CutoffToStrength(hz)), 9);
+    }
+
+    [Fact]
+    public void TheDefaultsVisiblySmoothAnOrdinaryStroke()
+    {
+        // Pressure rising and falling at stroke speed (0.3 to 0.9 and back over 300 ms) with
+        // ±0.03 jitter. Jitter is measured as each output's distance from the midpoint of its
+        // neighbours — a second difference, which a smooth curve keeps near zero whether or not it
+        // lags, so lag does not count as jitter. The first defaults (1 Hz, beta 5) let much of it
+        // through; the current ones must remove most of it.
+        double Jitter(double minCutoff, double beta, bool filtered = true)
+        {
+            var f = new OneEuroFilter();
+            var ys = new List<double>();
+            for (int i = 0; i < 60; i++)
+            {
+                double clean = 0.6 + 0.3 * Math.Sin(i * 2 * Math.PI / 60);
+                double noisy = clean + (i % 2 == 0 ? 0.03 : -0.03);
+                ys.Add(filtered ? f.Filter(noisy, i * Step, minCutoff, beta) : noisy);
+            }
+            double total = 0;
+            for (int i = 11; i < ys.Count - 1; i++) total += Math.Abs(ys[i] - (ys[i - 1] + ys[i + 1]) / 2);
+            return total;
+        }
+
+        double input = Jitter(0, 0, filtered: false);
+        double current = Jitter(OneEuroFilter.MinCutoffDefault, OneEuroFilter.BetaDefault);
+        double first = Jitter(1.0, 5.0);
+
+        Assert.True(current < input * 0.5, $"defaults left {current:F3} of {input:F3}");
+        Assert.True(current < first, $"defaults {current:F3} should smooth more than the first defaults {first:F3}");
     }
 
     // ── In the pipeline ──────────────────────────────────────────
