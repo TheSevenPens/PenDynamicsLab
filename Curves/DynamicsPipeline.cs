@@ -50,6 +50,9 @@ public sealed class DynamicsPipeline
     /// <summary>Per-channel EMA state. Null means "no previous sample" — start fresh.</summary>
     private readonly double?[] _filter = new double?[ChannelCount];
 
+    /// <summary>Per-channel 1€ filter state, used when smoothing is <see cref="SmoothingType.OneEuro"/>.</summary>
+    private readonly OneEuroFilter[] _oneEuro = [.. Enumerable.Range(0, ChannelCount).Select(_ => new OneEuroFilter())];
+
     /// <summary>The pressure channel's three published values.</summary>
     /// <param name="Raw">Pressure after quantization. What the charts call "raw".</param>
     /// <param name="PreCurve">
@@ -71,7 +74,11 @@ public sealed class DynamicsPipeline
     /// out-of-range. Zero-pressure samples are handled inside <see cref="Process"/>, because
     /// the state being cleared belongs to this type rather than to the window.
     /// </remarks>
-    public void Reset() => Array.Clear(_filter);
+    public void Reset()
+    {
+        Array.Clear(_filter);
+        foreach (var f in _oneEuro) f.Reset();
+    }
 
     /// <summary>
     /// Run one pressure sample through the pipeline.
@@ -90,27 +97,26 @@ public sealed class DynamicsPipeline
     /// raw input instead. Anything reading <c>PreCurve</c> has to accept both meanings.
     /// </para>
     /// </remarks>
-    public PressureResult Process(double rawInput, PressureCurveParams p, SmoothingOrder order)
+    /// <param name="timestampMicroseconds">
+    /// When the sample was measured, on the pen's clock. The 1€ filter runs on time rather than on
+    /// sample count and needs it; the EMA ignores it. Null when unknown, which the 1€ filter
+    /// answers with a nominal interval.
+    /// </param>
+    public PressureResult Process(double rawInput, PressureCurveParams p, SmoothingOrder order,
+                                  long? timestampMicroseconds = null)
     {
         double raw = Quantization.Apply(rawInput, p.QuantizationLevels);
-
-        // Passthrough short-circuits to the same path as an amount of 0: no smoothing, and the
-        // filter still tracks the input so switching back mid-stroke doesn't jump from a stale
-        // value.
-        double amount = p.SmoothingType == SmoothingType.Passthrough
-            ? 0
-            : Math.Clamp(p.EmaSmoothing, 0, EmaConstants.Max);
 
         PressureResult result;
         if (order == SmoothingOrder.CurveThenSmooth)
         {
             double curved = CurveMath.ApplyPressureCurve(raw, p);
-            double smoothed = Smooth(PenChannel.Pressure, curved, amount);
+            double smoothed = Smooth(PenChannel.Pressure, curved, p, timestampMicroseconds);
             result = new PressureResult(Raw: raw, PreCurve: raw, Output: smoothed);
         }
         else
         {
-            double smoothed = Smooth(PenChannel.Pressure, raw, amount);
+            double smoothed = Smooth(PenChannel.Pressure, raw, p, timestampMicroseconds);
             double curved = CurveMath.ApplyPressureCurve(smoothed, p);
             result = new PressureResult(Raw: raw, PreCurve: smoothed, Output: curved);
         }
@@ -132,8 +138,14 @@ public sealed class DynamicsPipeline
         return result;
     }
 
-    /// <summary>Exponential moving average for one channel, holding that channel's state.</summary>
-    private double Smooth(PenChannel channel, double value, double amount)
+    /// <summary>The configured smoothing for one channel, holding that channel's state.</summary>
+    /// <remarks>
+    /// Whichever filter is not selected is kept in step with the output, so that switching type
+    /// mid-stroke continues from where the signal is rather than from a stale value: the EMA's
+    /// last value is always the output, and the 1€ filter is cleared while unused, so on being
+    /// selected it takes its first sample as-is.
+    /// </remarks>
+    private double Smooth(PenChannel channel, double value, PressureCurveParams p, long? timestampMicroseconds)
     {
         if (IsAngular(channel))
         {
@@ -145,6 +157,21 @@ public sealed class DynamicsPipeline
         }
 
         int i = (int)channel;
+
+        if (p.SmoothingType == SmoothingType.OneEuro)
+        {
+            double filtered = _oneEuro[i].Filter(value, timestampMicroseconds, p.OneEuroMinCutoff, p.OneEuroBeta);
+            _filter[i] = filtered;
+            return filtered;
+        }
+        _oneEuro[i].Reset();
+
+        // Passthrough is the same path as an amount of 0: no smoothing, and the EMA still tracks
+        // the input so switching back mid-stroke doesn't jump from a stale value.
+        double amount = p.SmoothingType == SmoothingType.Passthrough
+            ? 0
+            : Math.Clamp(p.EmaSmoothing, 0, EmaConstants.Max);
+
         if (amount <= 0) { _filter[i] = value; return value; }
         if (_filter[i] is not { } prev) { _filter[i] = value; return value; }
 

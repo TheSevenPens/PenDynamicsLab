@@ -39,6 +39,8 @@ public sealed class PressureCurveParamsConverter : JsonConverter<PressureCurvePa
         // Shared by both shapes.
         public SmoothingType? SmoothingType { get; init; }
         public double? EmaSmoothing { get; init; }
+        public double? OneEuroMinCutoff { get; init; }
+        public double? OneEuroBeta { get; init; }
         // Presets written before the order became an application setting still carry a
         // SmoothingOrder. System.Text.Json ignores members the DTO does not declare, so
         // it is dropped on read — which is the intent.
@@ -88,6 +90,9 @@ public sealed class PressureCurveParamsConverter : JsonConverter<PressureCurvePa
             Curve2 = dto.Curve2 ?? CurveSettings.Default,
             SmoothingType = dto.SmoothingType ?? PressureCurveParams.Default.SmoothingType,
             EmaSmoothing = dto.EmaSmoothing ?? PressureCurveParams.Default.EmaSmoothing,
+            // Absent in presets saved before the 1€ filter existed; the defaults are what it starts at.
+            OneEuroMinCutoff = dto.OneEuroMinCutoff ?? PressureCurveParams.Default.OneEuroMinCutoff,
+            OneEuroBeta = dto.OneEuroBeta ?? PressureCurveParams.Default.OneEuroBeta,
         };
     }
 

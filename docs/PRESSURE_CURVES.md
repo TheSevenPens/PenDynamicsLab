@@ -244,6 +244,15 @@ alpha    = 1 - emaSmoothing
 
 When `EmaSmoothing = 0`, alpha = 1, so output = input (no smoothing). As it approaches 0.99, output becomes increasingly smoothed/lagged. Only pressure is smoothed — cursor position is drawn unmodified.
 
+1€ filter (Casiez, Roussel and Vogel, CHI 2012), `SmoothingType.OneEuro`: an EMA whose cutoff follows the signal's speed, so steady pressure is smoothed hard and fast presses are followed closely.
+```
+speed    = smoothed derivative of pressure, in pressure per second (derivative cutoff fixed at 1 Hz)
+cutoff   = OneEuroMinCutoff + OneEuroBeta * |speed|          (Hz)
+alpha    = 1 / (1 + 1 / (2π · cutoff · dt))                   (dt from the pen's timestamps)
+smoothed = smoothed + alpha * (raw - smoothed)
+```
+It runs on the pen's clock, not on sample count: `dt` comes from `PenPoint.TimestampMicroseconds`, with 5 ms (200 Hz) standing in when two samples share a timestamp or none is known. Defaults are 1 Hz and a beta of 5. Beta is much larger than the paper's 0.007 because the signal is normalised pressure (range 1), not pixels. Like the EMA, it resets on pen lift, so every stroke starts unsmoothed. Its stage pill always reads `On`.
+
 Setting `SmoothingType` to **Passthrough** skips smoothing regardless of the amount, mirroring `CurveType.Passthrough` on the curve side. It resolves to the same code path as an amount of 0, and the EMA state keeps tracking the input while bypassed, so switching back mid-stroke resumes from the current pressure rather than a stale one. The amount slider is hidden while Passthrough is selected, and the Smoothing card header shows an `Off` pill.
 
 `Off` and "no smoothing" are not the same claim, and the pills keep them apart: Passthrough reads `Off` because the stage is bypassed, while EMA with an amount of 0 reads `On · no effect` — running, but configured to change nothing. The same distinction holds on the curve side, where Passthrough is `Off` and, say, Basic at an amount of 0 is `On · no effect`. `StageStatus` derives all of this from the settings alone.

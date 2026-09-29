@@ -127,6 +127,35 @@ public class PresetMigrationTests : IDisposable
     }
 
     [Fact]
+    public void OneEuroSettingsSurviveASaveAndReload()
+    {
+        var saved = new PressureCurveParams
+        {
+            SmoothingType = SmoothingType.OneEuro,
+            OneEuroMinCutoff = 2.5,
+            OneEuroBeta = 12,
+        };
+        new PresetStore(_path).Save("Adaptive", saved);
+
+        var loaded = new PresetStore(_path).Get("Adaptive")!.Params;
+
+        Assert.Equal(SmoothingType.OneEuro, loaded.SmoothingType);
+        Assert.Equal(2.5, loaded.OneEuroMinCutoff);
+        Assert.Equal(12, loaded.OneEuroBeta);
+    }
+
+    [Fact]
+    public void APresetFromBeforeTheOneEuroFilterLoadsItsDefaults()
+    {
+        File.WriteAllText(_path, LegacyJson);
+
+        var p = new PresetStore(_path).Get("Soft touch")!.Params;
+
+        Assert.Equal(OneEuroFilter.MinCutoffDefault, p.OneEuroMinCutoff);
+        Assert.Equal(OneEuroFilter.BetaDefault, p.OneEuroBeta);
+    }
+
+    [Fact]
     public void ResavingALegacyPreset_RewritesItInTheCurrentShape()
     {
         var store = LoadLegacy();

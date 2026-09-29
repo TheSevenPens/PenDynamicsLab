@@ -284,12 +284,21 @@
                                             Margin="6,0,0,0"
                                             HorizontalContentAlignment="Center"
                                             VerticalContentAlignment="Center"
-                                            ToolTip.Tip="Reset the smoothing amount to its default"
+                                            ToolTip.Tip="Reset the smoothing settings to their defaults"
                                             Click="SmoothingReset_Click" />
                                     <ComboBox x:Name="SmoothingTypeCombo" Height="32" HorizontalAlignment="Stretch" />
                                 </DockPanel>
                                 <controls:LabeledSlider x:Name="PressureEmaSlider" Label="Smoothing Amount"
                                                         Minimum="0" Maximum="0.99" Value="0" DefaultValue="0" />
+                                <!-- 1€ filter: smoothing when pressure is steady (Hz, lower is smoother), and how
+                                     quickly it backs off as pressure changes faster (higher is less lag). -->
+                                <controls:LabeledSlider x:Name="OneEuroMinCutoffSlider" Label="Steady smoothing (Hz)"
+                                                        Minimum="0.05" Maximum="10" Value="1" DefaultValue="1"
+                                                        ToolTip.Tip="Cutoff frequency while pressure is steady. Lower smooths more." />
+                                <controls:LabeledSlider x:Name="OneEuroBetaSlider" Label="Speed response"
+                                                        Minimum="0" Maximum="50" Value="5" DefaultValue="5"
+                                                        SmallChange="0.5" Decimals="1"
+                                                        ToolTip.Tip="How quickly smoothing backs off as pressure changes faster. Higher follows quick presses more closely." />
                             </StackPanel>
                             </controls:SectionCard.CardContent>
                         </controls:SectionCard>

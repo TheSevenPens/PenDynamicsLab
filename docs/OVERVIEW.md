@@ -25,7 +25,7 @@ A shared brush ribbon (size, what size and opacity follow, colour, Clear) sits a
 - **Seven curve types** — passthrough (identity, the default), flat (constant), basic (power law across the full [0, 1] range), extended (the same power law, plus input/output range controls), inverted (`1 - x`), sigmoid (S-curve), and bezier (custom cubic bezier with up to 16 points)
 - **Bezier presets** — built-in shapes (Linear, Soft, Firm, S-Curve, Light Touch, Heavy, Step) for quick setup
 - **Draggable control nodes** — pink/cyan min/max nodes on extended/sigmoid curves; full bezier anchor/handle dragging with broken vs mirrored handle modes; right-click context menu in the plot to add/remove points or change handle mode
-- **Pressure smoothing** — Passthrough (none, the default) or EMA with an adjustable amount, plus configurable application order (smooth-then-curve or curve-then-smooth)
+- **Pressure smoothing** — Passthrough (none, the default), EMA with an adjustable amount, or the 1€ filter (adaptive: steady smoothing and speed response), plus configurable application order (smooth-then-curve or curve-then-smooth)
 - **Min approach modes** (clamp vs cut) controlling how the curve behaves below the input minimum — on extended and sigmoid, the two types that use the range fields at all; basic deliberately ignores them
 - **Pen telemetry** — the ribbon shows raw pressure, its normalized percentage, and the processed value after smoothing and the curve, so you can watch the pipeline's effect numerically
 - **Live pressure indicators** on the chart showing raw (purple) and effective (green) pressure positions in real time, plus matching indicators projected onto the response chart. These stay live on every tab, including Pressure response, which has no canvas of its own.
@@ -100,6 +100,7 @@ Curves/
   BezierPresets.cs              Built-in bezier preset definitions
   Enums.cs                      CurveType, MinApproach, HandleMode, SmoothingType, SmoothingOrder, ColorMode, MarkSource
   EmaConstants.cs               EMA smoothing constants
+  OneEuroFilter.cs              The 1€ filter: speed-adaptive smoothing, driven by timestamps
 
 Drawing/
   DrawSurface.cs                SKBitmap + SKCanvas + WriteableBitmap, shareable across Image hosts

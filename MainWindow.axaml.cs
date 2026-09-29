@@ -262,7 +262,8 @@ public partial class MainWindow : Window
         var pipeline = new DynamicsPipeline();
         var outputs = new double[stroke.Samples.Count];
         for (int i = 0; i < outputs.Length; i++)
-            outputs[i] = pipeline.Process(stroke.Samples[i].RawPressure, _curveParams, _uiSettings.SmoothingOrder).Output;
+            outputs[i] = pipeline.Process(stroke.Samples[i].RawPressure, _curveParams, _uiSettings.SmoothingOrder,
+                                          stroke.Samples[i].TimestampMicroseconds).Output;
         return outputs;
     }
 
@@ -381,6 +382,8 @@ public partial class MainWindow : Window
         _suppressCurveControlEvents = true;
         SmoothingTypeCombo.SelectedIndex = (int)_curveParams.SmoothingType;
         PressureEmaSlider.Value = _curveParams.EmaSmoothing;
+        OneEuroMinCutoffSlider.Value = _curveParams.OneEuroMinCutoff;
+        OneEuroBetaSlider.Value = _curveParams.OneEuroBeta;
         _suppressCurveControlEvents = false;
 
         QuantizationCombo.SelectionChanged += (_, _) =>
@@ -395,6 +398,8 @@ public partial class MainWindow : Window
         };
 
         WireSlider(PressureEmaSlider, v => p => p with { EmaSmoothing = v });
+        WireSlider(OneEuroMinCutoffSlider, v => p => p with { OneEuroMinCutoff = v });
+        WireSlider(OneEuroBetaSlider, v => p => p with { OneEuroBeta = v });
 
         // The two curve editors and the two editable charts are two views of the same
         // curve each. Both write back here, and this is the only place that decides what
@@ -435,6 +440,8 @@ public partial class MainWindow : Window
         _suppressCurveControlEvents = true;
         SmoothingTypeCombo.SelectedIndex = (int)_curveParams.SmoothingType;
         PressureEmaSlider.Value = _curveParams.EmaSmoothing;
+        OneEuroMinCutoffSlider.Value = _curveParams.OneEuroMinCutoff;
+        OneEuroBetaSlider.Value = _curveParams.OneEuroBeta;
         QuantizationCombo.SelectedIndex = Math.Max(0, Array.IndexOf(Quantization.Levels, _curveParams.QuantizationLevels));
         _suppressCurveControlEvents = false;
 
@@ -476,10 +483,13 @@ public partial class MainWindow : Window
     /// </remarks>
     private void UpdateDerivedControlState()
     {
-        // Passthrough smoothing ignores the amount, so hide it — same convention as the
-        // curve cards, where Passthrough hides softness and the range controls.
+        // Each smoothing type shows only its own controls, and Passthrough none — same convention
+        // as the curve cards, where Passthrough hides softness and the range controls.
         bool smoothing = _curveParams.SmoothingType != SmoothingType.Passthrough;
-        PressureEmaSlider.IsVisible = smoothing;
+        bool oneEuro = _curveParams.SmoothingType == SmoothingType.OneEuro;
+        PressureEmaSlider.IsVisible = _curveParams.SmoothingType == SmoothingType.Ema;
+        OneEuroMinCutoffSlider.IsVisible = oneEuro;
+        OneEuroBetaSlider.IsVisible = oneEuro;
         SmoothingResetButton.IsEnabled = smoothing;
     }
 
@@ -1210,6 +1220,7 @@ public partial class MainWindow : Window
     {
         SmoothingType.Passthrough => "Passthrough",
         SmoothingType.Ema => "EMA",
+        SmoothingType.OneEuro => "1€ filter",
         _ => st.ToString(),
     };
 
@@ -1402,7 +1413,7 @@ public partial class MainWindow : Window
             // regardless of whether the pen is over a stroke canvas. This keeps the
             // Pressure response tab's chart live even though it has no canvas.
             double rawPressure = maxP > 0 ? (double)pt.Pressure / maxP : 0;
-            var pipeline = _pipeline.Process(rawPressure, _curveParams, _uiSettings.SmoothingOrder);
+            var pipeline = _pipeline.Process(rawPressure, _curveParams, _uiSettings.SmoothingOrder, pt.TimestampMicroseconds);
 
             UpdateTelemetry(pt, clientPt, over is null ? null : (Point?)localPt, maxP, pipeline.Output);
             // Each chart's x axis is a different quantity, so the indicators cannot all

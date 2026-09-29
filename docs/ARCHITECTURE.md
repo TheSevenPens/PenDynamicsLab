@@ -17,7 +17,7 @@ MainWindow
     │   │   │   │   ├── LabeledSlider × N (Curve Amount, in/out range, flat level)
     │   │   │   │   └── Min approach radios
     │   │   │   ├── Curve 2  [same] — CurveEditorView          (only when UseTwoCurves)
-    │   │   │   └── Smoothing  [Off | On · no effect | On] — algorithm combo (Passthrough / EMA) + type-scoped reset, Smoothing Amount
+    │   │   │   └── Smoothing  [Off | On · no effect | On] — algorithm combo (Passthrough / EMA / 1€ filter) + type-scoped reset, Smoothing Amount
     │   │   │       (smoothing and the curves swap places with the processing order)
     │   │   └── Presets (pinned to the bottom row) — empty-state text, saved list, "Save current settings"
     │   └── Curve column
@@ -516,8 +516,10 @@ while adding them to the format after strokes exist is a migration.
 | `QuantizationLevels` | `int` | Pressure levels to coarsen the input to, or 0 for none. Always applied first |
 | `Curve1` | `CurveSettings` | Shapes the pen's pressure |
 | `Curve2` | `CurveSettings` | Shapes what curve 1 produced |
-| `SmoothingType` | `SmoothingType` enum | Passthrough, Ema; Passthrough skips smoothing entirely |
+| `SmoothingType` | `SmoothingType` enum | Passthrough, Ema, OneEuro; Passthrough skips smoothing entirely |
 | `EmaSmoothing` | `double` 0-0.99 | Pressure EMA smoothing amount (ignored when Passthrough) |
+| `OneEuroMinCutoff` | `double` Hz, 0.05-10 | 1€ filter cutoff when pressure is steady (used only by OneEuro) |
+| `OneEuroBeta` | `double` 0-50 | 1€ filter speed coefficient (used only by OneEuro) |
 
 The smoothing **order** is deliberately not here — it lives on `UiSettings`, for the reasons set out above. A preset therefore cannot change it.
 

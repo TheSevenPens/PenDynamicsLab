@@ -32,6 +32,9 @@ public enum SmoothingType
 {
     Passthrough,
     Ema,
+
+    /// <summary>The 1€ filter: smooths steady pressure hard and fast changes lightly. See <see cref="OneEuroFilter"/>.</summary>
+    OneEuro,
 }
 
 public enum SmoothingOrder
