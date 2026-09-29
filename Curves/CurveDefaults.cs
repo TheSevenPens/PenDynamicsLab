@@ -73,5 +73,6 @@ public static class CurveDefaults
                 EmaSmoothing = PressureCurveParams.Default.EmaSmoothing,
                 OneEuroMinCutoff = PressureCurveParams.Default.OneEuroMinCutoff,
                 OneEuroBeta = PressureCurveParams.Default.OneEuroBeta,
+                SmoothingCurve = PressureCurveParams.Default.SmoothingCurve,
             };
 }

@@ -111,12 +111,12 @@ public sealed class DynamicsPipeline
         if (order == SmoothingOrder.CurveThenSmooth)
         {
             double curved = CurveMath.ApplyPressureCurve(raw, p);
-            double smoothed = Smooth(PenChannel.Pressure, curved, p, timestampMicroseconds);
+            double smoothed = Smooth(PenChannel.Pressure, curved, raw, p, timestampMicroseconds);
             result = new PressureResult(Raw: raw, PreCurve: raw, Output: smoothed);
         }
         else
         {
-            double smoothed = Smooth(PenChannel.Pressure, raw, p, timestampMicroseconds);
+            double smoothed = Smooth(PenChannel.Pressure, raw, raw, p, timestampMicroseconds);
             double curved = CurveMath.ApplyPressureCurve(smoothed, p);
             result = new PressureResult(Raw: raw, PreCurve: smoothed, Output: curved);
         }
@@ -145,7 +145,12 @@ public sealed class DynamicsPipeline
     /// last value is always the output, and the 1€ filter is cleared while unused, so on being
     /// selected it takes its first sample as-is.
     /// </remarks>
-    private double Smooth(PenChannel channel, double value, PressureCurveParams p, long? timestampMicroseconds)
+    /// <param name="pressure">
+    /// The incoming pressure after quantization, which the smoothing curve reads to choose its
+    /// amount. <paramref name="value"/> is what gets smoothed: the curved pressure in
+    /// curve-then-smooth order.
+    /// </param>
+    private double Smooth(PenChannel channel, double value, double pressure, PressureCurveParams p, long? timestampMicroseconds)
     {
         if (IsAngular(channel))
         {
@@ -168,9 +173,12 @@ public sealed class DynamicsPipeline
 
         // Passthrough is the same path as an amount of 0: no smoothing, and the EMA still tracks
         // the input so switching back mid-stroke doesn't jump from a stale value.
-        double amount = p.SmoothingType == SmoothingType.Passthrough
-            ? 0
-            : Math.Clamp(p.EmaSmoothing, 0, EmaConstants.Max);
+        double amount = p.SmoothingType switch
+        {
+            SmoothingType.Passthrough => 0,
+            SmoothingType.Curve => SmoothingCurve.AmountFor(pressure, p.SmoothingCurve),
+            _ => Math.Clamp(p.EmaSmoothing, 0, EmaConstants.Max),
+        };
 
         if (amount <= 0) { _filter[i] = value; return value; }
         if (_filter[i] is not { } prev) { _filter[i] = value; return value; }

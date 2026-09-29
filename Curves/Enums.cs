@@ -35,6 +35,9 @@ public enum SmoothingType
 
     /// <summary>The 1€ filter: smooths steady pressure hard and fast changes lightly. See <see cref="OneEuroFilter"/>.</summary>
     OneEuro,
+
+    /// <summary>An EMA whose amount follows a curve of the pen's pressure. See <see cref="SmoothingCurve"/>.</summary>
+    Curve,
 }
 
 public enum SmoothingOrder

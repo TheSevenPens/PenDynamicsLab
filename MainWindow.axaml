@@ -300,6 +300,24 @@
                                                         Minimum="0" Maximum="5" Value="0.5" DefaultValue="0.5"
                                                         SmallChange="0.05" Decimals="2"
                                                         ToolTip.Tip="How quickly smoothing backs off as pressure changes faster. Higher follows quick presses more closely." />
+                                <!-- Smoothing curve: an EMA whose amount is read off this chart at the pen's
+                                     pressure. x is pressure, y the smoothing amount; the end nodes drag, and may
+                                     cross so the curve falls. See Curves/SmoothingCurve.cs. -->
+                                <StackPanel x:Name="SmoothingCurvePanel" Spacing="8">
+                                    <TextBlock Text="Smoothing (up) by pressure (across)" FontSize="11"
+                                               Foreground="{DynamicResource Pdl.Muted}" />
+                                    <controls:PressureChartControl x:Name="SmoothingCurveChart" MaxWidth="170"
+                                                                   HorizontalAlignment="Center" AllowDescending="True" />
+                                    <controls:LabeledSlider x:Name="SmoothingCurveLightSlider" Label="At light pressure"
+                                                            Minimum="0" Maximum="0.99" Value="0.9" DefaultValue="0.9"
+                                                            ToolTip.Tip="Smoothing at and below the chart's left node." />
+                                    <controls:LabeledSlider x:Name="SmoothingCurveFirmSlider" Label="At firm pressure"
+                                                            Minimum="0" Maximum="0.99" Value="0" DefaultValue="0"
+                                                            ToolTip.Tip="Smoothing at and above the chart's right node." />
+                                    <controls:LabeledSlider x:Name="SmoothingCurveSoftnessSlider" Label="Curve Amount"
+                                                            Minimum="-0.9" Maximum="0.9" Value="0" DefaultValue="0"
+                                                            ToolTip.Tip="Bends the curve between the two nodes." />
+                                </StackPanel>
                             </StackPanel>
                             </controls:SectionCard.CardContent>
                         </controls:SectionCard>

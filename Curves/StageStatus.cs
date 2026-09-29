@@ -74,6 +74,8 @@ public static class StageStatus
         if (p.SmoothingType == SmoothingType.Passthrough) return StageState.Off;
         // The 1€ filter always smooths: its cutoff is finite at every setting the sliders allow.
         if (p.SmoothingType == SmoothingType.OneEuro) return StageState.On;
+        if (p.SmoothingType == SmoothingType.Curve)
+            return SmoothingCurve.IsNeutral(p.SmoothingCurve) ? StageState.NoEffect : StageState.On;
         return p.EmaSmoothing <= 0 ? StageState.NoEffect : StageState.On;
     }
 

@@ -384,6 +384,7 @@ public partial class MainWindow : Window
         PressureEmaSlider.Value = _curveParams.EmaSmoothing;
         OneEuroSmoothingSlider.Value = OneEuroFilter.CutoffToStrength(_curveParams.OneEuroMinCutoff);
         OneEuroBetaSlider.Value = _curveParams.OneEuroBeta;
+        SyncSmoothingCurveSliders();
         _suppressCurveControlEvents = false;
 
         QuantizationCombo.SelectionChanged += (_, _) =>
@@ -400,6 +401,9 @@ public partial class MainWindow : Window
         WireSlider(PressureEmaSlider, v => p => p with { EmaSmoothing = v });
         WireSlider(OneEuroSmoothingSlider, v => p => p with { OneEuroMinCutoff = OneEuroFilter.StrengthToCutoff(v) });
         WireSlider(OneEuroBetaSlider, v => p => p with { OneEuroBeta = v });
+        WireSlider(SmoothingCurveLightSlider, v => p => p with { SmoothingCurve = p.SmoothingCurve with { Minimum = v } });
+        WireSlider(SmoothingCurveFirmSlider, v => p => p with { SmoothingCurve = p.SmoothingCurve with { Maximum = v } });
+        WireSlider(SmoothingCurveSoftnessSlider, v => p => p with { SmoothingCurve = p.SmoothingCurve with { Softness = v } });
 
         // The two curve editors and the two editable charts are two views of the same
         // curve each. Both write back here, and this is the only place that decides what
@@ -413,8 +417,17 @@ public partial class MainWindow : Window
 
         WireChart(PressureChart, c => p => p with { Curve1 = c });
         WireChart(PressureChart2, c => p => p with { Curve2 = c });
+        WireChart(SmoothingCurveChart, c => p => p with { SmoothingCurve = c });
 
         SyncCurveControlsFromParams();
+    }
+
+    /// <summary>The smoothing curve's sliders from its settings. Callers hold the suppress flag.</summary>
+    private void SyncSmoothingCurveSliders()
+    {
+        SmoothingCurveLightSlider.Value = _curveParams.SmoothingCurve.Minimum;
+        SmoothingCurveFirmSlider.Value = _curveParams.SmoothingCurve.Maximum;
+        SmoothingCurveSoftnessSlider.Value = _curveParams.SmoothingCurve.Softness;
     }
 
     /// <summary>
@@ -442,6 +455,7 @@ public partial class MainWindow : Window
         PressureEmaSlider.Value = _curveParams.EmaSmoothing;
         OneEuroSmoothingSlider.Value = OneEuroFilter.CutoffToStrength(_curveParams.OneEuroMinCutoff);
         OneEuroBetaSlider.Value = _curveParams.OneEuroBeta;
+        SyncSmoothingCurveSliders();
         QuantizationCombo.SelectedIndex = Math.Max(0, Array.IndexOf(Quantization.Levels, _curveParams.QuantizationLevels));
         _suppressCurveControlEvents = false;
 
@@ -461,6 +475,9 @@ public partial class MainWindow : Window
         _suppressCurveControlEvents = true;
         PressureChart.Curve = _curveParams.Curve1;
         PressureChart2.Curve = _curveParams.Curve2;
+        SmoothingCurveChart.Curve = _curveParams.SmoothingCurve;
+        // Dragging a node changes the ends the sliders show, so they follow the chart.
+        SyncSmoothingCurveSliders();
         EffectiveChart.Params = _curveParams;
         ResponseChart.Params = _curveParams;
         _suppressCurveControlEvents = previous;
@@ -490,6 +507,7 @@ public partial class MainWindow : Window
         PressureEmaSlider.IsVisible = _curveParams.SmoothingType == SmoothingType.Ema;
         OneEuroSmoothingSlider.IsVisible = oneEuro;
         OneEuroBetaSlider.IsVisible = oneEuro;
+        SmoothingCurvePanel.IsVisible = _curveParams.SmoothingType == SmoothingType.Curve;
         SmoothingResetButton.IsEnabled = smoothing;
     }
 
@@ -1221,6 +1239,7 @@ public partial class MainWindow : Window
         SmoothingType.Passthrough => "Passthrough",
         SmoothingType.Ema => "EMA",
         SmoothingType.OneEuro => "1€ filter",
+        SmoothingType.Curve => "Smoothing curve",
         _ => st.ToString(),
     };
 
@@ -1330,6 +1349,7 @@ public partial class MainWindow : Window
         PressureChart.LivePressure = null;
         PressureChart2.LiveRawPressure = null;
         PressureChart2.LivePressure = null;
+        SmoothingCurveChart.LivePressure = null;
         EffectiveChart.LiveRawPressure = null;
         EffectiveChart.LivePressure = null;
         ResponseChart.LiveRawPressure = null;
@@ -1425,6 +1445,9 @@ public partial class MainWindow : Window
 
             PressureChart2.LiveRawPressure = null;
             PressureChart2.LivePressure = CurveMath.ApplyCurve(pipeline.PreCurve, _curveParams.Curve1);
+
+            // The smoothing curve reads the incoming pressure, so its dot sits there.
+            SmoothingCurveChart.LivePressure = pipeline.Raw;
 
             EffectiveChart.LiveRawPressure = pipeline.Raw;
             EffectiveChart.LivePressure = pipeline.PreCurve;
