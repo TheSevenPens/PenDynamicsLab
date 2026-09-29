@@ -15,7 +15,7 @@ The window is split into a fixed left panel and a tabbed right panel:
   - **Stroke compare** — A split surface: the top half applies the full pipeline ("Use processed pressure data"), the bottom half uses raw unprocessed pen pressure ("Use raw pressure data"). Drawing in either half mirrors the stroke to the other for direct visual comparison. The processed canvas is the *same* surface shown in the Stroke tab, so content carries across tabs.
   - **Pressure response** — Pen hardware measurement data (physical grams-force vs logical pressure %) charted on its own, with an optional overlay showing what the active curve does to it.
 
-A shared brush ribbon (size, colour, pressure target, draw-at-zero, Clear) sits at the top of whichever stroke tab is active. A top ribbon shows the live pen telemetry (proximity, raw/screen/app/canvas position, raw/normalized pressure, azimuth/altitude/twist) and lets the user pick which input API to use (Wintab, Wintab high-res, Avalonia pointer).
+A shared brush ribbon (size, what size and opacity follow, colour, Clear) sits at the top of whichever stroke tab is active. A top ribbon shows the live pen telemetry (proximity, raw/screen/app/canvas position, raw/normalized pressure, azimuth/altitude/twist) and lets the user pick which input API to use (Wintab, Wintab high-res, Avalonia pointer).
 
 ## Key features
 
@@ -31,7 +31,7 @@ A shared brush ribbon (size, colour, pressure target, draw-at-zero, Clear) sits 
 - **Live pressure indicators** on the chart showing raw (purple) and effective (green) pressure positions in real time, plus matching indicators projected onto the response chart. These stay live on every tab, including Pressure response, which has no canvas of its own.
 - **Pressure response data** — load pen hardware measurement data from bundled WACOM samples or uploaded JSON files, with optional curve-effect overlay. The first bundled sample auto-loads at startup so the tab shows something immediately.
 - **Image export** — right-click the curve chart to copy or save it (full chart or plot area alone); right-click any stroke canvas to copy it, save it as PNG, or clear it
-- **Brush controls** — adjustable brush size (1-200 px), stroke colour dropdown (black, red, or a random palette), pressure-target dropdown (size or opacity), draw-at-zero-pressure toggle, Clear. One `BrushRibbon` instance is reparented between the stroke tabs, so settings stay in sync.
+- **Brush controls** — adjustable brush size (1-200 px), stroke colour dropdown (black, red, or a random palette), size and opacity dropdowns (each Constant or From pressure), Clear. One `BrushRibbon` instance is reparented between the stroke tabs, so settings stay in sync.
 - **Clear via keyboard** — Delete or Backspace clears both canvases, unless a text box has focus
 - **User presets** — save in one click (the name is generated, and renaming is a separate step), then load, rename or delete from each row's `···` menu; a preset holds the whole parameter configuration (curve type + sliders + smoothing + bezier points), persisted to `%LOCALAPPDATA%\PenDynamicsLab\presets.json`
 - **Direct value editing** — click any LabeledSlider value to type an exact number; right-click for Min / Max / Reset

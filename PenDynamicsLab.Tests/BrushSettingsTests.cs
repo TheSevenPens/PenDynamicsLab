@@ -51,7 +51,6 @@ public class BrushSettingsTests
         Assert.Equal(ColorMode.Black, d.ColorMode);
         Assert.Equal(MarkSource.Pressure, d.SizeFrom);
         Assert.Equal(MarkSource.Constant, d.OpacityFrom);
-        Assert.False(d.DrawAtZeroPressure);
     }
 
     // ── Pressure mapping ─────────────────────────────────────────

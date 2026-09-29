@@ -4,8 +4,7 @@ using PenDynamicsLab.Drawing;
 namespace PenDynamicsLab.Controls;
 
 /// <summary>
-/// Top-of-stroke-area toolbar: brush size, what size and opacity follow, colour mode,
-/// draw-at-zero toggle, tap test and Clear.
+/// Top-of-stroke-area toolbar: brush size, what size and opacity follow, colour mode, and Clear.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -47,19 +46,6 @@ public partial class BrushRibbon : UserControl
     /// <summary>Fires when the user clicks Clear.</summary>
     public event EventHandler? ClearRequested;
 
-    /// <summary>
-    /// Whether tapping stamps the alignment test figure instead of drawing.
-    /// </summary>
-    /// <remarks>
-    /// Kept off <see cref="BrushSettings"/> on purpose. It is not a property of the brush - it
-    /// changes what a pen-down <i>means</i> - and folding it in would put a diagnostic mode into
-    /// the record that presets are saved from and that drawing code reads on every sample.
-    /// </remarks>
-    public bool TapTestEnabled => TapTestCheck.IsChecked == true;
-
-    /// <summary>Fires when the user toggles tap test, carrying the new state.</summary>
-    public event EventHandler<bool>? TapTestChanged;
-
     /// <summary>A <see cref="MarkSource"/> as a dropdown shows it.</summary>
     private sealed record SourceChoice(MarkSource Value)
     {
@@ -98,12 +84,6 @@ public partial class BrushRibbon : UserControl
         {
             if (OpacityFromCombo.SelectedItem is SourceChoice c) Emit(_settings with { OpacityFrom = c.Value });
         };
-        DrawZeroPressureCheck.IsCheckedChanged += (_, _) =>
-            Emit(_settings with { DrawAtZeroPressure = DrawZeroPressureCheck.IsChecked == true });
-
-        TapTestCheck.IsCheckedChanged += (_, _) =>
-            TapTestChanged?.Invoke(this, TapTestEnabled);
-
         ClearButton.Click += (_, _) => ClearRequested?.Invoke(this, EventArgs.Empty);
     }
 
@@ -122,7 +102,6 @@ public partial class BrushRibbon : UserControl
         ColorModeCombo.SelectedItem = _settings.ColorMode;
         SizeFromCombo.SelectedItem = SourceChoices.First(c => c.Value == _settings.SizeFrom);
         OpacityFromCombo.SelectedItem = SourceChoices.First(c => c.Value == _settings.OpacityFrom);
-        DrawZeroPressureCheck.IsChecked = _settings.DrawAtZeroPressure;
         _suppress = false;
 
         UpdateBrushSizeLabel();

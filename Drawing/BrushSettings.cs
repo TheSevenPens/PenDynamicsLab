@@ -84,9 +84,6 @@ public sealed record BrushSettings
     /// <summary>Whether opacity follows pressure or stays at 1.</summary>
     public MarkSource OpacityFrom { get; init; } = MarkSource.Constant;
 
-    /// <summary>Whether a sample with no pressure still puts something down.</summary>
-    public bool DrawAtZeroPressure { get; init; }
-
     public static BrushSettings Default { get; } = new();
 
     /// <summary>

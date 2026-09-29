@@ -81,7 +81,7 @@ Single source of truth. Owns:
 
 The render timer (16 ms tick) drains pen points from the session, runs them through the pressure pipeline, draws line segments to the surfaces, and updates the live indicators on both charts.
 
-Brush state is *not* stored on `MainWindow` — it's read on demand from `BrushRibbon`'s properties (`BrushSize`, `ColorMode`, `SizeFrom`, `OpacityFrom`, `DrawZeroPressure`) at draw time. Only `_strokeColor` (the colour in force for the current stroke) lives on the window.
+Brush state is *not* stored on `MainWindow` — it's read on demand from `BrushRibbon`'s properties (`BrushSize`, `ColorMode`, `SizeFrom`, `OpacityFrom`) at draw time. Only `_strokeColor` (the colour in force for the current stroke) lives on the window.
 
 ### `StrokeCanvasView`
 A `UserControl` bundling a header pill and an `Image`. It does **not** own pixel data — it exposes `Image` (register with a `DrawSurface`), `Host` (the `Border` whose bounds drive surface size), a `Header` styled property, and `SaveRequested` / `CopyRequested` / `ClearRequested` events. The `Image` sits inside a `Canvas` pinned at (0, 0) so an oversized shared bitmap doesn't get re-laid-out when it's larger than the current host.
@@ -125,7 +125,7 @@ The body must be set with the property-element form:
 > all — with no error to point at it.
 
 ### `BrushRibbon`
-A `UserControl` toolbar: brush size slider, colour mode and pressure-target dropdowns, draw-at-zero checkbox, and Clear. Exposes current values as plain read-only properties plus a `ClearRequested` event.
+A `UserControl` toolbar: brush size slider, a Constant/From pressure dropdown each for size and opacity, the colour mode dropdown, and Clear. Exposes current values as plain read-only properties plus a `ClearRequested` event.
 
 Exactly **one** instance exists, created in the `MainWindow` field initializer and moved between `StrokeBrushSlot` and `CompareBrushSlot` on tab change (`UpdateBrushRibbonHost`). A control can have only one logical parent in Avalonia, so both slots are cleared before assigning to the active one. On the Pressure response tab the ribbon stays detached. This keeps brush settings identical across the stroke tabs with no state syncing.
 
@@ -543,7 +543,7 @@ Every curve type shares this one record, so fields the active type does not use 
 
 > **`CurveSettings` is a record, so `==` looks like value equality — but `ImmutableArray<T>` compares by reference.** Two settings with identical bezier points, one of them just deserialized, are *not* equal. Compare the points with `SequenceEqual` when it matters.
 
-Brush settings (`ColorMode`, `SizeFrom`, `OpacityFrom`, brush size, draw-at-zero) are deliberately **not** part of this record — they're view state on `BrushRibbon` and aren't saved with user presets.
+Brush settings (`ColorMode`, `SizeFrom`, `OpacityFrom`, brush size) are deliberately **not** part of this record — they're view state on `BrushRibbon` and aren't saved with user presets.
 
 ## Pressure response data schema
 

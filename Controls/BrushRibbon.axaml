@@ -10,19 +10,8 @@
         <Button x:Name="ClearButton" DockPanel.Dock="Right" Content="Clear canvas"
                 Height="32" Padding="14,0" VerticalAlignment="Center"
                 VerticalContentAlignment="Center" Margin="20,0,0,0" />
-        <!-- The diagnostic sits beside Clear rather than in the settings run. It is not a brush
-             setting - it changes what a pen-down means - and docking it reserves its width, so
-             the row clips its settings rather than silently dropping it off the end, which is
-             what happened when it was left in the settings run. -->
-        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8"
-                    VerticalAlignment="Center" Margin="20,0,0,0">
-            <CheckBox x:Name="TapTestCheck" Content="Tap test"
-                      ToolTip.Tip="Tap the canvas to stamp a ring of circles instead of drawing. Checks that the surface scales and rasterizes correctly, with no stroke in the way."
-                      Height="32" VerticalAlignment="Center" VerticalContentAlignment="Center" />
-        </StackPanel>
-
         <!-- ClipToBounds because this is a DockPanel's fill child: it is given whatever width
-             Clear and Tap test leave, and a StackPanel that wants more than that paints straight
+             Clear leaves, and a StackPanel that wants more than that paints straight
              over them rather than stopping. Clipping turns "too narrow" into a visibly cut-off
              row instead of controls occupying the same pixels. -->
         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="10"
@@ -51,13 +40,6 @@
                 <TextBlock Text="Color" Classes="fieldLabel" VerticalAlignment="Center" />
                 <ComboBox x:Name="ColorModeCombo" Width="104" Height="32" VerticalAlignment="Center" />
             </StackPanel>
-
-            <!-- Shortened from "Draw at zero pressure". The row carries several labelled
-                 controls and a diagnostic; the full phrase was the first thing the clip
-                 ate, and half a label is worse than a short one. -->
-            <CheckBox x:Name="DrawZeroPressureCheck" Content="Draw at zero"
-                      ToolTip.Tip="Keep marking while the pen reports no pressure, instead of ending the stroke."
-                      Height="32" VerticalAlignment="Center" VerticalContentAlignment="Center" />
 
         </StackPanel>
       </DockPanel>
