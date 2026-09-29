@@ -192,7 +192,7 @@
                         <TextBlock Text="Pressure" Classes="groupLabel" />
                         <Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto,Auto"
                               >
-                            <TextBlock Grid.Row="0" Grid.Column="1" Classes="sizer" Text="888888" FontWeight="SemiBold" Margin="12,0,0,0" />
+                            <TextBlock Grid.Row="0" Grid.Column="1" Classes="sizer" Text="888.88%" FontWeight="SemiBold" Margin="12,0,0,0" />
                             <TextBlock Grid.Row="0" Grid.Column="0" Text="Raw" Classes="fieldLabel" />
                             <TextBlock Grid.Row="0" Grid.Column="1" x:Name="RawPressureLabel" Text="--" Classes="readout" Margin="12,0,0,0" />
                             <TextBlock Grid.Row="1" Grid.Column="0" Text="Normalized" Classes="fieldLabel" />

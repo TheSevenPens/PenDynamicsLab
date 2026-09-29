@@ -1547,8 +1547,8 @@ public partial class MainWindow : Window
 
         float pct = maxP > 0 ? (float)pt.Pressure / maxP * 100f : 0f;
         RawPressureLabel.Text = pt.Pressure.ToString();
-        NormPressureLabel.Text = $"{pct:F1}%";
-        ProcessedPressureLabel.Text = $"{processed * 100:F1}%";
+        NormPressureLabel.Text = $"{pct:F2}%";
+        ProcessedPressureLabel.Text = $"{processed * 100:F2}%";
 
         AzimuthLabel.Text = $"{pt.Azimuth:F1}°";
         AltitudeLabel.Text = $"{pt.Altitude:F1}°";
