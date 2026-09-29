@@ -68,5 +68,11 @@ public static class CurveDefaults
     public static PressureCurveParams ResetSmoothing(PressureCurveParams p)
         => p.SmoothingType == SmoothingType.Passthrough
             ? p
-            : p with { EmaSmoothing = PressureCurveParams.Default.EmaSmoothing };
+            : p with
+            {
+                EmaSmoothing = PressureCurveParams.Default.EmaSmoothing,
+                OneEuroMinCutoff = PressureCurveParams.Default.OneEuroMinCutoff,
+                OneEuroBeta = PressureCurveParams.Default.OneEuroBeta,
+                SmoothingCurve = PressureCurveParams.Default.SmoothingCurve,
+            };
 }

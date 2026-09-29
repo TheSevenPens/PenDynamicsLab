@@ -127,6 +127,64 @@ public class PresetMigrationTests : IDisposable
     }
 
     [Fact]
+    public void OneEuroSettingsSurviveASaveAndReload()
+    {
+        var saved = new PressureCurveParams
+        {
+            SmoothingType = SmoothingType.OneEuro,
+            OneEuroMinCutoff = 2.5,
+            OneEuroBeta = 12,
+        };
+        new PresetStore(_path).Save("Adaptive", saved);
+
+        var loaded = new PresetStore(_path).Get("Adaptive")!.Params;
+
+        Assert.Equal(SmoothingType.OneEuro, loaded.SmoothingType);
+        Assert.Equal(2.5, loaded.OneEuroMinCutoff);
+        Assert.Equal(12, loaded.OneEuroBeta);
+    }
+
+    [Fact]
+    public void APresetFromBeforeTheOneEuroFilterLoadsItsDefaults()
+    {
+        File.WriteAllText(_path, LegacyJson);
+
+        var p = new PresetStore(_path).Get("Soft touch")!.Params;
+
+        Assert.Equal(OneEuroFilter.MinCutoffDefault, p.OneEuroMinCutoff);
+        Assert.Equal(OneEuroFilter.BetaDefault, p.OneEuroBeta);
+    }
+
+    [Fact]
+    public void TheSmoothingCurveSurvivesASaveAndReload()
+    {
+        var saved = new PressureCurveParams
+        {
+            SmoothingType = SmoothingType.Curve,
+            SmoothingCurve = SmoothingCurve.Default with { Minimum = 0.7, Maximum = 0.1, Softness = 0.3, InputMaximum = 0.8 },
+        };
+        new PresetStore(_path).Save("Light touch", saved);
+
+        var loaded = new PresetStore(_path).Get("Light touch")!.Params;
+
+        Assert.Equal(SmoothingType.Curve, loaded.SmoothingType);
+        Assert.Equal(0.7, loaded.SmoothingCurve.Minimum);
+        Assert.Equal(0.1, loaded.SmoothingCurve.Maximum);
+        Assert.Equal(0.3, loaded.SmoothingCurve.Softness);
+        Assert.Equal(0.8, loaded.SmoothingCurve.InputMaximum);
+    }
+
+    [Fact]
+    public void APresetFromBeforeTheSmoothingCurveLoadsItsDefault()
+    {
+        var c = LoadLegacy().Get("Soft touch")!.Params.SmoothingCurve;
+
+        Assert.Equal(SmoothingCurve.Default.Minimum, c.Minimum);
+        Assert.Equal(SmoothingCurve.Default.Maximum, c.Maximum);
+        Assert.Equal(SmoothingCurve.Default.Softness, c.Softness);
+    }
+
+    [Fact]
     public void ResavingALegacyPreset_RewritesItInTheCurrentShape()
     {
         var store = LoadLegacy();

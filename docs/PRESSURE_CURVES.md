@@ -233,7 +233,7 @@ Raw pen pressure (pt.Pressure / pt.MaxPressure  → 0..1)
 [EMA smoothing]    ← if UiSettings.SmoothingOrder = CurveThenSmooth
   │
   ▼
-Output pressure (0..1)  →  brush size  OR  opacity  (per PressureControl)
+Output pressure (0..1)  →  brush size and/or opacity  (per SizeFrom / OpacityFrom)
 ```
 
 EMA (Exponential Moving Average) smoothing:
@@ -243,6 +243,24 @@ alpha    = 1 - emaSmoothing
 ```
 
 When `EmaSmoothing = 0`, alpha = 1, so output = input (no smoothing). As it approaches 0.99, output becomes increasingly smoothed/lagged. Only pressure is smoothed — cursor position is drawn unmodified.
+
+1€ filter (Casiez, Roussel and Vogel, CHI 2012), `SmoothingType.OneEuro`: an EMA whose cutoff follows the signal's speed, so steady pressure is smoothed hard and fast presses are followed closely.
+```
+speed    = smoothed derivative of pressure, in pressure per second (derivative cutoff fixed at 1 Hz)
+cutoff   = OneEuroMinCutoff + OneEuroBeta * |speed|          (Hz)
+alpha    = 1 / (1 + 1 / (2π · cutoff · dt))                   (dt from the pen's timestamps)
+smoothed = smoothed + alpha * (raw - smoothed)
+```
+It runs on the pen's clock, not on sample count: `dt` comes from `PenPoint.TimestampMicroseconds`, with 5 ms (200 Hz) standing in when two samples share a timestamp or none is known. Defaults are 0.5 Hz and a beta of 0.5 (range 0 to 5): pressure moves several units a second in an ordinary stroke, and a larger beta lifts the cutoff so far that nothing is smoothed. The UI shows the cutoff as a *Steady smoothing* strength from 0 (10 Hz, lightest) to 1 (0.05 Hz, heaviest) on a log scale, so higher means smoother as on the EMA slider (`OneEuroFilter.StrengthToCutoff`). Like the EMA, it resets on pen lift, so every stroke starts unsmoothed. Its stage pill always reads `On`.
+
+Smoothing curve, `SmoothingType.Curve`: the EMA above, with its amount read per sample off a curve of the incoming (quantized) pressure instead of a fixed slider. The curve is an Extended `CurveSettings` in `PressureCurveParams.SmoothingCurve`: softness, input range and output range as for a pressure curve, but the output is a smoothing amount, clamped to `EmaConstants.Max`. With `Minimum` above `Maximum` it falls from left to right, which is the default (0.9 at no pressure, 0 at full, linear), so light touches are smoothed hard and firm pressure stays responsive.
+
+```
+amount = clamp(ApplyCurve(pressure, SmoothingCurve), 0, 0.99)   (pressure = quantized input, in either order)
+y[n]   = y[n-1] + (1 - amount) * (x[n] - y[n-1])
+```
+
+It reads the pen's pressure even in curve-then-smooth order, so the curves never change how much is smoothed. It resets on pen lift like the EMA. Its chart sits in the Smoothing card, with a live dot at the incoming pressure; the end nodes drag and may cross. Its stage pill reads `On`, or `On · no effect` when both ends are 0. `SmoothingCurve.cs` holds the default and the lookup.
 
 Setting `SmoothingType` to **Passthrough** skips smoothing regardless of the amount, mirroring `CurveType.Passthrough` on the curve side. It resolves to the same code path as an amount of 0, and the EMA state keeps tracking the input while bypassed, so switching back mid-stroke resumes from the current pressure rather than a stale one. The amount slider is hidden while Passthrough is selected, and the Smoothing card header shows an `Off` pill.
 

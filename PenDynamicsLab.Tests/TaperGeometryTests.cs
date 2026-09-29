@@ -122,7 +122,7 @@ public class TaperGeometryTests
     [Fact]
     public void ZeroWidthStillLeavesSomethingToDraw()
     {
-        // Pressure can reach zero while DrawAtZeroPressure is on. A zero-radius circle has no
+        // Pressure can reach zero (a curve can map a light touch to nothing). A zero-radius circle has no
         // outline and would silently drop the segment.
         var b = TaperBounds(0, 0, 0, 50, 0, 10);
 

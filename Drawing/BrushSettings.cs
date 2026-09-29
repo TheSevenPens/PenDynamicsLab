@@ -78,11 +78,11 @@ public sealed record BrushSettings
     /// <summary>How each new stroke picks its colour.</summary>
     public ColorMode ColorMode { get; init; } = ColorMode.Black;
 
-    /// <summary>Which property of the mark pressure drives.</summary>
-    public PressureControl PressureDrives { get; init; } = PressureControl.Size;
+    /// <summary>Whether stroke width follows pressure or stays at <see cref="Size"/>.</summary>
+    public MarkSource SizeFrom { get; init; } = MarkSource.Pressure;
 
-    /// <summary>Whether a sample with no pressure still puts something down.</summary>
-    public bool DrawAtZeroPressure { get; init; }
+    /// <summary>Whether opacity follows pressure or stays at 1.</summary>
+    public MarkSource OpacityFrom { get; init; } = MarkSource.Constant;
 
     public static BrushSettings Default { get; } = new();
 
@@ -94,7 +94,7 @@ public sealed record BrushSettings
     /// work out the mark — which is the point of having a record at all. Floored at
     /// <see cref="MinStrokeWidth"/> rather than at zero, so the faintest contact still marks.
     /// </remarks>
-    public float StrokeWidthFor(double pressure) => PressureDrives == PressureControl.Opacity
+    public float StrokeWidthFor(double pressure) => SizeFrom == MarkSource.Constant
         ? (float)Size
         : (float)Math.Max(MinStrokeWidth, pressure * Size);
 
@@ -105,7 +105,7 @@ public sealed record BrushSettings
     /// Floored at 0.02 rather than 0 for the same reason: fully transparent is indistinguishable
     /// from not drawing, and the faintest contact should still leave a trace.
     /// </remarks>
-    public float OpacityFor(double pressure) => PressureDrives == PressureControl.Opacity
+    public float OpacityFor(double pressure) => OpacityFrom == MarkSource.Pressure
         ? (float)Math.Max(0.02, pressure)
         : 1f;
 }

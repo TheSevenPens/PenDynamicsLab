@@ -38,7 +38,7 @@ public class TwoTapersCompared
     private static BrushSettings Lab() => BrushSettings.Default with
     {
         Size = Nib,
-        PressureDrives = PressureControl.Size,
+        SizeFrom = MarkSource.Pressure,
     };
 
     /// <summary>

@@ -17,7 +17,7 @@ MainWindow
     │   │   │   │   ├── LabeledSlider × N (Curve Amount, in/out range, flat level)
     │   │   │   │   └── Min approach radios
     │   │   │   ├── Curve 2  [same] — CurveEditorView          (only when UseTwoCurves)
-    │   │   │   └── Smoothing  [Off | On · no effect | On] — algorithm combo (Passthrough / EMA) + type-scoped reset, Smoothing Amount
+    │   │   │   └── Smoothing  [Off | On · no effect | On] — algorithm combo (Passthrough / EMA / 1€ filter / Smoothing curve) + type-scoped reset, Smoothing Amount
     │   │   │       (smoothing and the curves swap places with the processing order)
     │   │   └── Presets (pinned to the bottom row) — empty-state text, saved list, "Save current settings"
     │   └── Curve column
@@ -81,7 +81,7 @@ Single source of truth. Owns:
 
 The render timer (16 ms tick) drains pen points from the session, runs them through the pressure pipeline, draws line segments to the surfaces, and updates the live indicators on both charts.
 
-Brush state is *not* stored on `MainWindow` — it's read on demand from `BrushRibbon`'s properties (`BrushSize`, `ColorMode`, `PressureControl`, `DrawZeroPressure`) at draw time. Only `_strokeColor` (the colour in force for the current stroke) lives on the window.
+Brush state is *not* stored on `MainWindow` — it's read on demand from `BrushRibbon`'s properties (`BrushSize`, `ColorMode`, `SizeFrom`, `OpacityFrom`) at draw time. Only `_strokeColor` (the colour in force for the current stroke) lives on the window.
 
 ### `StrokeCanvasView`
 A `UserControl` bundling a header pill and an `Image`. It does **not** own pixel data — it exposes `Image` (register with a `DrawSurface`), `Host` (the `Border` whose bounds drive surface size), a `Header` styled property, and `SaveRequested` / `CopyRequested` / `ClearRequested` events. The `Image` sits inside a `Canvas` pinned at (0, 0) so an oversized shared bitmap doesn't get re-laid-out when it's larger than the current host.
@@ -125,7 +125,7 @@ The body must be set with the property-element form:
 > all — with no error to point at it.
 
 ### `BrushRibbon`
-A `UserControl` toolbar: brush size slider, colour mode and pressure-target dropdowns, draw-at-zero checkbox, and Clear. Exposes current values as plain read-only properties plus a `ClearRequested` event.
+A `UserControl` toolbar: brush size slider, a Constant/From pressure dropdown each for size and opacity, the colour mode dropdown, and Clear. Exposes current values as plain read-only properties plus a `ClearRequested` event.
 
 Exactly **one** instance exists, created in the `MainWindow` field initializer and moved between `StrokeBrushSlot` and `CompareBrushSlot` on tab change (`UpdateBrushRibbonHost`). A control can have only one logical parent in Avalonia, so both slots are cleared before assigning to the active one. On the Pressure response tab the ribbon stays detached. This keeps brush settings identical across the stroke tabs with no state syncing.
 
@@ -400,8 +400,9 @@ Both surfaces are drawn on every segment when their canvases exist — the proce
 Every coordinate in this pipeline — `clientPt`, the host-local point, and the stroke widths from `SizeFor` — is in **DIPs**. Nothing here is aware of the display scaling; `DrawSurface`'s canvas transform converts to physical pixels at the point of drawing. See [HiDPI](#hidpi-dips-vs-physical-pixels).
 
 Pressure → stroke parameters (`SizeFor` / `OpacityFor`, both reading `BrushRibbon` live):
-- `PressureControl.Size`: stroke width = `max(1, pressure * brushSize)`, opacity = 1
-- `PressureControl.Opacity`: stroke width = `brushSize`, opacity = `max(0.02, pressure)`
+- `SizeFrom` (a `MarkSource`): `Pressure` gives stroke width = `max(MinStrokeWidth, pressure * brushSize)`; `Constant` gives `brushSize`
+- `OpacityFrom` (a `MarkSource`): `Pressure` gives opacity = `max(0.02, pressure)`; `Constant` gives 1
+- The two are independent: both constant draws a fixed-width, fully opaque stroke, and both can follow pressure at once
 
 Stroke state resets in two parts, with different owners.
 
@@ -515,8 +516,11 @@ while adding them to the format after strokes exist is a migration.
 | `QuantizationLevels` | `int` | Pressure levels to coarsen the input to, or 0 for none. Always applied first |
 | `Curve1` | `CurveSettings` | Shapes the pen's pressure |
 | `Curve2` | `CurveSettings` | Shapes what curve 1 produced |
-| `SmoothingType` | `SmoothingType` enum | Passthrough, Ema; Passthrough skips smoothing entirely |
+| `SmoothingType` | `SmoothingType` enum | Passthrough, Ema, OneEuro, Curve; Passthrough skips smoothing entirely |
 | `EmaSmoothing` | `double` 0-0.99 | Pressure EMA smoothing amount (ignored when Passthrough) |
+| `OneEuroMinCutoff` | `double` Hz, 0.05-10 | 1€ filter cutoff when pressure is steady (used only by OneEuro); the UI shows it as a 0-1 strength |
+| `OneEuroBeta` | `double` 0-5 | 1€ filter speed coefficient (used only by OneEuro) |
+| `SmoothingCurve` | `CurveSettings` (Extended) | Smoothing curve: the EMA amount as a curve of the incoming pressure, 0 to 0.99, falling by default (used only by Curve) |
 
 The smoothing **order** is deliberately not here — it lives on `UiSettings`, for the reasons set out above. A preset therefore cannot change it.
 
@@ -542,7 +546,7 @@ Every curve type shares this one record, so fields the active type does not use 
 
 > **`CurveSettings` is a record, so `==` looks like value equality — but `ImmutableArray<T>` compares by reference.** Two settings with identical bezier points, one of them just deserialized, are *not* equal. Compare the points with `SequenceEqual` when it matters.
 
-Brush settings (`ColorMode`, `PressureControl`, brush size, draw-at-zero) are deliberately **not** part of this record — they're view state on `BrushRibbon` and aren't saved with user presets.
+Brush settings (`ColorMode`, `SizeFrom`, `OpacityFrom`, brush size) are deliberately **not** part of this record — they're view state on `BrushRibbon` and aren't saved with user presets.
 
 ## Pressure response data schema
 

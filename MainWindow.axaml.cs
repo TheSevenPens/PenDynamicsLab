@@ -70,17 +70,6 @@ public partial class MainWindow : Window
     // keeps brush settings synced across tabs without duplicating UI state.
     private readonly Controls.BrushRibbon BrushRibbon = new();
 
-    // Tap test. Deliberately not persisted in UiSettings: a diagnostic mode that silently
-    // survived a restart would look like the app had stopped drawing.
-    private bool _tapTest;
-
-    // Whether the last pen sample carried pressure, so a tap can be recognised as the moment it
-    // starts rather than as every sample the pen spends down.
-    private bool _penWasDown;
-
-    // Raw pen capture, for replaying a stroke later under settings it was never drawn under.
-    private readonly Diagnostics.StrokeRecorder _recorder = new();
-
     // The brush configuration. Drawing reads this record, never the ribbon's controls — the
     // ribbon is a view over it and pushes edits back through SettingsChanged.
     private BrushSettings _brush = BrushSettings.Default;
@@ -187,34 +176,7 @@ public partial class MainWindow : Window
         UpdateDriverTipVisibility();
 
         BrushRibbon.ClearRequested += (_, _) => ClearCanvases();
-        BrushRibbon.TapTestChanged += (_, on) =>
-        {
-            _tapTest = on;
-            // Leaving a stroke open across the switch would join the next mark to wherever the
-            // pen last was, in whichever mode that happened to be.
-            ResetStrokeState();
-        };
 
-        BrushRibbon.RecordChanged += (_, on) =>
-        {
-            if (on)
-            {
-                if (CaptureRecordingContext() is not { } context)
-                {
-                    BrushRibbon.SetRecordStatus("cannot record: no window");
-                    BrushRibbon.ClearRecordWithoutNotifying();
-                    return;
-                }
-
-                _recorder.Start(context);
-                BrushRibbon.SetRecordStatus("recording...");
-                return;
-            }
-
-            BrushRibbon.SetRecordStatus(SaveRecording() is { } path
-                ? Path.GetFileName(path)
-                : "nothing captured");
-        };
         BrushRibbon.SettingsChanged += (_, next) => _brush = next;
         BrushRibbon.Settings = _brush;
         InitializeCurveControls();
@@ -300,7 +262,8 @@ public partial class MainWindow : Window
         var pipeline = new DynamicsPipeline();
         var outputs = new double[stroke.Samples.Count];
         for (int i = 0; i < outputs.Length; i++)
-            outputs[i] = pipeline.Process(stroke.Samples[i].RawPressure, _curveParams, _uiSettings.SmoothingOrder).Output;
+            outputs[i] = pipeline.Process(stroke.Samples[i].RawPressure, _curveParams, _uiSettings.SmoothingOrder,
+                                          stroke.Samples[i].TimestampMicroseconds).Output;
         return outputs;
     }
 
@@ -419,6 +382,9 @@ public partial class MainWindow : Window
         _suppressCurveControlEvents = true;
         SmoothingTypeCombo.SelectedIndex = (int)_curveParams.SmoothingType;
         PressureEmaSlider.Value = _curveParams.EmaSmoothing;
+        OneEuroSmoothingSlider.Value = OneEuroFilter.CutoffToStrength(_curveParams.OneEuroMinCutoff);
+        OneEuroBetaSlider.Value = _curveParams.OneEuroBeta;
+        SyncSmoothingCurveSliders();
         _suppressCurveControlEvents = false;
 
         QuantizationCombo.SelectionChanged += (_, _) =>
@@ -433,6 +399,11 @@ public partial class MainWindow : Window
         };
 
         WireSlider(PressureEmaSlider, v => p => p with { EmaSmoothing = v });
+        WireSlider(OneEuroSmoothingSlider, v => p => p with { OneEuroMinCutoff = OneEuroFilter.StrengthToCutoff(v) });
+        WireSlider(OneEuroBetaSlider, v => p => p with { OneEuroBeta = v });
+        WireSlider(SmoothingCurveLightSlider, v => p => p with { SmoothingCurve = p.SmoothingCurve with { Minimum = v } });
+        WireSlider(SmoothingCurveFirmSlider, v => p => p with { SmoothingCurve = p.SmoothingCurve with { Maximum = v } });
+        WireSlider(SmoothingCurveSoftnessSlider, v => p => p with { SmoothingCurve = p.SmoothingCurve with { Softness = v } });
 
         // The two curve editors and the two editable charts are two views of the same
         // curve each. Both write back here, and this is the only place that decides what
@@ -446,8 +417,17 @@ public partial class MainWindow : Window
 
         WireChart(PressureChart, c => p => p with { Curve1 = c });
         WireChart(PressureChart2, c => p => p with { Curve2 = c });
+        WireChart(SmoothingCurveChart, c => p => p with { SmoothingCurve = c });
 
         SyncCurveControlsFromParams();
+    }
+
+    /// <summary>The smoothing curve's sliders from its settings. Callers hold the suppress flag.</summary>
+    private void SyncSmoothingCurveSliders()
+    {
+        SmoothingCurveLightSlider.Value = _curveParams.SmoothingCurve.Minimum;
+        SmoothingCurveFirmSlider.Value = _curveParams.SmoothingCurve.Maximum;
+        SmoothingCurveSoftnessSlider.Value = _curveParams.SmoothingCurve.Softness;
     }
 
     /// <summary>
@@ -473,6 +453,9 @@ public partial class MainWindow : Window
         _suppressCurveControlEvents = true;
         SmoothingTypeCombo.SelectedIndex = (int)_curveParams.SmoothingType;
         PressureEmaSlider.Value = _curveParams.EmaSmoothing;
+        OneEuroSmoothingSlider.Value = OneEuroFilter.CutoffToStrength(_curveParams.OneEuroMinCutoff);
+        OneEuroBetaSlider.Value = _curveParams.OneEuroBeta;
+        SyncSmoothingCurveSliders();
         QuantizationCombo.SelectedIndex = Math.Max(0, Array.IndexOf(Quantization.Levels, _curveParams.QuantizationLevels));
         _suppressCurveControlEvents = false;
 
@@ -492,6 +475,9 @@ public partial class MainWindow : Window
         _suppressCurveControlEvents = true;
         PressureChart.Curve = _curveParams.Curve1;
         PressureChart2.Curve = _curveParams.Curve2;
+        SmoothingCurveChart.Curve = _curveParams.SmoothingCurve;
+        // Dragging a node changes the ends the sliders show, so they follow the chart.
+        SyncSmoothingCurveSliders();
         EffectiveChart.Params = _curveParams;
         ResponseChart.Params = _curveParams;
         _suppressCurveControlEvents = previous;
@@ -514,10 +500,14 @@ public partial class MainWindow : Window
     /// </remarks>
     private void UpdateDerivedControlState()
     {
-        // Passthrough smoothing ignores the amount, so hide it — same convention as the
-        // curve cards, where Passthrough hides softness and the range controls.
+        // Each smoothing type shows only its own controls, and Passthrough none — same convention
+        // as the curve cards, where Passthrough hides softness and the range controls.
         bool smoothing = _curveParams.SmoothingType != SmoothingType.Passthrough;
-        PressureEmaSlider.IsVisible = smoothing;
+        bool oneEuro = _curveParams.SmoothingType == SmoothingType.OneEuro;
+        PressureEmaSlider.IsVisible = _curveParams.SmoothingType == SmoothingType.Ema;
+        OneEuroSmoothingSlider.IsVisible = oneEuro;
+        OneEuroBetaSlider.IsVisible = oneEuro;
+        SmoothingCurvePanel.IsVisible = _curveParams.SmoothingType == SmoothingType.Curve;
         SmoothingResetButton.IsEnabled = smoothing;
     }
 
@@ -1248,6 +1238,8 @@ public partial class MainWindow : Window
     {
         SmoothingType.Passthrough => "Passthrough",
         SmoothingType.Ema => "EMA",
+        SmoothingType.OneEuro => "1€ filter",
+        SmoothingType.Curve => "Smoothing curve",
         _ => st.ToString(),
     };
 
@@ -1279,19 +1271,6 @@ public partial class MainWindow : Window
         _pen.Session?.Stop();
         _pen.Session?.Dispose();
 
-        // A recording in progress belongs to the session being torn down. Its samples were
-        // scaled to that device's pressure range, so carrying them into the next session would
-        // mean one file describing two devices under one MaxPressure. Save what was captured,
-        // under the context it was captured in, and stop.
-        if (_recorder.IsRecording)
-        {
-            string? saved = SaveRecording();
-            BrushRibbon.ClearRecordWithoutNotifying();
-            BrushRibbon.SetRecordStatus(saved is { } p
-                ? $"{Path.GetFileName(p)} (stopped: API changed)"
-                : "recording discarded: API changed");
-        }
-
         var api = _apis[ApiCombo.SelectedIndex];
         // Whatever the previous session last reported says nothing about this one. The
         // out-of-range path would blank these within 200 ms anyway; doing it here means the
@@ -1322,47 +1301,6 @@ public partial class MainWindow : Window
 
         Title = "PenDynamicsLab";
     }
-
-    /// <summary>
-    /// Write what the recorder has collected, returning the file path or null.
-    /// </summary>
-    /// <remarks>
-    /// The canvas geometry goes in with it. Desktop coordinates alone are not replayable — where
-    /// the canvas was on screen is what turns them back into canvas-local positions.
-    /// </remarks>
-    /// <summary>
-    /// What is true right now: the device, and where the canvas sits on the desktop. Read once
-    /// when recording starts, never at save time.
-    /// </summary>
-    private RecordingContext? CaptureRecordingContext()
-    {
-        var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel is null) return null;
-
-        double scale = topLevel.RenderScaling;
-        var clientOrigin = topLevel.PointToScreen(new Point(0, 0));
-
-        var originDip = new Point(0, 0);
-        var sizeDip = new Size(0, 0);
-        _session.TryGetCanvasGeometry(topLevel, out originDip, out sizeDip);
-
-        var originPhysical = new Point(
-            clientOrigin.X + originDip.X * scale,
-            clientOrigin.Y + originDip.Y * scale);
-
-        string api = _apis.Count > 0 && ApiCombo.SelectedIndex >= 0
-            ? _apis[ApiCombo.SelectedIndex].ToString()
-            : "";
-
-        // Named at capture rather than at save, for the reason StrokeRecorder.Start documents:
-        // the pen API can change while a recording is running, and the clock changes with it.
-        string timestampSource = _pen.Session?.Conventions.Timestamp.ToString() ?? "";
-
-        return new RecordingContext(api, _pen.Session?.MaxPressure ?? 0, scale, originPhysical, sizeDip,
-                                    timestampSource);
-    }
-
-    private string? SaveRecording() => _recorder.StopAndSave();
 
     /// <summary>
     /// Select the input API to start on: Wintab's digitizer context if it is available.
@@ -1405,13 +1343,13 @@ public partial class MainWindow : Window
 
     private void ResetStrokeState()
     {
-        _penWasDown = false;
         _session.ResetStroke();
         _pipeline.Reset();
         PressureChart.LiveRawPressure = null;
         PressureChart.LivePressure = null;
         PressureChart2.LiveRawPressure = null;
         PressureChart2.LivePressure = null;
+        SmoothingCurveChart.LivePressure = null;
         EffectiveChart.LiveRawPressure = null;
         EffectiveChart.LivePressure = null;
         ResponseChart.LiveRawPressure = null;
@@ -1425,7 +1363,7 @@ public partial class MainWindow : Window
     /// <summary>One drained batch, already stamped when it was taken off the queue.</summary>
     /// <remarks>
     /// A subscriber rather than a timer tick, so there is nowhere left for this window to put
-    /// work between the drain and the stamp. See StrokeRecorder.Add.
+    /// work between the drain and the stamp.
     /// </remarks>
     private void Took(Batch batch)
     {
@@ -1453,8 +1391,6 @@ public partial class MainWindow : Window
 
         foreach (var pt in points)
         {
-            _recorder.Add(pt, batch.Arrived);
-
             // Determine which sub-canvas the pen is over by translating screen coords into each
             // host's local frame. The host where local Y ∈ [0, height] wins.
             Point clientPt;
@@ -1497,7 +1433,7 @@ public partial class MainWindow : Window
             // regardless of whether the pen is over a stroke canvas. This keeps the
             // Pressure response tab's chart live even though it has no canvas.
             double rawPressure = maxP > 0 ? (double)pt.Pressure / maxP : 0;
-            var pipeline = _pipeline.Process(rawPressure, _curveParams, _uiSettings.SmoothingOrder);
+            var pipeline = _pipeline.Process(rawPressure, _curveParams, _uiSettings.SmoothingOrder, pt.TimestampMicroseconds);
 
             UpdateTelemetry(pt, clientPt, over is null ? null : (Point?)localPt, maxP, pipeline.Output);
             // Each chart's x axis is a different quantity, so the indicators cannot all
@@ -1510,6 +1446,9 @@ public partial class MainWindow : Window
             PressureChart2.LiveRawPressure = null;
             PressureChart2.LivePressure = CurveMath.ApplyCurve(pipeline.PreCurve, _curveParams.Curve1);
 
+            // The smoothing curve reads the incoming pressure, so its dot sits there.
+            SmoothingCurveChart.LivePressure = pipeline.Raw;
+
             EffectiveChart.LiveRawPressure = pipeline.Raw;
             EffectiveChart.LivePressure = pipeline.PreCurve;
 
@@ -1520,17 +1459,6 @@ public partial class MainWindow : Window
             if (over is null)
             {
                 _session.EndStroke();
-                continue;
-            }
-
-            // Tap test stamps a fixed figure on pen-down and draws nothing else, so the surface
-            // can be judged on its own. Keyed off the transition into pressure rather than off
-            // pressure itself, or holding the pen down would stack a stamp every 16 ms.
-            if (_tapTest)
-            {
-                bool down = rawPressure > 0;
-                if (down && !_penWasDown) _session.DrawTestPattern(localPt, over.Value);
-                _penWasDown = down;
                 continue;
             }
 

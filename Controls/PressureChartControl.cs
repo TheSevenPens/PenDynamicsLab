@@ -86,6 +86,13 @@ public sealed class PressureChartControl : Control, IExportableChart
         set => SetValue(LivePressureProperty, value);
     }
 
+    /// <summary>
+    /// Lets the end nodes be dragged so the curve falls from left to right. Pressure curves
+    /// keep their output rising; the smoothing curve, whose output is a smoothing amount, starts
+    /// high and falls.
+    /// </summary>
+    public bool AllowDescending { get; set; }
+
     /// <summary>Index of the selected bezier point (for highlight + remove default), or null.</summary>
     public int? SelectedBezierPoint { get; private set; }
     public BezierHandleSide? SelectedBezierHandle { get; private set; }
@@ -568,16 +575,17 @@ public sealed class PressureChartControl : Control, IExportableChart
         double inVal = Round2(XValueFromCanvas(pos.X));
         double outVal = Round2(YValueFromCanvas(pos.Y));
 
+        // Inputs always stay ordered. Outputs stay ordered too, unless the curve may fall.
         if (_dragging == DragKind.MinNode)
         {
             inVal = Math.Min(inVal, Curve.InputMaximum - 0.01);
-            outVal = Math.Min(outVal, Curve.Maximum);
+            if (!AllowDescending) outVal = Math.Min(outVal, Curve.Maximum);
             Curve = Curve with { InputMinimum = Clamp01(inVal), Minimum = Clamp01(outVal) };
         }
         else
         {
             inVal = Math.Max(inVal, Curve.InputMinimum + 0.01);
-            outVal = Math.Max(outVal, Curve.Minimum);
+            if (!AllowDescending) outVal = Math.Max(outVal, Curve.Minimum);
             Curve = Curve with { InputMaximum = Clamp01(inVal), Maximum = Clamp01(outVal) };
         }
     }

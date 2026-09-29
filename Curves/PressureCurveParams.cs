@@ -32,6 +32,15 @@ public sealed record PressureCurveParams
     public SmoothingType SmoothingType { get; init; } = SmoothingType.Passthrough;
     public double EmaSmoothing { get; init; } = 0;
 
+    /// <summary>1€ filter: cutoff when pressure is steady, in Hz. Lower is smoother.</summary>
+    public double OneEuroMinCutoff { get; init; } = OneEuroFilter.MinCutoffDefault;
+
+    /// <summary>1€ filter: how quickly smoothing backs off as pressure changes faster.</summary>
+    public double OneEuroBeta { get; init; } = OneEuroFilter.BetaDefault;
+
+    /// <summary>Smoothing curve: the EMA amount as a curve of pressure. See <see cref="Curves.SmoothingCurve"/>.</summary>
+    public CurveSettings SmoothingCurve { get; init; } = Curves.SmoothingCurve.Default;
+
     // SmoothingOrder is deliberately NOT here. It is an application setting in UiSettings,
     // not part of a preset: the settings cards are laid out in the order the stages run,
     // so the order is always visible on screen and cannot be changed behind your back by

@@ -373,7 +373,7 @@ public sealed class DrawingSession : IDisposable
         {
             // Both surfaces are drawn on every segment. The processed one takes the pipeline
             // output; the raw one takes unprocessed pressure, which is the comparison.
-            if (Processed?.Canvas is { } pc && (brush.DrawAtZeroPressure || processedPressure > 0))
+            if (Processed?.Canvas is { } pc && processedPressure > 0)
             {
                 _engine.DrawSegment(Processed!, from, sample, brush, _strokeColor, PressureChannel.Processed);
                 _processedDirty = true;
@@ -386,37 +386,6 @@ public sealed class DrawingSession : IDisposable
         }
 
         _lastSample = sample;
-    }
-
-    /// <summary>
-    /// Stamp the alignment test figure at <paramref name="pos"/> on the canvas given.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Diagnostic, not drawing: this is how a tap answers "is the surface itself sound?" without
-    /// a stroke in the way. See <see cref="TestPattern"/> for what the figure is measuring.
-    /// </para>
-    /// <para>
-    /// Deliberately <b>not recorded in <see cref="History"/></b>. A stamp is not a stroke, and
-    /// letting undo peel these off one at a time would mean replay had to know how to redraw
-    /// them. Clear removes them, which is all a diagnostic mark needs.
-    /// </para>
-    /// <para>
-    /// Ends any stroke in progress first. A tap that lands mid-stroke should not be joined to it
-    /// by a line from wherever the pen last was.
-    /// </para>
-    /// </remarks>
-    public void DrawTestPattern(Point pos, CanvasRole role)
-    {
-        EndStroke();
-
-        var surface = SurfaceFor(role);
-        if (surface?.Canvas is not { } canvas) return;
-
-        TestPattern.Draw(canvas, pos, BlackStroke);
-
-        if (role == CanvasRole.Raw) _rawDirty = true;
-        else _processedDirty = true;
     }
 
     /// <summary>
@@ -492,7 +461,7 @@ public sealed class DrawingSession : IDisposable
             var samples = stroke.Samples;
             for (int i = 1; i < samples.Count; i++)
             {
-                if (!stroke.Brush.DrawAtZeroPressure && samples[i].PressureFor(channel) <= 0) continue;
+                if (samples[i].PressureFor(channel) <= 0) continue;
                 _engine.DrawSegment(replay, samples[i - 1], samples[i],
                                     stroke.Brush, stroke.Color, channel);
             }
@@ -608,7 +577,7 @@ public sealed class DrawingSession : IDisposable
             var prev = samples[i - 1];
             var s = samples[i];
 
-            if (Processed?.Canvas is { } pc && (stroke.Brush.DrawAtZeroPressure || s.ProcessedPressure > 0))
+            if (Processed?.Canvas is { } pc && s.ProcessedPressure > 0)
                 _engine.DrawSegment(Processed!, prev, s, stroke.Brush, stroke.Color, PressureChannel.Processed);
 
             if (Raw?.Canvas is { } rc)

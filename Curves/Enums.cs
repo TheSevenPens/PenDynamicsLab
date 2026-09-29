@@ -32,6 +32,12 @@ public enum SmoothingType
 {
     Passthrough,
     Ema,
+
+    /// <summary>The 1€ filter: smooths steady pressure hard and fast changes lightly. See <see cref="OneEuroFilter"/>.</summary>
+    OneEuro,
+
+    /// <summary>An EMA whose amount follows a curve of the pen's pressure. See <see cref="SmoothingCurve"/>.</summary>
+    Curve,
 }
 
 public enum SmoothingOrder
@@ -40,5 +46,5 @@ public enum SmoothingOrder
     CurveThenSmooth,
 }
 
-// ColorMode and PressureControl moved to Drawing/Enums.cs - they are brush concepts,
+// ColorMode and MarkSource moved to Drawing/Enums.cs - they are brush concepts,
 // not curve ones, and drawing code should not have to reach into Curves/ for them.

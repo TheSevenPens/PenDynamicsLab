@@ -145,7 +145,7 @@ Avalonia dropdowns are their own top-level window, so `PrintWindow` on the main 
 - **The canvas is only in the right-hand tabs.** `Stroke` is a single processed canvas; `Stroke compare` stacks processed over raw **vertically** (same width, roughly half height each).
 - **The processed surface is one bitmap shared by two hosts.** `StrokeCanvasView` pins its `Image` at (0,0) on a `Canvas` inside a `ClipToBounds` border, so a bitmap larger than its host is clipped for display and kept whole. A mark that looks cut off in the Compare pane is not necessarily lost — switch back and check before concluding anything.
 - **Shrinking the window destroys pixels.** `DrawSurface.EnsureSize` preserves content by blitting the old bitmap in at the origin, so anything outside the smaller bounds is gone and does not come back when you grow the window again. Useful to know both as a real defect and as a way to invalidate a test accidentally.
-- **A stroke needs nonzero pressure** unless "Draw at zero pressure" is ticked.
+- **A stroke needs nonzero pressure.** A sample at zero pressure ends the stroke.
 
 ## Verifying, honestly
 
