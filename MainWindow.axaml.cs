@@ -54,6 +54,8 @@ public partial class MainWindow : Window
     /// the same in every application that reads a pen, and was written out longhand in each.
     /// </remarks>
     private readonly PenStream _pen = new();
+    private readonly ButtonReadout _buttons = new();
+    private string _titleBase = "PenDynamicsLab";
 
     // Owns the surfaces, the hit-testing, the stroke colour, and the brush engine. The window
     // drains points and runs the charts; it does not know what an SKPaint is.
@@ -98,6 +100,16 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         _pen.Drained += (_, batch) => Took(batch);
+
+        // Windows asks the window which system gestures it wants (press-and-hold right click, the circle drawn when a pen button goes down, the wave on pen up). A drawing
+        // surface wants none of them. Answered by TabletGestures; removed with the window.
+        Win32Properties.AddWndProcHookCallback(this, TabletGestures.Hook);
+        Closed += (_, _) => Win32Properties.RemoveWndProcHookCallback(this, TabletGestures.Hook);
+        // Whether Windows asks this window about gestures at all is the first thing to know when a ring does not go away, so the count is kept in the title, where it is always
+        // visible (a tooltip on the readouts only exists while the pen is in range).
+        var titleTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(500), DispatcherPriority.Background, (_, _) => ShowTitle());
+        titleTimer.Start();
+        Closed += (_, _) => titleTimer.Stop();
 
         // The processed surface is shared across both the Stroke tab and the Stroke compare
         // tab — drawing on either is the same content. The raw surface is unique to the
@@ -1264,6 +1276,9 @@ public partial class MainWindow : Window
 
     // ── Session lifecycle ────────────────────────────────────────
 
+    /// <summary>The window title: the base text and, always, how often Windows has asked about system gestures and what this window answers (see <see cref="TabletGestures"/>).</summary>
+    private void ShowTitle() => Title = $"{_titleBase}  |  gesture queries {TabletGestures.Queries}, answer 0x{TabletGestures.Flags:X}";
+
     private void StartSession()
     {
         if (_apis.Count == 0 || ApiCombo.SelectedIndex < 0) return;
@@ -1295,11 +1310,13 @@ public partial class MainWindow : Window
 
         if (error != null)
         {
-            Title = $"PenDynamicsLab - {error}";
+            _titleBase = $"PenDynamicsLab - {error}";
+            ShowTitle();
             return;
         }
 
-        Title = "PenDynamicsLab";
+        _titleBase = "PenDynamicsLab";
+        ShowTitle();
     }
 
     /// <summary>
@@ -1435,6 +1452,8 @@ public partial class MainWindow : Window
             double rawPressure = maxP > 0 ? (double)pt.Pressure / maxP : 0;
             var pipeline = _pipeline.Process(rawPressure, _curveParams, _uiSettings.SmoothingOrder, pt.TimestampMicroseconds);
 
+            // Every point, in arrival order, drawn or not: Wintab reports a release as one event on one packet, and the state is carried from there.
+            _buttons.Update(pt);
             UpdateTelemetry(pt, clientPt, over is null ? null : (Point?)localPt, maxP, pipeline.Output);
             // Each chart's x axis is a different quantity, so the indicators cannot all
             // carry the same number. Curve 1 and the effective chart are both read against
@@ -1497,6 +1516,11 @@ public partial class MainWindow : Window
     {
         CursorLabel.Text = NoReading;
 
+        // A release that never arrived (the pen left range with a button down) must not stay on screen.
+        _buttons.Reset();
+        ButtonsLabel.Text = _buttons.Text;
+        ToolTip.SetTip(ButtonsLabel, null);
+
         RawPosLabel.Text = NoReading;
         ScreenPosLabel.Text = NoReading;
         AppPosLabel.Text = NoReading;
@@ -1515,7 +1539,9 @@ public partial class MainWindow : Window
     {
         // The captions are static markup now, so these carry the value alone.
         ApplyProximity(inRange: true);
-        CursorLabel.Text = pt.Cursor.ToString();
+        CursorLabel.Text = CursorReadout.Text(pt.Cursor);
+        ButtonsLabel.Text = _buttons.Text;
+        ToolTip.SetTip(ButtonsLabel, _buttons.Detail + "\n" + TabletGestures.Describe());
 
         // RawX means a different thing on each backend -- tablet units, screen pixels,
         // hundredths of a millimetre -- and on the Avalonia, WPF and WinUI paths it means

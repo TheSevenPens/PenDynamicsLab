@@ -169,7 +169,16 @@
                                            Foreground="{DynamicResource Pdl.Muted}" />
                             </Grid>
                         </StackPanel>
-                        <TextBlock x:Name="CursorLabel" Text="--" Classes="readout" Foreground="{DynamicResource Pdl.Muted}" />
+                        <!-- Cursor: the tablet's number for the end of the pen in range (the nib or the eraser). Buttons: which barrel switches are held; the widest
+                             text is laid out invisibly under the readout, so it does not jump as buttons come and go. -->
+                        <Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto">
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Cursor" Classes="fieldLabel" />
+                            <TextBlock Grid.Row="0" Grid.Column="1" x:Name="CursorLabel" Text="--" Classes="readout" Margin="12,0,0,0"
+                                       Foreground="{DynamicResource Pdl.Muted}" />
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Buttons" Classes="fieldLabel" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Classes="sizer" Text="Barrel 1 + 2 + 3" Margin="12,0,0,0" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" x:Name="ButtonsLabel" Text="--" Classes="readout" Margin="12,0,0,0" />
+                        </Grid>
                     </StackPanel>
 
                     <StackPanel Spacing="4">

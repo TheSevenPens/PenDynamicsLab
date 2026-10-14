@@ -181,6 +181,10 @@ Two details matter. The sizer uses `Opacity="0"`, **not** `IsVisible="False"` â€
 
 The field labels are static text, so their `Auto` column was never the problem and is left alone.
 
+### Buttons readout
+
+The `Buttons` line in the ribbon's Pen group says which barrel switches are held: `None`, `Barrel 1`, `Barrel 1 + 2` (Wintab, which tells the buttons apart) or `Barrel` (every pointer backend, which has one barrel flag and so never claims to tell them apart). The text comes from `Diagnostics/ButtonReadout`, a pure class over WinPenKit's `PenButtonTracker`, covered by `ButtonReadoutTests`. `MainWindow.Took` feeds it **every** point, in arrival order, including points that are not drawn: Wintab reports a press or a release as one event on one packet and the state is carried from there, so a skipped packet could leave a button shown as down. `ClearTelemetryReadouts` resets it, so a release that never arrived (the pen left range with a button held) does not stay on screen. The tooltip shows the latest point's raw button value and which encoding it is. The tip is not shown there: it is the pressure readout, and the eraser end is the `Cursor` line above, which shows the cursor number with its name (`13 (pen)`, `14 (eraser)`; any other number is shown bare) from `Diagnostics/CursorReadout`.
+
 ### Theming
 
 `Theming/Palette.axaml` is a `ResourceDictionary` with `ThemeDictionaries` for `Light` and `Dark`, merged into `App.axaml`. Every colour the app draws is a `Pdl.*` key in it; XAML reads them with **`{DynamicResource}`**, never `{StaticResource}` â€” a static reference resolves once at load and silently keeps its old colour through a theme change.
